@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>LH Trip Live Scanner</title>
+  </head>
+  <body>
+    <main class="scanner-shell">
+      <video id="camera" autoplay muted playsinline></video>
+      <div class="shade"></div>
+      <div class="target"><span></span></div>
+      <p id="status">Đang mở camera…</p>
+      <button id="close" class="icon-button close" type="button" aria-label="Đóng">×</button>
+      <div class="controls">
+        <button id="zoom-out" type="button">−</button>
+        <strong id="zoom-label">1x</strong>
+        <button id="zoom-in" type="button">+</button>
+        <button id="torch" type="button" hidden>Đèn</button>
+        <button id="switch" type="button">Đổi camera</button>
+      </div>
+    </main>
+    <script type="module" src="/src/scanner.ts"></script>
+  </body>
+</html>

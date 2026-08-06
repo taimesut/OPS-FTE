@@ -1,0 +1,17 @@
+:root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #020617; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100dvh; overflow: hidden; }
+button { font: inherit; }
+.scanner-shell { position: relative; width: 100vw; height: 100dvh; overflow: hidden; background: #020617; }
+#camera { width: 100%; height: 100%; object-fit: cover; }
+.shade { position: absolute; inset: 0; background: radial-gradient(circle at center, transparent 0 25%, rgb(2 6 23 / .62) 48% 100%); pointer-events: none; }
+.target { position: absolute; top: 50%; left: 50%; width: min(82vw, 420px); height: min(42vw, 220px); transform: translate(-50%, -50%); border: 3px solid #38bdf8; border-radius: 24px; box-shadow: 0 0 0 999px rgb(2 6 23 / .18), 0 0 30px rgb(56 189 248 / .4); overflow: hidden; pointer-events: none; }
+.target span { position: absolute; left: 7%; right: 7%; top: 50%; height: 2px; background: #fb7185; box-shadow: 0 0 14px #fb7185; animation: scan 1.6s ease-in-out infinite alternate; }
+@keyframes scan { from { transform: translateY(-70px); } to { transform: translateY(70px); } }
+#status { position: absolute; left: 16px; right: 16px; top: max(18px, env(safe-area-inset-top)); margin: 0 auto; width: fit-content; max-width: calc(100% - 110px); padding: 10px 14px; border-radius: 999px; background: rgb(2 6 23 / .78); color: #f8fafc; font-size: 14px; font-weight: 700; text-align: center; }
+.icon-button, .controls button { border: 1px solid rgb(255 255 255 / .18); background: rgb(15 23 42 / .86); color: white; }
+.close { position: absolute; top: max(14px, env(safe-area-inset-top)); right: 14px; width: 46px; height: 46px; border-radius: 50%; font-size: 30px; line-height: 1; }
+.controls { position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px; border-radius: 20px; background: rgb(2 6 23 / .72); backdrop-filter: blur(12px); }
+.controls button { min-height: 42px; padding: 0 14px; border-radius: 14px; font-weight: 800; }
+.controls button:disabled { opacity: .35; }
+#zoom-label { min-width: 42px; text-align: center; color: #7dd3fc; }
