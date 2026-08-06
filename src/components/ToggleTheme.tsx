@@ -5,12 +5,12 @@ const THEME_KEY = "theme";
 
 export default function ToggleTheme() {
   const [theme, setTheme] = useState(
-    localStorage.getItem(THEME_KEY) || "light",
+    () => localStorage.getItem(THEME_KEY) || "light",
   );
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-  }, []);
+  }, [theme]);
 
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";

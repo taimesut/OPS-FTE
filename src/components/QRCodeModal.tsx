@@ -23,16 +23,16 @@ export default function QRCodeModal({
       <form method="dialog" className="modal-backdrop">
         <button onClick={onClose}>close</button>
       </form>
-      <div className="modal-box max-w-sm">
+      <div className="modal-box max-w-sm rounded-2xl">
         <h3 className="text-lg font-bold text-center">{title}</h3>
 
         <div className="flex flex-col items-center gap-5 py-5">
-          <div className="rounded-xl bg-white p-4">
+          <div className="rounded-xl bg-white p-4 shadow-md">
             <QRCode value={value} size={220} />
           </div>
 
           <div className="text-center break-all">
-            <div className="font-semibold">{value}</div>
+            <div className="font-mono font-bold text-primary">{value}</div>
 
             {description && (
               <div className="mt-2 text-sm text-base-content/60">
@@ -43,7 +43,7 @@ export default function QRCodeModal({
         </div>
 
         <div className="modal-action justify-center">
-          <button className="btn btn-error " onClick={onClose}>
+          <button className="btn btn-outline rounded-xl px-8" onClick={onClose}>
             Đóng
           </button>
         </div>

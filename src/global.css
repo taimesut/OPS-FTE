@@ -103,3 +103,36 @@ input, select, textarea {
     border: none !important;
   }
 }
+
+/* Glowing Aura Effect */
+.aura {
+  position: relative;
+}
+
+.aura-rainbow {
+  background: linear-gradient(
+    135deg,
+    #f53d2d,
+    #ff6a00,
+    #ffbe00,
+    #00c853,
+    #2196f3,
+    #9c27b0,
+    #f53d2d
+  );
+  background-size: 300% 300%;
+  animation: aura-shift 6s ease infinite;
+  border-radius: 1.5rem;
+  padding: 2px;
+}
+
+@keyframes aura-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Safe area inset for mobile sticky bars */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}

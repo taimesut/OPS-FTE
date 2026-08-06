@@ -273,48 +273,50 @@ export const TaoBienBanSuVuPage = () => {
               Bước 1: Quét hoặc Nhập mã LH TRIP (Linehaul Trip):
             </label>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3">
               <input
                 type="text"
                 value={lhTrip}
                 onChange={(e) => setLhTrip(e.target.value.toUpperCase())}
                 placeholder="Dán hoặc quét mã chuyến LH..."
-                className="input input-bordered flex-1 focus:input-primary text-xl font-mono font-bold tracking-wider rounded-xl uppercase h-14"
+                className="input input-bordered w-full focus:input-primary text-xl font-mono font-bold tracking-wider rounded-xl uppercase h-14"
                 autoFocus
               />
-              {scannerUrl && (
-                <button
-                  type="button"
-                  onClick={() => handleLiveScan("lhtrip")}
-                  className="btn btn-primary h-14 gap-2 rounded-xl text-base font-bold px-5 shadow-xs"
-                >
-                  <QrCode className="w-6 h-6" /> Quét trực tiếp
-                </button>
-              )}
-              <label
-                className={`btn btn-secondary h-14 gap-2 rounded-xl text-base font-bold px-6 shadow-xs ${
-                  decodingCapture ? "btn-disabled" : "cursor-pointer"
-                }`}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  disabled={decodingCapture !== null}
-                  onChange={(event) => void handleCapturedImage(event, "lhtrip")}
-                />
-                {decodingCapture === "lhtrip" ? (
-                  <span className="loading loading-spinner loading-sm" />
-                ) : (
-                  <QrCode className="w-6 h-6" />
+              <div className="flex gap-2">
+                {scannerUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleLiveScan("lhtrip")}
+                    className="btn btn-primary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs"
+                  >
+                    <QrCode className="w-5 h-5" /> Quét trực tiếp
+                  </button>
                 )}
-                📷 {decodingCapture === "lhtrip"
-                  ? "Đang đọc mã..."
-                  : scannerUrl
-                    ? "Chụp ảnh"
-                    : "Chụp mã LH TRIP"}
-              </label>
+                <label
+                  className={`btn btn-secondary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs ${
+                    decodingCapture ? "btn-disabled" : "cursor-pointer"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    disabled={decodingCapture !== null}
+                    onChange={(event) => void handleCapturedImage(event, "lhtrip")}
+                  />
+                  {decodingCapture === "lhtrip" ? (
+                    <span className="loading loading-spinner loading-sm" />
+                  ) : (
+                    <QrCode className="w-5 h-5" />
+                  )}
+                  {decodingCapture === "lhtrip"
+                    ? "Đang đọc mã..."
+                    : scannerUrl
+                      ? "Chụp ảnh"
+                      : "Chụp mã LH TRIP"}
+                </label>
+              </div>
             </div>
           </div>
 
@@ -366,47 +368,49 @@ export const TaoBienBanSuVuPage = () => {
               Bước 2: Thêm đơn bị sự vụ vào LH TRIP
             </h3>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-2">
               <input
                 type="text"
                 value={currentCode}
                 onChange={(e) => setCurrentCode(e.target.value.toUpperCase())}
                 placeholder="Nhập hoặc quét mã đơn bị sự vụ..."
-                className="input input-bordered flex-1 focus:input-primary text-lg font-mono font-bold rounded-xl uppercase"
+                className="input input-bordered w-full focus:input-primary text-lg font-mono font-bold rounded-xl uppercase"
               />
-              {scannerUrl && (
-                <button
-                  type="button"
-                  onClick={() => handleLiveScan("item")}
-                  className="btn btn-primary gap-2 rounded-xl font-bold"
-                >
-                  <QrCode className="w-5 h-5" /> Quét trực tiếp
-                </button>
-              )}
-              <label
-                className={`btn btn-secondary gap-2 rounded-xl font-bold ${
-                  decodingCapture ? "btn-disabled" : "cursor-pointer"
-                }`}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  disabled={decodingCapture !== null}
-                  onChange={(event) => void handleCapturedImage(event, "item")}
-                />
-                {decodingCapture === "item" ? (
-                  <span className="loading loading-spinner loading-xs" />
-                ) : (
-                  <QrCode className="w-5 h-5" />
+              <div className="flex gap-2">
+                {scannerUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleLiveScan("item")}
+                    className="btn btn-primary flex-1 gap-2 rounded-xl font-bold"
+                  >
+                    <QrCode className="w-5 h-5" /> Quét trực tiếp
+                  </button>
                 )}
-                {decodingCapture === "item"
-                  ? "Đang đọc mã..."
-                  : scannerUrl
-                    ? "Chụp ảnh"
-                    : "Chụp mã đơn"}
-              </label>
+                <label
+                  className={`btn btn-secondary flex-1 gap-2 rounded-xl font-bold ${
+                    decodingCapture ? "btn-disabled" : "cursor-pointer"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    disabled={decodingCapture !== null}
+                    onChange={(event) => void handleCapturedImage(event, "item")}
+                  />
+                  {decodingCapture === "item" ? (
+                    <span className="loading loading-spinner loading-xs" />
+                  ) : (
+                    <QrCode className="w-5 h-5" />
+                  )}
+                  {decodingCapture === "item"
+                    ? "Đang đọc mã..."
+                    : scannerUrl
+                      ? "Chụp ảnh"
+                      : "Chụp mã đơn"}
+                </label>
+              </div>
             </div>
 
             {/* Chọn lý do sự vụ */}

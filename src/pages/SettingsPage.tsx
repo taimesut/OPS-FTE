@@ -143,7 +143,7 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-3 md:p-6 font-sans text-base-content space-y-6 pb-24">
+    <div className="mx-auto max-w-4xl p-3 md:p-6 font-sans text-base-content space-y-6 pb-28">
       {/* Header */}
       <div className="border-b border-base-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -274,7 +274,7 @@ export const SettingsPage = () => {
         <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
           <label className="flex items-center gap-2 text-sm font-bold text-accent">
             <MapPin className="w-4 h-4" />
-            4. Danh sách Hubs Nội Tỉnh (Mỗi dòng 1 Hub)
+            5. Danh sách Hubs Nội Tỉnh (Mỗi dòng 1 Hub)
           </label>
           <textarea
             value={hubsText}
@@ -292,7 +292,7 @@ export const SettingsPage = () => {
         <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
           <label className="flex items-center gap-2 text-sm font-bold text-warning">
             <Globe className="w-4 h-4" />
-            5. Danh sách SOCs Ngoại Tỉnh (Mỗi dòng 1 SOC)
+            6. Danh sách SOCs Ngoại Tỉnh (Mỗi dòng 1 SOC)
           </label>
           <textarea
             value={socsText}
@@ -310,7 +310,7 @@ export const SettingsPage = () => {
         <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <Share2 className="w-4 h-4" />
-            6. Cấu hình Nhóm SOC Ngoại Tỉnh (Ký tự @ phân cách)
+            7. Cấu hình Nhóm SOC Ngoại Tỉnh (Ký tự @ phân cách)
           </label>
           <textarea
             value={groupSocsText}
@@ -326,7 +326,7 @@ export const SettingsPage = () => {
       </div>
 
       {/* Sticky Bottom Save Bar for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 p-3 bg-base-100/90 backdrop-blur-md border-t border-base-200 z-30 shadow-2xl flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 right-0 px-3 pt-3 safe-bottom bg-base-100/90 backdrop-blur-md border-t border-base-200 z-30 shadow-2xl flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={handleReset}

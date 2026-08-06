@@ -64,11 +64,6 @@ export const HomePage = () => {
             </h1>
           </div>
 
-          {/* Short Note */}
-          <p className="text-xs text-base-content/60 leading-relaxed font-medium">
-            Hỗ trợ tư vấn, cài đặt, bảo trì & nâng cấp tính năng.
-          </p>
-
           {/* Contact Action Buttons */}
           <div className="space-y-2.5 pt-1">
             <a
