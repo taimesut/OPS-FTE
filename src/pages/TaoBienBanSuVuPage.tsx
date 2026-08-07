@@ -221,7 +221,7 @@ export const TaoBienBanSuVuPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-3 pb-20 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
+    <div className="mx-auto min-w-0 max-w-4xl p-3 pb-20 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
       <EmbeddedQRScanner
         open={scannerMode !== null}
         mode={scannerMode}
@@ -231,12 +231,12 @@ export const TaoBienBanSuVuPage = () => {
 
       {/* Header Section */}
       <div className="border-b border-base-200 pb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-start gap-2">
             <span className="p-2 bg-primary/10 text-primary rounded-xl">
               <Truck className="w-5 h-5" />
             </span>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
+            <h1 className="min-w-0 break-words text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
               Tạo Biên Bản Sự Vụ LH TRIP
             </h1>
           </div>
@@ -248,7 +248,7 @@ export const TaoBienBanSuVuPage = () => {
 
       {/* BƯỚC 1: Quét / Nhập mã LH TRIP */}
       {step === "lhtrip" && (
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 md:p-8 space-y-6">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 sm:rounded-2xl sm:p-5 md:p-8 space-y-6">
           <div className="space-y-3">
             <label className="text-base font-bold flex items-center gap-2 text-base-content">
               <Truck className="w-5 h-5 text-primary" />
@@ -314,23 +314,23 @@ export const TaoBienBanSuVuPage = () => {
       {step === "scan_items" && (
         <div className="space-y-6">
           {/* Active LH TRIP Banner */}
-          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
+          <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 sm:rounded-2xl sm:p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="p-2 bg-primary text-primary-content rounded-xl font-bold">
                 <Truck className="w-5 h-5" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <span className="text-xs text-base-content/60 font-semibold block">
                   Mã LH TRIP đang chọn:
                 </span>
-                <strong className="text-xl font-mono font-black text-primary">
+                <strong className="block break-all text-xl font-mono font-black text-primary">
                   {lhTrip}
                 </strong>
               </div>
             </div>
             <button
               onClick={() => setStep("lhtrip")}
-              className="btn btn-sm min-h-11 btn-ghost text-xs gap-1 self-start sm:self-auto"
+              className="btn btn-sm min-h-11 w-full btn-ghost text-xs gap-1 self-stretch sm:w-auto sm:self-auto"
             >
               <ChevronLeft className="w-4 h-4" /> Đổi LH TRIP
             </button>
@@ -339,9 +339,9 @@ export const TaoBienBanSuVuPage = () => {
           {/* Form thêm đơn hàng sự vụ */}
           <form
             onSubmit={handleAddItem}
-            className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 md:p-6 space-y-4"
+            className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 sm:rounded-2xl sm:p-5 md:p-6 space-y-4"
           >
-            <h3 className="text-base font-bold flex items-center gap-2">
+            <h3 className="flex min-w-0 items-start gap-2 text-base font-bold">
               <Package className="w-5 h-5 text-secondary" />
               Bước 2: Thêm đơn bị sự vụ vào LH TRIP
             </h3>
@@ -426,14 +426,14 @@ export const TaoBienBanSuVuPage = () => {
 
           {/* Bảng danh sách đơn sự vụ đã thêm */}
           <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-base-200 bg-base-200/30 flex items-center justify-between">
-              <span className="font-bold text-sm">
+            <div className="flex flex-col items-stretch gap-3 border-b border-base-200 bg-base-200/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="min-w-0 text-sm font-bold">
                 Danh sách đơn sự vụ ({items.length} đơn)
               </span>
               {items.length > 0 && (
                 <button
                   onClick={() => setStep("preview")}
-                  className="btn btn-sm min-h-11 btn-primary gap-1.5 rounded-xl font-bold"
+                  className="btn btn-sm min-h-11 w-full btn-primary gap-1.5 rounded-xl font-bold sm:w-auto"
                 >
                   <FileText className="w-4 h-4" /> Xem trước & Gửi log
                 </button>
@@ -499,18 +499,18 @@ export const TaoBienBanSuVuPage = () => {
       {step === "preview" && (
         <div className="space-y-6">
           {/* Action Toolbar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-base-100 p-4 border border-base-200 rounded-2xl shadow-xs">
+          <div className="sticky bottom-2 z-20 flex flex-col items-stretch justify-between gap-3 rounded-xl border border-base-200 bg-base-100/95 p-3 shadow-lg backdrop-blur safe-bottom sm:flex-row sm:items-center sm:rounded-2xl sm:p-4 md:static md:shadow-xs">
             <button
               onClick={() => setStep("scan_items")}
               className="btn btn-sm min-h-11 btn-ghost gap-1 rounded-xl"
             >
               <ChevronLeft className="w-4 h-4" /> Quay lại thêm đơn
             </button>
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
               <button
                 onClick={handleSendLogToGgSheet}
                 disabled={isSending}
-                className="btn btn-sm min-h-11 btn-success text-success-content gap-1.5 rounded-xl font-bold shadow-xs"
+                className="btn btn-sm min-h-11 w-full btn-success text-success-content gap-1.5 rounded-xl font-bold shadow-xs sm:w-auto"
               >
                 {isSending ? (
                   <span className="loading loading-spinner loading-xs"></span>
@@ -522,14 +522,14 @@ export const TaoBienBanSuVuPage = () => {
 
               <button
                 onClick={handlePrint}
-                className="btn btn-sm min-h-11 btn-primary gap-1.5 rounded-xl font-bold shadow-xs"
+                className="btn btn-sm min-h-11 w-full btn-primary gap-1.5 rounded-xl font-bold shadow-xs sm:w-auto"
               >
                 <Printer className="w-4 h-4" /> In biên bản
               </button>
 
               <button
                 onClick={resetAll}
-                className="btn btn-sm min-h-11 btn-outline rounded-xl"
+                className="btn btn-sm min-h-11 w-full btn-outline rounded-xl sm:w-auto"
               >
                 Tạo LH TRIP mới
               </button>
@@ -538,13 +538,13 @@ export const TaoBienBanSuVuPage = () => {
 
           {/* Formatted Log String Preview Box */}
           <div className="card bg-slate-900 text-slate-100 rounded-2xl p-5 space-y-3 shadow-lg">
-            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+            <div className="flex flex-col items-stretch gap-3 border-b border-slate-700 pb-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="min-w-0 text-xs font-bold text-amber-400 uppercase tracking-wider">
                 Định dạng xuất log Google Sheet (2 Cột)
               </span>
               <button
                 onClick={handleCopyFormattedLog}
-                className="btn btn-xs btn-outline btn-warning gap-1 rounded-lg"
+                className="btn btn-sm min-h-10 btn-outline btn-warning gap-1 rounded-lg sm:btn-xs"
               >
                 <Copy className="w-3.5 h-3.5" /> Sao chép chuỗi
               </button>
@@ -568,7 +568,7 @@ export const TaoBienBanSuVuPage = () => {
           </div>
 
           {/* Printable Report Document Card */}
-          <div className="bg-white text-slate-900 border border-slate-300 rounded-2xl p-6 md:p-8 shadow-md font-sans print:shadow-none print:border-none">
+          <div className="min-w-0 overflow-hidden bg-white text-slate-900 border border-slate-300 rounded-xl p-4 shadow-md font-sans sm:rounded-2xl sm:p-6 md:p-8 print:shadow-none print:border-none">
             <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
               <h2 className="text-xl md:text-2xl font-black uppercase tracking-wide text-slate-900">
                 BIÊN BẢN SỰ VỤ TỔNG HỢP LH TRIP
@@ -582,7 +582,8 @@ export const TaoBienBanSuVuPage = () => {
               <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">
                 Danh sách chi tiết {items.length} đơn sự vụ:
               </h4>
-              <table className="w-full text-xs md:text-sm border border-slate-300">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[30rem] text-xs md:text-sm border border-slate-300">
                 <thead>
                   <tr className="bg-slate-100 text-slate-800 border-b border-slate-300">
                     <th className="p-2 w-12 text-center border-r border-slate-300">STT</th>
@@ -604,10 +605,11 @@ export const TaoBienBanSuVuPage = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Signature blocks */}
-            <div className="grid grid-cols-2 text-center text-xs pt-6 border-t border-slate-300">
+            <div className="grid grid-cols-1 gap-8 text-center text-xs pt-6 border-t border-slate-300 sm:grid-cols-2 sm:gap-0">
               <div>
                 <strong className="block font-bold text-slate-900">NGƯỜI LẬP BIÊN BẢN</strong>
                 <span className="text-slate-500">(Ký & ghi rõ họ tên)</span>

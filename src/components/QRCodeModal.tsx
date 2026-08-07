@@ -18,17 +18,17 @@ export default function QRCodeModal({
   if (!open) return null;
 
   return (
-    <dialog className="modal modal-open p-2 sm:p-4">
+    <dialog className="modal modal-open p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:p-4">
       {/* Click nền để đóng */}
       <form method="dialog" className="modal-backdrop">
         <button onClick={onClose}>close</button>
       </form>
-      <div className="modal-box max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-sm overflow-y-auto rounded-2xl p-4 sm:p-6">
-        <h3 className="text-lg font-bold text-center">{title}</h3>
+      <div className="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-sm overflow-y-auto rounded-xl p-3 sm:rounded-2xl sm:p-6">
+        <h3 className="break-words text-center text-lg font-bold">{title}</h3>
 
         <div className="flex flex-col items-center gap-5 py-5">
-          <div className="rounded-xl bg-white p-4 shadow-md">
-            <QRCode value={value} size={220} />
+          <div className="max-w-full rounded-xl bg-white p-3 shadow-md sm:p-4">
+            <QRCode value={value} size={220} style={{ maxWidth: "100%", height: "auto" }} />
           </div>
 
           <div className="text-center break-all">
@@ -42,7 +42,7 @@ export default function QRCodeModal({
           </div>
         </div>
 
-        <div className="modal-action justify-center">
+        <div className="modal-action justify-center pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <button className="btn btn-outline min-h-11 rounded-xl px-8" onClick={onClose}>
             Đóng
           </button>

@@ -52,11 +52,11 @@ const ZaloIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 
 export const HomePage = () => {
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden p-3 sm:p-4 font-sans">
+    <div className="flex min-h-[calc(100vh-3.5rem)] min-w-0 w-full items-center justify-center overflow-hidden p-3 sm:p-4 font-sans">
       {/* Glowing Rainbow Aura Outer Wrapper */}
       <div className="aura aura-rainbow p-1 rounded-3xl">
         {/* Support Contact Card */}
-        <div className="relative w-full max-w-sm bg-base-100/95 backdrop-blur-xl border border-base-200 shadow-2xl rounded-3xl p-5 sm:p-6 space-y-5 text-center">
+        <div className="relative w-full max-w-[calc(100vw-1.5rem)] bg-base-100/95 backdrop-blur-xl border border-base-200 shadow-2xl rounded-2xl p-4 sm:max-w-sm sm:rounded-3xl sm:p-6 space-y-5 text-center">
           {/* Header */}
           <div className="space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-primary">

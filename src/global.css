@@ -23,6 +23,9 @@ body {
   --pc: 0 0% 100%;
   --s: 25 100% 50%;
   --sc: 0 0% 100%;
+  --app-gutter-mobile: 0.75rem;
+  --app-gutter-tablet: 1rem;
+  --app-gutter-desktop: 1.5rem;
 }
 
 [data-theme="light"] {
@@ -137,8 +140,54 @@ input, select, textarea {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
+.safe-bottom-margin {
+  margin-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 767px) {
+  .mobile-page {
+    padding-inline: var(--app-gutter-mobile);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .mobile-page {
+    padding-inline: var(--app-gutter-tablet);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-page {
+    padding-inline: var(--app-gutter-desktop);
+  }
+}
+
 html {
   min-width: 320px;
+  overflow-x: hidden;
+}
+
+#root {
+  min-width: 0;
+}
+
+.app-shell {
+  isolation: isolate;
+}
+
+.app-main {
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.settings-page {
+  padding-bottom: max(7rem, env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .settings-page {
+    padding-bottom: 1.5rem;
+  }
 }
 
 button,

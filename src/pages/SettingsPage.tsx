@@ -140,15 +140,15 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-3 pb-32 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
+    <div className="settings-page mx-auto min-w-0 max-w-4xl p-3 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
       {/* Header */}
       <div className="border-b border-base-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-start gap-2">
             <span className="p-2 bg-primary/10 text-primary rounded-xl">
               <Settings className="w-5 h-5" />
             </span>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
+            <h1 className="min-w-0 break-words text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
               Cài Đặt Cấu Hình
             </h1>
           </div>
@@ -158,21 +158,21 @@ export const SettingsPage = () => {
         </div>
 
         {/* Action Header Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center">
           <button
             onClick={handleLoadSample}
-            className="btn btn-sm btn-ghost gap-1.5 rounded-xl text-primary font-bold bg-primary/10 hover:bg-primary/20"
+            className="btn min-h-11 flex-1 btn-ghost gap-1.5 rounded-xl text-primary font-bold bg-primary/10 hover:bg-primary/20 sm:flex-none"
             title="Tải dữ liệu mẫu Pleiku SOC"
           >
             <Sparkles className="w-4 h-4" /> Tải mẫu
           </button>
           <button
             onClick={handleExportJSON}
-            className="btn btn-sm btn-outline gap-1.5 rounded-xl"
+            className="btn min-h-11 flex-1 btn-outline gap-1.5 rounded-xl sm:flex-none"
           >
             <Download className="w-4 h-4" /> Xuất JSON
           </button>
-          <label className="btn btn-sm btn-outline gap-1.5 rounded-xl cursor-pointer">
+          <label className="btn min-h-11 flex-1 btn-outline gap-1.5 rounded-xl cursor-pointer sm:flex-none">
             <Upload className="w-4 h-4" /> Nhập JSON
             <input
               type="file"
@@ -187,7 +187,7 @@ export const SettingsPage = () => {
       {/* Form Fields Section */}
       <div className="space-y-6">
         {/* 1. Mã SOC hiện tại */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-primary">
             <Building className="w-4 h-4" />
             1. Tên SOC
@@ -205,7 +205,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 2. Cookie Shopee Express */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center justify-between text-sm font-bold text-secondary">
             <span className="flex items-center gap-2">
               <Key className="w-4 h-4" />
@@ -232,7 +232,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 3. Link Google Sheet Log Sự Vụ */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-success">
             <FileSpreadsheet className="w-4 h-4" />
             3. Link Google Sheet / GAS Web App URL nhận Log Sự Vụ
@@ -250,7 +250,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 4. Scanner live */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <ScanLine className="w-4 h-4" />
             4. Scanner QR trực tiếp
@@ -264,7 +264,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 5. Hubs nội tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-accent">
             <MapPin className="w-4 h-4" />
             5. Danh sách Hubs Nội Tỉnh (Mỗi dòng 1 Hub)
@@ -282,7 +282,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 5. SOCs ngoại tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-warning">
             <Globe className="w-4 h-4" />
             6. Danh sách SOCs Ngoại Tỉnh (Mỗi dòng 1 SOC)
@@ -300,7 +300,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 6. Nhóm SOCs ngoại tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
+        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <Share2 className="w-4 h-4" />
             7. Cấu hình Nhóm SOC Ngoại Tỉnh (Ký tự @ phân cách)
@@ -319,11 +319,11 @@ export const SettingsPage = () => {
       </div>
 
       {/* Sticky Bottom Save Bar for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 px-3 pt-3 safe-bottom bg-base-100/90 backdrop-blur-md border-t border-base-200 z-30 shadow-2xl flex items-center justify-between gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-base-200 bg-base-100/95 px-3 pt-3 shadow-2xl backdrop-blur-md safe-bottom md:static md:mt-2 md:border-t-0 md:bg-transparent md:px-0 md:pt-0 md:shadow-none md:backdrop-blur-none">
         <button
           type="button"
           onClick={handleReset}
-          className="btn btn-sm min-h-11 btn-ghost text-error gap-1 rounded-xl"
+          className="btn min-h-11 btn-ghost text-error gap-1 rounded-xl"
         >
           <RefreshCw className="w-4 h-4 text-error" /> Xóa
         </button>
@@ -331,7 +331,7 @@ export const SettingsPage = () => {
         <button
           type="button"
           onClick={handleSave}
-          className="btn btn-primary min-h-11 gap-2 rounded-xl px-6 sm:px-8 shadow-md font-bold text-base"
+          className="btn min-h-11 flex-1 gap-2 rounded-xl px-4 shadow-md font-bold text-base sm:flex-none sm:px-8"
         >
           <Save className="w-5 h-5" />
           Lưu Cài Đặt

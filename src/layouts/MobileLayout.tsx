@@ -51,7 +51,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
   ];
 
   return (
-    <div className="drawer min-h-screen bg-base-100 font-sans relative overflow-x-hidden">
+    <div className="drawer app-shell min-h-screen bg-base-100 font-sans relative overflow-x-hidden">
 
       {/* Drawer Toggle Checkbox */}
       <input
@@ -63,7 +63,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       {/* Main Drawer Content */}
       <div className="drawer-content flex min-h-screen min-w-0 flex-col relative z-10">
         {/* Sticky Top Navbar */}
-        <header className="navbar min-h-14 bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-2 sm:px-3 md:px-6">
+        <header className="navbar h-14 min-h-14 bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-2 sm:px-3 md:px-6">
           <div className="flex-none">
             <label
               htmlFor="mobile-sidebar-drawer"
@@ -89,7 +89,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
         </header>
 
         {/* Dynamic Page View Container */}
-        <main className="min-w-0 flex-1 bg-base-200/40 pb-20 md:pb-12">{children}</main>
+        <main className="app-main min-w-0 flex-1 bg-base-200/40 pb-20 md:pb-12">{children}</main>
       </div>
 
       {/* Drawer Sidebar */}
@@ -100,7 +100,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
           className="drawer-overlay"
         ></label>
 
-        <div className="menu bg-base-100 text-base-content min-h-full w-[min(86vw,20rem)] p-4 sm:p-5 flex flex-col justify-between shadow-2xl">
+        <div className="menu bg-base-100 text-base-content min-h-full w-[min(86vw,20rem)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5 flex flex-col justify-between shadow-2xl">
           <div className="space-y-5">
             {/* Sidebar Header */}
             <div className="pb-4 border-b border-base-200 flex items-center justify-between">

@@ -67,7 +67,7 @@ const TransferOrderCard = ({
   visibleColumns,
   onViewQR,
 }: TransferOrderCardProps) => (
-  <article className="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-xs">
+  <article className="rounded-xl border border-base-200 bg-base-100 p-4 shadow-xs sm:rounded-2xl">
     <div className="flex items-start justify-between gap-3 border-b border-base-200 pb-3">
       <div className="min-w-0">
         <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Mã TO</span>
@@ -239,8 +239,8 @@ export const TOTable = ({
   return (
     <div className="space-y-4">
       {/* Dynamic Stats Banner - 2 Columns */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-xs p-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        <div className="stat min-w-0 bg-base-100 border border-base-200 rounded-xl shadow-xs p-3 sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số TO
           </div>
@@ -254,7 +254,7 @@ export const TOTable = ({
           </div>
         </div>
 
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-xs p-4">
+        <div className="stat min-w-0 bg-base-100 border border-base-200 rounded-xl shadow-xs p-3 sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số kiện
           </div>
@@ -268,7 +268,7 @@ export const TOTable = ({
       {/* Main Card Container */}
       <div className="rounded-2xl border border-base-200 bg-base-100 shadow-xs overflow-hidden">
         {/* Toolbar Controls */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-4 bg-base-200/30 border-b border-base-200">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 sm:p-4 bg-base-200/30 border-b border-base-200">
           {/* Tìm kiếm nhanh */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
@@ -284,7 +284,7 @@ export const TOTable = ({
             />
           </div>
 
-          <div className="flex items-center justify-between md:justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
             {/* Button Tùy chọn cột */}
             <div className="relative" ref={dropdownRef}>
               <button
@@ -296,7 +296,7 @@ export const TOTable = ({
               </button>
 
               {showColumnConfig && (
-                <div className="absolute right-0 top-full mt-2 w-56 z-30 rounded-2xl border border-base-200 bg-base-100 p-3 shadow-2xl animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 top-full z-30 mt-2 w-[min(14rem,calc(100vw-2rem))] rounded-2xl border border-base-200 bg-base-100 p-3 shadow-2xl animate-in fade-in zoom-in-95">
                   <div className="mb-2 border-b border-base-200 pb-2 text-xs font-bold text-base-content/50 uppercase tracking-wider">
                     Hiển thị cột
                   </div>
@@ -503,16 +503,16 @@ export const TOTable = ({
               kết quả
             </div>
 
-            <div className="join">
+            <div className="join w-full sm:w-auto">
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="join-item btn btn-xs min-h-10 btn-outline rounded-l-xl"
+                className="join-item btn btn-xs min-h-10 flex-1 btn-outline rounded-l-xl sm:flex-none"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Trước
               </button>
-              <button className="join-item btn btn-xs min-h-10 btn-disabled opacity-100 bg-base-200 font-bold px-3">
+              <button className="join-item btn btn-xs min-h-10 flex-1 btn-disabled opacity-100 bg-base-200 font-bold px-3 sm:flex-none">
                 Trang {currentPage} / {totalPages || 1}
               </button>
               <button
@@ -520,7 +520,7 @@ export const TOTable = ({
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
-                className="join-item btn btn-xs min-h-10 btn-outline rounded-r-xl"
+                className="join-item btn btn-xs min-h-10 flex-1 btn-outline rounded-r-xl sm:flex-none"
               >
                 Sau
                 <ArrowRight className="w-3 h-3" />

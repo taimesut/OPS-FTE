@@ -52,7 +52,7 @@ export const ToastContainer = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast toast-top toast-end z-50 w-[calc(100%-1rem)] max-w-sm space-y-2 p-2 sm:p-4">
+    <div className="toast toast-top toast-end z-50 w-[calc(100vw-1rem)] max-w-sm space-y-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:p-4">
       {toasts.map((toast) => {
         const getAlertClass = () => {
           switch (toast.type) {
@@ -85,7 +85,7 @@ export const ToastContainer = () => {
         return (
           <div
             key={toast.id}
-            className={`alert ${getAlertClass()} shadow-lg flex items-center justify-between transition-all duration-300 animate-in fade-in slide-in-from-top-2 rounded-xl border border-white/10`}
+            className={`alert ${getAlertClass()} min-w-0 shadow-lg flex items-start justify-between gap-2 transition-all duration-300 animate-in fade-in slide-in-from-top-2 rounded-xl border border-white/10`}
           >
             <div className="flex items-center gap-3 pr-2 overflow-hidden">
               {getIcon()}
