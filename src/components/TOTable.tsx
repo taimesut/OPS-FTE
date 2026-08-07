@@ -288,12 +288,12 @@ export const TOTable = ({
                       <td>
                         <span
                           className={`badge badge-sm font-semibold ${
-                            item.dg_type && item.dg_type[0] !== 1
-                              ? "badge-warning"
-                              : "badge-ghost opacity-70"
+                            item.dg_type.length === 0 || item.dg_type[0] === 1
+                              ? "badge-ghost opacity-70"
+                              : "badge-warning"
                           }`}
                         >
-                          {item.dg_type && item.dg_type[0] === 1
+                          {item.dg_type.length === 0 || item.dg_type[0] === 1
                             ? "NON DG"
                             : "DG"}
                         </span>
