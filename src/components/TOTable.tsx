@@ -46,6 +46,119 @@ interface TOTableProps {
   emptyDescription?: string;
 }
 
+const formatTransferTime = (time: number) => {
+  if (!time) return "---";
+  return new Date(time * 1000).toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+  });
+};
+
+interface TransferOrderCardProps {
+  item: TransferOrder;
+  visibleColumns: string[];
+  onViewQR: () => void;
+}
+
+const TransferOrderCard = ({
+  item,
+  visibleColumns,
+  onViewQR,
+}: TransferOrderCardProps) => (
+  <article className="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-xs">
+    <div className="flex items-start justify-between gap-3 border-b border-base-200 pb-3">
+      <div className="min-w-0">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Mã TO</span>
+        <p className="break-all font-mono text-base font-black text-primary">
+          {item.to_number}
+        </p>
+      </div>
+      {visibleColumns.includes("action") && (
+        <button
+          type="button"
+          className="btn btn-sm min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
+          onClick={onViewQR}
+        >
+          <QrCode className="h-4 w-4" />
+          QR
+        </button>
+      )}
+    </div>
+
+    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+      {visibleColumns.includes("route") && (
+        <div className="col-span-2 min-w-0">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Điểm đến</dt>
+          <dd className="break-words font-semibold">{item.receiver || "---"}</dd>
+        </div>
+      )}
+      {visibleColumns.includes("operator") && (
+        <div className="min-w-0">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Người đóng</dt>
+          <dd className="break-words font-medium">{item.operator || "---"}</dd>
+        </div>
+      )}
+      {visibleColumns.includes("pack_name") && (
+        <div className="min-w-0">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Tên bao</dt>
+          <dd className="break-words font-medium">{item.pack_name || "Mặc định"}</dd>
+        </div>
+      )}
+      {visibleColumns.includes("quantity") && (
+        <div>
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Số kiện</dt>
+          <dd className="font-bold">{item.quantity}</dd>
+        </div>
+      )}
+      {visibleColumns.includes("weight") && (
+        <div>
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Khối lượng</dt>
+          <dd className="font-medium">{(item.weight / 1000).toFixed(2)} kg</dd>
+        </div>
+      )}
+      {visibleColumns.includes("high_value") && (
+        <div>
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">GTC</dt>
+          <dd>
+            <span className={`badge badge-sm font-semibold ${item.high_value === 1 ? "badge-error text-error-content" : "badge-ghost opacity-70"}`}>
+              {item.high_value === 1 ? "GTC (Y)" : "N"}
+            </span>
+          </dd>
+        </div>
+      )}
+      {visibleColumns.includes("dg_type") && (
+        <div>
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">DG</dt>
+          <dd>
+            <span className={`badge badge-sm font-semibold ${item.dg_type.length === 0 || item.dg_type[0] === 1 ? "badge-ghost opacity-70" : "badge-warning"}`}>
+              {item.dg_type.length === 0 || item.dg_type[0] === 1 ? "NON DG" : "DG"}
+            </span>
+          </dd>
+        </div>
+      )}
+      {visibleColumns.includes("status") && (
+        <div className="col-span-2">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Trạng thái</dt>
+          <dd>
+            <span className="badge badge-success badge-sm gap-1 border-0 bg-success/15 font-bold text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {item.status || "Đã đóng gói"}
+            </span>
+          </dd>
+        </div>
+      )}
+      {visibleColumns.includes("complete_time") && (
+        <div className="col-span-2">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Thời gian HT</dt>
+          <dd className="text-base-content/70">{formatTransferTime(item.complete_time)}</dd>
+        </div>
+      )}
+    </dl>
+  </article>
+);
+
 export const TOTable = ({
   orders,
   storageKey,
@@ -123,16 +236,6 @@ export const TOTable = ({
     );
   };
 
-  const formatTime = (time: number) => {
-    if (!time) return "---";
-    return new Date(time * 1000).toLocaleString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "2-digit",
-    });
-  };
-
   return (
     <div className="space-y-4">
       {/* Dynamic Stats Banner - 2 Columns */}
@@ -177,7 +280,7 @@ export const TOTable = ({
                 setCurrentPage(1);
               }}
               placeholder="Tìm kiếm mã TO, người đóng, điểm đến..."
-              className="input input-sm input-bordered w-full pl-9 focus:input-primary rounded-xl"
+              className="input input-sm input-bordered min-h-11 w-full pl-9 focus:input-primary rounded-xl"
             />
           </div>
 
@@ -186,7 +289,7 @@ export const TOTable = ({
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowColumnConfig(!showColumnConfig)}
-                className="btn btn-sm btn-outline gap-2 rounded-xl border-base-300 hover:border-primary"
+                className="btn btn-sm min-h-11 btn-outline gap-2 rounded-xl border-base-300 hover:border-primary"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 <span className="hidden sm:inline">Tùy chọn cột</span>
@@ -228,7 +331,7 @@ export const TOTable = ({
                   setItemsPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="select select-bordered select-sm rounded-xl"
+                className="select select-bordered select-sm min-h-11 rounded-xl"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
@@ -241,7 +344,21 @@ export const TOTable = ({
 
         {/* Data Table */}
         {filteredOrders.length > 0 ? (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 p-3 md:hidden">
+            {currentOrders.map((item) => (
+              <TransferOrderCard
+                key={item.to_number}
+                item={item}
+                visibleColumns={visibleColumns}
+                onViewQR={() => {
+                  setSelectedTO(item);
+                  setShowQR(true);
+                }}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="table table-sm md:table-md w-full whitespace-nowrap">
               <thead className="bg-base-200/50 text-base-content font-bold border-b border-base-200">
                 <tr>
@@ -331,7 +448,7 @@ export const TOTable = ({
                     )}
                     {visibleColumns.includes("complete_time") && (
                       <td className="text-xs text-base-content/70">
-                        {formatTime(item.complete_time)}
+                        {formatTransferTime(item.complete_time)}
                       </td>
                     )}
                     {visibleColumns.includes("action") && (
@@ -353,6 +470,7 @@ export const TOTable = ({
               </tbody>
             </table>
           </div>
+          </>
         ) : (
           /* Empty State */
           <div className="p-12 flex flex-col items-center justify-center text-center">
@@ -389,12 +507,12 @@ export const TOTable = ({
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="join-item btn btn-xs btn-outline rounded-l-xl"
+                className="join-item btn btn-xs min-h-10 btn-outline rounded-l-xl"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Trước
               </button>
-              <button className="join-item btn btn-xs btn-disabled opacity-100 bg-base-200 font-bold px-3">
+              <button className="join-item btn btn-xs min-h-10 btn-disabled opacity-100 bg-base-200 font-bold px-3">
                 Trang {currentPage} / {totalPages || 1}
               </button>
               <button
@@ -402,7 +520,7 @@ export const TOTable = ({
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
-                className="join-item btn btn-xs btn-outline rounded-r-xl"
+                className="join-item btn btn-xs min-h-10 btn-outline rounded-r-xl"
               >
                 Sau
                 <ArrowRight className="w-3 h-3" />

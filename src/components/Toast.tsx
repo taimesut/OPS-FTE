@@ -52,7 +52,7 @@ export const ToastContainer = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast toast-top toast-end z-50 p-4 space-y-2 max-w-sm w-full">
+    <div className="toast toast-top toast-end z-50 w-[calc(100%-1rem)] max-w-sm space-y-2 p-2 sm:p-4">
       {toasts.map((toast) => {
         const getAlertClass = () => {
           switch (toast.type) {
@@ -95,7 +95,7 @@ export const ToastContainer = () => {
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="btn btn-xs btn-ghost btn-circle opacity-70 hover:opacity-100"
+              className="btn btn-xs btn-ghost btn-circle min-h-10 min-w-10 opacity-70 hover:opacity-100"
               aria-label="Đóng thông báo"
             >
               <X className="w-4 h-4" />

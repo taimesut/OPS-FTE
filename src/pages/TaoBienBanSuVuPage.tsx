@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { showToast } from "../components/Toast";
-import { getLogUrl, getScannerUrl } from "../utils/config";
+import { getLogUrl } from "../utils/config";
 import { decodeBarcodeImage } from "../utils/barcode";
+import EmbeddedQRScanner, { type ScanMode } from "../components/EmbeddedQRScanner";
 import {
   QrCode,
   FileText,
@@ -30,16 +31,39 @@ const REASON_OPTIONS = [
   "Sự vụ bất thường khác",
 ];
 
+interface IncidentItemCardProps {
+  item: IncidentItem;
+  index: number;
+  onRemove: () => void;
+}
+
+const IncidentItemCard = ({ item, index, onRemove }: IncidentItemCardProps) => (
+  <article className="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-xs">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Đơn sự vụ #{index + 1}</span>
+        <p className="mt-1 break-all font-mono text-base font-black text-primary">{item.trackingCode}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="btn btn-ghost btn-circle min-h-11 min-w-11 shrink-0 text-error"
+        aria-label="Xóa đơn sự vụ"
+      >
+        <Trash2 className="h-5 w-5" />
+      </button>
+    </div>
+    <div className="mt-3 border-t border-base-200 pt-3">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Lý do sự vụ</span>
+      <p className="mt-1 text-sm font-semibold">{item.reason}</p>
+    </div>
+  </article>
+);
+
 export const TaoBienBanSuVuPage = () => {
   const [step, setStep] = useState<"lhtrip" | "scan_items" | "preview">("lhtrip");
   const [decodingCapture, setDecodingCapture] = useState<"lhtrip" | "item" | null>(null);
-  const [pendingScan, setPendingScan] = useState<{
-    mode: "lhtrip" | "item";
-    requestId: string;
-    origin: string;
-  } | null>(null);
-  const scannerPopupRef = useRef<Window | null>(null);
-  const scannerUrl = getScannerUrl();
+  const [scannerMode, setScannerMode] = useState<ScanMode | null>(null);
 
   // Step 1: Mã LH TRIP
   const [lhTrip, setLhTrip] = useState("");
@@ -52,7 +76,7 @@ export const TaoBienBanSuVuPage = () => {
   // Step 3: Submitting state
   const [isSending, setIsSending] = useState(false);
 
-  const applyScannedValue = (value: string, mode: "lhtrip" | "item") => {
+  const applyScannedValue = useCallback((value: string, mode: ScanMode) => {
     const cleanCode = value.trim().toUpperCase();
     if (!cleanCode) return;
     if (mode === "lhtrip") {
@@ -63,61 +87,12 @@ export const TaoBienBanSuVuPage = () => {
       setCurrentCode(cleanCode);
       showToast(`Đã nhận diện mã đơn: ${cleanCode}`, "info");
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    if (!pendingScan) return;
-    const receiveScan = (event: MessageEvent) => {
-      const data = event.data as {
-        type?: string;
-        requestId?: string;
-        value?: string;
-      };
-      if (
-        event.origin !== pendingScan.origin ||
-        event.source !== scannerPopupRef.current ||
-        data?.type !== "LH_TRIP_SCAN_RESULT" ||
-        data.requestId !== pendingScan.requestId ||
-        typeof data.value !== "string"
-      ) {
-        return;
-      }
-      applyScannedValue(data.value, pendingScan.mode);
-      scannerPopupRef.current?.close();
-      scannerPopupRef.current = null;
-      setPendingScan(null);
-    };
-    window.addEventListener("message", receiveScan);
-    return () => window.removeEventListener("message", receiveScan);
-  }, [pendingScan]);
-
-  const handleLiveScan = (mode: "lhtrip" | "item") => {
-    try {
-      const url = new URL(scannerUrl);
-      if (url.protocol !== "https:") {
-        showToast("URL Scanner phải sử dụng HTTPS!", "warning");
-        return;
-      }
-      const requestId = crypto.randomUUID();
-      url.searchParams.set("requestId", requestId);
-      url.searchParams.set("targetOrigin", window.location.origin);
-      scannerPopupRef.current?.close();
-      const popup = window.open(
-        url.toString(),
-        `lh-trip-scanner-${requestId}`,
-        "popup,width=480,height=720",
-      );
-      if (!popup) {
-        showToast("Trình duyệt đã chặn cửa sổ Scanner. Hãy cho phép popup!", "warning");
-        return;
-      }
-      scannerPopupRef.current = popup;
-      setPendingScan({ mode, requestId, origin: url.origin });
-    } catch {
-      showToast("URL Scanner trong Cài đặt không hợp lệ!", "error");
-    }
-  };
-
+  const handleEmbeddedScan = useCallback((value: string, mode: ScanMode) => {
+    applyScannedValue(value, mode);
+    setScannerMode(null);
+  }, [applyScannedValue]);
   const handleCapturedImage = async (
     event: React.ChangeEvent<HTMLInputElement>,
     mode: "lhtrip" | "item",
@@ -246,15 +221,22 @@ export const TaoBienBanSuVuPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-3 md:p-6 font-sans text-base-content space-y-6">
+    <div className="mx-auto max-w-4xl p-3 pb-20 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
+      <EmbeddedQRScanner
+        open={scannerMode !== null}
+        mode={scannerMode}
+        onScan={handleEmbeddedScan}
+        onClose={() => setScannerMode(null)}
+      />
+
       {/* Header Section */}
-      <div className="border-b border-base-200 pb-4 flex items-center justify-between">
+      <div className="border-b border-base-200 pb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 bg-primary/10 text-primary rounded-xl">
               <Truck className="w-5 h-5" />
             </span>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
               Tạo Biên Bản Sự Vụ LH TRIP
             </h1>
           </div>
@@ -282,16 +264,14 @@ export const TaoBienBanSuVuPage = () => {
                 className="input input-bordered w-full focus:input-primary text-xl font-mono font-bold tracking-wider rounded-xl uppercase h-14"
                 autoFocus
               />
-              <div className="flex gap-2">
-                {scannerUrl && (
-                  <button
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
                     type="button"
-                    onClick={() => handleLiveScan("lhtrip")}
+                    onClick={() => setScannerMode("lhtrip")}
                     className="btn btn-primary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs"
                   >
                     <QrCode className="w-5 h-5" /> Quét trực tiếp
                   </button>
-                )}
                 <label
                   className={`btn btn-secondary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs ${
                     decodingCapture ? "btn-disabled" : "cursor-pointer"
@@ -312,9 +292,7 @@ export const TaoBienBanSuVuPage = () => {
                   )}
                   {decodingCapture === "lhtrip"
                     ? "Đang đọc mã..."
-                    : scannerUrl
-                      ? "Chụp ảnh"
-                      : "Chụp mã LH TRIP"}
+                    : "Chụp ảnh"}
                 </label>
               </div>
             </div>
@@ -336,7 +314,7 @@ export const TaoBienBanSuVuPage = () => {
       {step === "scan_items" && (
         <div className="space-y-6">
           {/* Active LH TRIP Banner */}
-          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="p-2 bg-primary text-primary-content rounded-xl font-bold">
                 <Truck className="w-5 h-5" />
@@ -352,7 +330,7 @@ export const TaoBienBanSuVuPage = () => {
             </div>
             <button
               onClick={() => setStep("lhtrip")}
-              className="btn btn-sm btn-ghost text-xs gap-1"
+              className="btn btn-sm min-h-11 btn-ghost text-xs gap-1 self-start sm:self-auto"
             >
               <ChevronLeft className="w-4 h-4" /> Đổi LH TRIP
             </button>
@@ -376,16 +354,14 @@ export const TaoBienBanSuVuPage = () => {
                 placeholder="Nhập hoặc quét mã đơn bị sự vụ..."
                 className="input input-bordered w-full focus:input-primary text-lg font-mono font-bold rounded-xl uppercase"
               />
-              <div className="flex gap-2">
-                {scannerUrl && (
-                  <button
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
                     type="button"
-                    onClick={() => handleLiveScan("item")}
+                    onClick={() => setScannerMode("item")}
                     className="btn btn-primary flex-1 gap-2 rounded-xl font-bold"
                   >
                     <QrCode className="w-5 h-5" /> Quét trực tiếp
                   </button>
-                )}
                 <label
                   className={`btn btn-secondary flex-1 gap-2 rounded-xl font-bold ${
                     decodingCapture ? "btn-disabled" : "cursor-pointer"
@@ -406,9 +382,7 @@ export const TaoBienBanSuVuPage = () => {
                   )}
                   {decodingCapture === "item"
                     ? "Đang đọc mã..."
-                    : scannerUrl
-                      ? "Chụp ảnh"
-                      : "Chụp mã đơn"}
+                    : "Chụp ảnh"}
                 </label>
               </div>
             </div>
@@ -426,7 +400,7 @@ export const TaoBienBanSuVuPage = () => {
                       key={reason}
                       type="button"
                       onClick={() => setCurrentReason(reason)}
-                      className={`p-3 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                      className={`min-h-11 p-3 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
                         isSelected
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-base-200 bg-base-100 hover:bg-base-200/50 text-base-content/70"
@@ -443,7 +417,7 @@ export const TaoBienBanSuVuPage = () => {
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="btn btn-primary gap-2 w-full sm:w-auto rounded-xl font-bold"
+                className="btn btn-primary min-h-11 gap-2 w-full sm:w-auto rounded-xl font-bold"
               >
                 <Plus className="w-5 h-5" /> Thêm đơn này
               </button>
@@ -459,7 +433,7 @@ export const TaoBienBanSuVuPage = () => {
               {items.length > 0 && (
                 <button
                   onClick={() => setStep("preview")}
-                  className="btn btn-sm btn-primary gap-1.5 rounded-xl font-bold"
+                  className="btn btn-sm min-h-11 btn-primary gap-1.5 rounded-xl font-bold"
                 >
                   <FileText className="w-4 h-4" /> Xem trước & Gửi log
                 </button>
@@ -467,43 +441,51 @@ export const TaoBienBanSuVuPage = () => {
             </div>
 
             {items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="table table-sm w-full">
-                  <thead className="bg-base-200/50 text-xs font-bold">
-                    <tr>
-                      <th className="w-12 text-center">STT</th>
-                      <th>Mã đơn hàng</th>
-                      <th>Lý do sự vụ</th>
-                      <th className="w-16 text-center">Xóa</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-base-200 text-sm font-medium">
-                    {items.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-base-200/30">
-                        <td className="text-center font-bold text-base-content/60">
-                          {index + 1}
-                        </td>
-                        <td className="font-mono font-bold text-primary">
-                          {item.trackingCode}
-                        </td>
-                        <td>
-                          <span className="badge badge-warning badge-sm font-bold">
-                            {item.reason}
-                          </span>
-                        </td>
-                        <td className="text-center">
-                          <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="btn btn-xs btn-ghost text-error btn-circle"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+              <>
+                <div className="space-y-3 p-3 md:hidden">
+                  {items.map((item, index) => (
+                    <IncidentItemCard
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      onRemove={() => handleRemoveItem(item.id)}
+                    />
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="table table-sm w-full">
+                    <thead className="bg-base-200/50 text-xs font-bold">
+                      <tr>
+                        <th className="w-12 text-center">STT</th>
+                        <th>Mã đơn hàng</th>
+                        <th>Lý do sự vụ</th>
+                        <th className="w-16 text-center">Xóa</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-base-200 text-sm font-medium">
+                      {items.map((item, index) => (
+                        <tr key={item.id} className="hover:bg-base-200/30">
+                          <td className="text-center font-bold text-base-content/60">{index + 1}</td>
+                          <td className="break-all font-mono font-bold text-primary">{item.trackingCode}</td>
+                          <td>
+                            <span className="badge badge-warning badge-sm font-bold">{item.reason}</span>
+                          </td>
+                          <td className="text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="btn btn-xs btn-ghost btn-circle min-h-10 min-w-10 text-error"
+                              aria-label="Xóa đơn sự vụ"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             ) : (
               <div className="p-8 text-center text-base-content/60 text-sm">
                 Chưa có đơn sự vụ nào. Hãy quét hoặc nhập mã đơn hàng phía trên.
@@ -520,15 +502,15 @@ export const TaoBienBanSuVuPage = () => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-base-100 p-4 border border-base-200 rounded-2xl shadow-xs">
             <button
               onClick={() => setStep("scan_items")}
-              className="btn btn-sm btn-ghost gap-1 rounded-xl"
+              className="btn btn-sm min-h-11 btn-ghost gap-1 rounded-xl"
             >
               <ChevronLeft className="w-4 h-4" /> Quay lại thêm đơn
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               <button
                 onClick={handleSendLogToGgSheet}
                 disabled={isSending}
-                className="btn btn-sm btn-success text-success-content gap-1.5 rounded-xl font-bold shadow-xs"
+                className="btn btn-sm min-h-11 btn-success text-success-content gap-1.5 rounded-xl font-bold shadow-xs"
               >
                 {isSending ? (
                   <span className="loading loading-spinner loading-xs"></span>
@@ -540,14 +522,14 @@ export const TaoBienBanSuVuPage = () => {
 
               <button
                 onClick={handlePrint}
-                className="btn btn-sm btn-primary gap-1.5 rounded-xl font-bold shadow-xs"
+                className="btn btn-sm min-h-11 btn-primary gap-1.5 rounded-xl font-bold shadow-xs"
               >
                 <Printer className="w-4 h-4" /> In biên bản
               </button>
 
               <button
                 onClick={resetAll}
-                className="btn btn-sm btn-outline rounded-xl"
+                className="btn btn-sm min-h-11 btn-outline rounded-xl"
               >
                 Tạo LH TRIP mới
               </button>

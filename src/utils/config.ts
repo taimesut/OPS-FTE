@@ -10,6 +10,8 @@ export interface AppConfig {
   scanner_url?: string;
 }
 
+export const SCANNER_URL = "https://taimesut.net";
+
 export const getConfigs = (): AppConfig => {
   try {
     const raw = localStorage.getItem("configs");
@@ -35,8 +37,7 @@ export const getLogUrl = (): string => {
 };
 
 export const getScannerUrl = (): string => {
-  const configs = getConfigs();
-  return configs.scanner_url || "";
+  return SCANNER_URL;
 };
 
 export const getGroupSocsBySOC = (soc: string): string[] => {

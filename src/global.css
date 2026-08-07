@@ -136,3 +136,31 @@ input, select, textarea {
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
+
+html {
+  min-width: 320px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary, #f53d2d) 70%, white);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

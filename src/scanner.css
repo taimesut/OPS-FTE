@@ -14,4 +14,16 @@ button { font: inherit; }
 .controls { position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px; border-radius: 20px; background: rgb(2 6 23 / .72); backdrop-filter: blur(12px); }
 .controls button { min-height: 42px; padding: 0 14px; border-radius: 14px; font-weight: 800; }
 .controls button:disabled { opacity: .35; }
+.controls button:focus-visible, .close:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
 #zoom-label { min-width: 42px; text-align: center; color: #7dd3fc; }
+
+@media (max-width: 420px) {
+  .target { width: 84vw; height: 44vw; }
+  .controls { gap: 6px; padding: 8px; }
+  .controls button { min-width: 42px; padding: 0 10px; }
+  #switch { flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .target span { animation: none; }
+}

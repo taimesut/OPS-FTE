@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getConfigs, saveConfigs, type AppConfig } from "../utils/config";
+import { getConfigs, saveConfigs, SCANNER_URL, type AppConfig } from "../utils/config";
 import { showToast } from "../components/Toast";
 import {
   Settings,
@@ -28,7 +28,6 @@ export const SettingsPage = () => {
   const [socsText, setSocsText] = useState((initialConfig.socs || []).join("\n"));
   const [groupSocsText, setGroupSocsText] = useState(initialGroupSocsText);
   const [logUrl, setLogUrl] = useState(initialConfig.ggsheet_log_url || "");
-  const [scannerUrl, setScannerUrl] = useState(initialConfig.scanner_url || "");
 
   const handleSave = () => {
     const hubs = hubsText
@@ -62,7 +61,7 @@ export const SettingsPage = () => {
       group_socs,
       raw_group_socs_text: groupSocsText,
       ggsheet_log_url: logUrl.trim(),
-      scanner_url: scannerUrl.trim(),
+      scanner_url: getConfigs().scanner_url,
     };
 
     saveConfigs(newConfig);
@@ -110,7 +109,6 @@ export const SettingsPage = () => {
           setHubsText((imported.hubs || []).join("\n"));
           setSocsText((imported.socs || []).join("\n"));
           setLogUrl(imported.ggsheet_log_url || "");
-          setScannerUrl(imported.scanner_url || "");
           if (imported.raw_group_socs_text) {
             setGroupSocsText(imported.raw_group_socs_text);
           } else if (imported.group_socs) {
@@ -137,13 +135,12 @@ export const SettingsPage = () => {
       setSocsText("");
       setGroupSocsText("");
       setLogUrl("");
-      setScannerUrl("");
       showToast("Đã dọn dẹp cài đặt!", "info");
     }
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-3 md:p-6 font-sans text-base-content space-y-6 pb-28">
+    <div className="mx-auto max-w-4xl p-3 pb-32 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
       {/* Header */}
       <div className="border-b border-base-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -151,7 +148,7 @@ export const SettingsPage = () => {
             <span className="p-2 bg-primary/10 text-primary rounded-xl">
               <Settings className="w-5 h-5" />
             </span>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
               Cài Đặt Cấu Hình
             </h1>
           </div>
@@ -193,7 +190,7 @@ export const SettingsPage = () => {
         <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
           <label className="flex items-center gap-2 text-sm font-bold text-primary">
             <Building className="w-4 h-4" />
-            1. Mã SOC của bạn (SOC Nguồn)
+            1. Tên SOC
           </label>
           <input
             type="text"
@@ -252,22 +249,18 @@ export const SettingsPage = () => {
           </span>
         </div>
 
-        {/* 4. Hubs nội tỉnh */}
+        {/* 4. Scanner live */}
         <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl p-5 space-y-2">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <ScanLine className="w-4 h-4" />
-            4. URL Scanner trực tiếp bên ngoài Apps Script
+            4. Scanner QR trực tiếp
           </label>
-          <input
-            type="url"
-            value={scannerUrl}
-            onChange={(e) => setScannerUrl(e.target.value)}
-            placeholder="https://scanner-cua-ban.example.com/"
-            className="input input-bordered w-full focus:input-primary rounded-xl font-mono text-xs"
-          />
-          <span className="text-xs text-base-content/60">
-            Trang HTTPS độc lập dùng để mở camera live. Để trống sẽ dùng camera chụp ảnh của điện thoại.
-          </span>
+          <div className="flex flex-col gap-2 rounded-xl border border-info/20 bg-info/5 p-4">
+            <span className="font-mono text-sm font-bold text-info break-all">{SCANNER_URL}</span>
+            <span className="text-xs text-base-content/60">
+              Link quét QR đã được cố định để mở camera live. Bạn vẫn có thể dùng nút chụp ảnh nếu trình duyệt không cấp quyền camera.
+            </span>
+          </div>
         </div>
 
         {/* 5. Hubs nội tỉnh */}
@@ -330,7 +323,7 @@ export const SettingsPage = () => {
         <button
           type="button"
           onClick={handleReset}
-          className="btn btn-sm btn-ghost text-error gap-1 rounded-xl"
+          className="btn btn-sm min-h-11 btn-ghost text-error gap-1 rounded-xl"
         >
           <RefreshCw className="w-4 h-4 text-error" /> Xóa
         </button>
@@ -338,7 +331,7 @@ export const SettingsPage = () => {
         <button
           type="button"
           onClick={handleSave}
-          className="btn btn-primary gap-2 rounded-xl px-8 shadow-md font-bold text-base"
+          className="btn btn-primary min-h-11 gap-2 rounded-xl px-6 sm:px-8 shadow-md font-bold text-base"
         >
           <Save className="w-5 h-5" />
           Lưu Cài Đặt

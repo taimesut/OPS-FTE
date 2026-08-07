@@ -61,25 +61,25 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       />
 
       {/* Main Drawer Content */}
-      <div className="drawer-content flex flex-col min-h-screen relative z-10">
+      <div className="drawer-content flex min-h-screen min-w-0 flex-col relative z-10">
         {/* Sticky Top Navbar */}
-        <header className="navbar bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-3 md:px-6">
+        <header className="navbar min-h-14 bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-2 sm:px-3 md:px-6">
           <div className="flex-none">
             <label
               htmlFor="mobile-sidebar-drawer"
               aria-label="open sidebar"
-              className="btn btn-square btn-ghost drawer-button rounded-xl"
+              className="btn btn-square btn-ghost drawer-button min-h-11 min-w-11 rounded-xl"
             >
               <Menu className="w-6 h-6" />
             </label>
           </div>
 
-          <div className="mx-2 flex-1 px-2 font-black text-lg md:text-xl tracking-tight flex items-center gap-2">
+          <div className="mx-1 min-w-0 flex-1 px-1 sm:mx-2 sm:px-2 font-black text-base sm:text-lg md:text-xl tracking-tight flex items-center gap-2">
             <span className="p-1.5 bg-primary/10 text-primary rounded-xl">
               <Package className="w-5 h-5" />
             </span>
-            <span>
-              <span className="text-primary font-black">SPX</span> {currentSoc}
+            <span className="truncate">
+              <span className="text-primary font-black">SPX</span> <span className="align-middle">{currentSoc}</span>
             </span>
           </div>
 
@@ -89,7 +89,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
         </header>
 
         {/* Dynamic Page View Container */}
-        <main className="flex-1 bg-base-200/40 pb-12">{children}</main>
+        <main className="min-w-0 flex-1 bg-base-200/40 pb-20 md:pb-12">{children}</main>
       </div>
 
       {/* Drawer Sidebar */}
@@ -100,7 +100,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
           className="drawer-overlay"
         ></label>
 
-        <div className="menu bg-base-100 text-base-content min-h-full w-80 p-5 flex flex-col justify-between shadow-2xl">
+        <div className="menu bg-base-100 text-base-content min-h-full w-[min(86vw,20rem)] p-4 sm:p-5 flex flex-col justify-between shadow-2xl">
           <div className="space-y-5">
             {/* Sidebar Header */}
             <div className="pb-4 border-b border-base-200 flex items-center justify-between">
@@ -120,7 +120,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
 
               <label
                 htmlFor="mobile-sidebar-drawer"
-                className="btn btn-sm btn-circle btn-ghost"
+                className="btn btn-sm btn-circle btn-ghost min-h-11 min-w-11"
               >
                 <X className="w-4 h-4" />
               </label>
@@ -137,7 +137,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
                     <Link
                       to={item.path}
                       onClick={closeDrawer}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                      className={`flex min-h-11 items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                         isActive
                           ? "bg-primary text-primary-content font-bold shadow-xs"
                           : "hover:bg-base-200 text-base-content/80"
@@ -157,7 +157,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
             <Link
               to="/cai-dat"
               onClick={closeDrawer}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+              className={`flex min-h-11 items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 location.pathname === "/cai-dat"
                   ? "bg-primary text-primary-content font-bold"
                   : "hover:bg-base-200 text-base-content/80 font-medium"

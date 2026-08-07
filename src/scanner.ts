@@ -13,8 +13,7 @@ const zoomOutButton = document.querySelector<HTMLButtonElement>("#zoom-out")!;
 const zoomLabel = document.querySelector<HTMLElement>("#zoom-label")!;
 
 const params = new URLSearchParams(location.search);
-const requestId = params.get("requestId") || "";
-const targetOrigin = params.get("targetOrigin") || "";
+const embeddedMode = params.get("embedded") === "1";
 const formats = [
   BarcodeFormat.QR_CODE,
   BarcodeFormat.CODE_128,
@@ -27,15 +26,46 @@ const formats = [
   BarcodeFormat.ITF,
 ];
 
-let facingMode: "environment" | "user" = "environment";
+interface ScannerSession {
+  requestId: string;
+  targetOrigin: string;
+}
+
+let session: ScannerSession | null = null;
 let controls: IScannerControls | null = null;
 let stream: MediaStream | null = null;
 let track: MediaStreamTrack | null = null;
+let facingMode: "environment" | "user" = "environment";
 let zoomMin = 1;
 let zoomMax = 1;
 let zoomCurrent = 1;
 let torchOn = false;
-let closed = false;
+let active = false;
+let generation = 0;
+
+function normalizeOrigin(value: string | null) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : "";
+  } catch {
+    return "";
+  }
+}
+
+function getMessageTarget() {
+  if (embeddedMode) return window.parent;
+  return window.opener;
+}
+
+function postMessage(type: string, extra: Record<string, unknown> = {}) {
+  const target = getMessageTarget();
+  if (!target || !session) return;
+  target.postMessage(
+    { type, requestId: session.requestId, ...extra },
+    session.targetOrigin,
+  );
+}
 
 function stopCamera() {
   controls?.stop();
@@ -44,19 +74,34 @@ function stopCamera() {
   stream = null;
   track = null;
   video.srcObject = null;
+  torchOn = false;
+  torchButton.hidden = true;
+  updateZoomLabel();
+}
+
+function closeWindowIfPopup() {
+  if (!embeddedMode) window.close();
+}
+
+function cancelSession() {
+  if (!session) {
+    closeWindowIfPopup();
+    return;
+  }
+  active = false;
+  generation += 1;
+  stopCamera();
+  postMessage("LH_TRIP_SCANNER_CANCEL");
+  closeWindowIfPopup();
 }
 
 function finish(value?: string) {
-  if (closed) return;
-  closed = true;
+  if (!active || !session) return;
+  active = false;
+  generation += 1;
   stopCamera();
-  if (value && requestId && targetOrigin && window.opener) {
-    window.opener.postMessage(
-      { type: "LH_TRIP_SCAN_RESULT", requestId, value },
-      targetOrigin,
-    );
-  }
-  window.close();
+  if (value?.trim()) postMessage("LH_TRIP_SCAN_RESULT", { value: value.trim() });
+  closeWindowIfPopup();
 }
 
 function updateZoomLabel() {
@@ -66,10 +111,18 @@ function updateZoomLabel() {
 }
 
 async function startCamera() {
+  if (!session) {
+    statusText.textContent = "Đang chờ kết nối với ứng dụng...";
+    return;
+  }
+
+  const currentGeneration = ++generation;
+  active = true;
   stopCamera();
-  statusText.textContent = "Đang mở camera…";
+  statusText.textContent = "Đang mở camera...";
+
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
+    const nextStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: facingMode },
         width: { ideal: 1920 },
@@ -77,6 +130,13 @@ async function startCamera() {
       },
       audio: false,
     });
+
+    if (!active || currentGeneration !== generation) {
+      nextStream.getTracks().forEach((item) => item.stop());
+      return;
+    }
+
+    stream = nextStream;
     track = stream.getVideoTracks()[0] || null;
     const capabilities = track?.getCapabilities?.() as MediaTrackCapabilities & {
       zoom?: { min: number; max: number; step?: number };
@@ -93,7 +153,6 @@ async function startCamera() {
       zoomCurrent = 1;
     }
     torchButton.hidden = !capabilities?.torch;
-    torchOn = false;
     updateZoomLabel();
 
     const hints = new Map();
@@ -105,15 +164,23 @@ async function startCamera() {
     });
     statusText.textContent = "Đưa mã vào giữa khung";
     controls = await reader.decodeFromStream(stream, video, (result) => {
-      if (!result) return;
+      if (!result || !active || currentGeneration !== generation) return;
       navigator.vibrate?.(100);
       finish(result.getText());
     });
+
+    if (active && currentGeneration === generation) {
+      postMessage("LH_TRIP_SCANNER_READY");
+    }
   } catch (error) {
+    if (!active || currentGeneration !== generation) return;
+    stopCamera();
     const name = (error as { name?: string }).name;
-    statusText.textContent = name === "NotAllowedError"
-      ? "Chưa được cấp quyền camera. Hãy cho phép rồi tải lại trang."
+    const message = name === "NotAllowedError"
+      ? "Chưa được cấp quyền camera. Hãy cho phép camera rồi thử lại."
       : "Không mở được camera. Hãy đóng ứng dụng khác đang dùng camera.";
+    statusText.textContent = message;
+    postMessage("LH_TRIP_SCANNER_ERROR", { message });
   }
 }
 
@@ -124,7 +191,43 @@ async function setZoom(next: number) {
   updateZoomLabel();
 }
 
-closeButton.addEventListener("click", () => finish());
+function handleEmbeddedMessage(event: MessageEvent) {
+  if (!embeddedMode || event.source !== window.parent) return;
+  const data = event.data as {
+    type?: string;
+    requestId?: string;
+    targetOrigin?: string;
+  };
+
+  if (data.type === "LH_TRIP_SCANNER_START") {
+    const targetOrigin = normalizeOrigin(data.targetOrigin ?? null);
+    if (!targetOrigin || event.origin !== targetOrigin || !data.requestId) return;
+    session = { requestId: data.requestId, targetOrigin };
+    void startCamera();
+    return;
+  }
+
+  if (
+    data.type === "LH_TRIP_SCANNER_STOP" &&
+    session &&
+    event.origin === session.targetOrigin &&
+    data.requestId === session.requestId
+  ) {
+    active = false;
+    generation += 1;
+    stopCamera();
+    statusText.textContent = "Đang chờ kết nối với ứng dụng...";
+  }
+}
+
+const initialRequestId = params.get("requestId") || "";
+const initialTargetOrigin = normalizeOrigin(params.get("targetOrigin"));
+if (!embeddedMode && initialRequestId && initialTargetOrigin) {
+  session = { requestId: initialRequestId, targetOrigin: initialTargetOrigin };
+  void startCamera();
+}
+
+closeButton.addEventListener("click", cancelSession);
 switchButton.addEventListener("click", () => {
   facingMode = facingMode === "environment" ? "user" : "environment";
   void startCamera();
@@ -137,6 +240,9 @@ torchButton.addEventListener("click", async () => {
   await track.applyConstraints({ advanced: [{ torch: torchOn } as MediaTrackConstraintSet] });
   torchButton.textContent = torchOn ? "Tắt đèn" : "Đèn";
 });
+window.addEventListener("message", handleEmbeddedMessage);
 window.addEventListener("beforeunload", stopCamera);
 
-void startCamera();
+if (embeddedMode) {
+  statusText.textContent = "Đang chờ kết nối với ứng dụng...";
+}

@@ -18,12 +18,12 @@ export default function QRCodeModal({
   if (!open) return null;
 
   return (
-    <dialog className="modal modal-open">
+    <dialog className="modal modal-open p-2 sm:p-4">
       {/* Click nền để đóng */}
       <form method="dialog" className="modal-backdrop">
         <button onClick={onClose}>close</button>
       </form>
-      <div className="modal-box max-w-sm rounded-2xl">
+      <div className="modal-box max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-sm overflow-y-auto rounded-2xl p-4 sm:p-6">
         <h3 className="text-lg font-bold text-center">{title}</h3>
 
         <div className="flex flex-col items-center gap-5 py-5">
@@ -43,7 +43,7 @@ export default function QRCodeModal({
         </div>
 
         <div className="modal-action justify-center">
-          <button className="btn btn-outline rounded-xl px-8" onClick={onClose}>
+          <button className="btn btn-outline min-h-11 rounded-xl px-8" onClick={onClose}>
             Đóng
           </button>
         </div>

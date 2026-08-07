@@ -52,11 +52,11 @@ const ZaloIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 
 export const HomePage = () => {
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-6rem)] p-4 font-sans">
+    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center overflow-hidden p-3 sm:p-4 font-sans">
       {/* Glowing Rainbow Aura Outer Wrapper */}
       <div className="aura aura-rainbow p-1 rounded-3xl">
         {/* Support Contact Card */}
-        <div className="relative w-full max-w-sm bg-base-100/95 backdrop-blur-xl border border-base-200 shadow-2xl rounded-3xl p-6 space-y-5 text-center">
+        <div className="relative w-full max-w-sm bg-base-100/95 backdrop-blur-xl border border-base-200 shadow-2xl rounded-3xl p-5 sm:p-6 space-y-5 text-center">
           {/* Header */}
           <div className="space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-primary">
@@ -70,7 +70,7 @@ export const HomePage = () => {
               href="https://zalo.me/0328805839"
               target="_blank"
               rel="noreferrer"
-              className="btn btn-primary w-full gap-2 rounded-2xl font-bold shadow-md text-sm h-12"
+              className="btn btn-primary min-h-12 w-full gap-2 rounded-2xl font-bold shadow-md text-sm"
             >
               <ZaloIcon className="w-6 h-6 shrink-0" />
               <span>Zalo: 0328 805 839</span>
@@ -78,7 +78,7 @@ export const HomePage = () => {
 
             <a
               href="tel:0328805839"
-              className="btn btn-outline w-full gap-2 rounded-2xl font-bold text-xs h-11 border-base-300"
+              className="btn btn-outline min-h-11 w-full gap-2 rounded-2xl font-bold text-xs border-base-300"
             >
               <Phone className="w-4 h-4 text-emerald-500" />
               <span>Hotline: 0328 805 839</span>

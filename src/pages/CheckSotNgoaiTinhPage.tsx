@@ -101,15 +101,15 @@ export const CheckSotNgoaiTinhPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-7xl p-3 md:p-6 font-sans text-base-content space-y-6">
+    <div className="mx-auto max-w-7xl p-3 pb-6 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-base-200 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 border-b border-base-200 pb-4 md:pb-5">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 bg-secondary/10 text-secondary rounded-xl">
               <Globe className="w-5 h-5" />
             </span>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
               Kiểm Tra Sót Ngoại Tỉnh
             </h1>
           </div>
@@ -124,7 +124,7 @@ export const CheckSotNgoaiTinhPage = () => {
           <select
             value={soc}
             onChange={(e) => setSoc(e.target.value)}
-            className="select select-bordered w-full sm:w-60 focus:select-primary rounded-xl shadow-xs font-semibold"
+            className="select select-bordered min-h-11 w-full sm:w-60 focus:select-primary rounded-xl shadow-xs font-semibold"
           >
             <option value="" disabled>
               -- Chọn SOC đích --
@@ -139,7 +139,7 @@ export const CheckSotNgoaiTinhPage = () => {
           <button
             onClick={checkSotNgoaiTinh}
             disabled={loading}
-            className="btn btn-primary gap-2 rounded-xl shadow-xs"
+            className="btn btn-primary min-h-11 gap-2 rounded-xl shadow-xs"
           >
             {loading ? (
               <span className="loading loading-spinner loading-sm"></span>
