@@ -28,12 +28,18 @@ export const CheckSotNoiTinhPage = () => {
     }
 
     if (!currentSoc) {
-      showToast("Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.", "error");
+      showToast(
+        "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
+        "error",
+      );
       return;
     }
 
     if (!cookies) {
-      showToast("Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.", "error");
+      showToast(
+        "Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.",
+        "error",
+      );
       return;
     }
 
@@ -43,15 +49,20 @@ export const CheckSotNoiTinhPage = () => {
       const now = Math.floor(Date.now() / 1000);
       const sevenDaysAgo = now - 7 * 24 * 60 * 60;
       const url = `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
-        hub
+        hub,
       )}&status=2&ctime=${sevenDaysAgo},${now}`;
 
       const response = await apiClient.get(url);
-      const list = response.data?.data?.list || [];
+      const list = (response.data?.data?.list || []).filter(
+        (item: { current_station_name: string }) =>
+          item.current_station_name === "Pleiku SOC",
+      );
       setOrders(list);
-
       if (list.length === 0) {
-        showToast(`Không có TO nào bị sót từ ${currentSoc} tới Hub ${hub}`, "info");
+        showToast(
+          `Không có TO nào bị sót từ ${currentSoc} tới Hub ${hub}`,
+          "info",
+        );
       } else {
         showToast(`Tìm thấy ${list.length} TO sót tới Hub ${hub}`, "success");
       }
@@ -76,7 +87,8 @@ export const CheckSotNoiTinhPage = () => {
             </h1>
           </div>
           <p className="text-xs md:text-sm text-base-content/60 mt-1">
-            Tra cứu danh sách Transfer Order (TO) xuất kho từ {soc || "SOC"} đi các Hub nội tỉnh
+            Tra cứu danh sách Transfer Order (TO) xuất kho từ {soc || "SOC"} đi
+            các Hub nội tỉnh
           </p>
         </div>
 

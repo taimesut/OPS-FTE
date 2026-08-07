@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getGroupSocsBySOC, getSoc, getSocs, getCookies } from "../utils/config";
+import {
+  getGroupSocsBySOC,
+  getSoc,
+  getSocs,
+  getCookies,
+} from "../utils/config";
 import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
 import { showToast } from "../components/Toast";
@@ -28,12 +33,18 @@ export const CheckSotNgoaiTinhPage = () => {
     }
 
     if (!sender) {
-      showToast("Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.", "error");
+      showToast(
+        "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
+        "error",
+      );
       return;
     }
 
     if (!cookies) {
-      showToast("Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.", "error");
+      showToast(
+        "Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.",
+        "error",
+      );
       return;
     }
 
@@ -49,10 +60,10 @@ export const CheckSotNgoaiTinhPage = () => {
         receivers.map((receiver) =>
           apiClient.get(
             `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
-              receiver
-            )}&status=2&ctime=${sevenDaysAgo},${now}`
-          )
-        )
+              receiver,
+            )}&status=2&ctime=${sevenDaysAgo},${now}`,
+          ),
+        ),
       );
 
       const rawList: TransferOrder[] = [];
@@ -64,15 +75,23 @@ export const CheckSotNgoaiTinhPage = () => {
 
       // Loại bỏ TO trùng lặp
       const uniqueList = Array.from(
-        new Map(rawList.map((item) => [item.to_number, item])).values()
+        new Map(rawList.map((item) => [item.to_number, item])).values(),
+      ).filter(
+        (item: { current_station_name: string }) =>
+          item.current_station_name === "Pleiku SOC",
       );
-
       setOrders(uniqueList);
 
       if (uniqueList.length === 0) {
-        showToast(`Không có TO ngoại tỉnh nào bị sót từ ${sender} tới ${soc}`, "info");
+        showToast(
+          `Không có TO ngoại tỉnh nào bị sót từ ${sender} tới ${soc}`,
+          "info",
+        );
       } else {
-        showToast(`Tìm thấy ${uniqueList.length} TO sót tới SOC ${soc}`, "success");
+        showToast(
+          `Tìm thấy ${uniqueList.length} TO sót tới SOC ${soc}`,
+          "success",
+        );
       }
     } catch (err) {
       console.error(err);
@@ -95,7 +114,8 @@ export const CheckSotNgoaiTinhPage = () => {
             </h1>
           </div>
           <p className="text-xs md:text-sm text-base-content/60 mt-1">
-            Tra cứu danh sách Transfer Order (TO) đã đóng từ {currentSoc || "SOC"} đi các SOC ngoại tỉnh khác
+            Tra cứu danh sách Transfer Order (TO) đã đóng từ{" "}
+            {currentSoc || "SOC"} đi các SOC ngoại tỉnh khác
           </p>
         </div>
 

@@ -1,7 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo, useEffect, useRef } from "react";
 import QRCodeModal from "./QRCodeModal";
-import { SlidersHorizontal, Search, QrCode, ArrowLeft, ArrowRight, PackageCheck } from "lucide-react";
+import {
+  SlidersHorizontal,
+  Search,
+  QrCode,
+  ArrowLeft,
+  ArrowRight,
+  PackageCheck,
+} from "lucide-react";
 
 export interface TransferOrder {
   to_number: string;
@@ -15,6 +22,7 @@ export interface TransferOrder {
   pack_name: string;
   high_value: number; // 1 là Y, 2 là N
   dg_type: number[]; // 1 NON DG - 2 DG Type A - 3 DG Type B - 4 DG Type C - 5 DG Type D
+  current_station_name: string;
 }
 
 export const TABLE_COLUMNS = [
@@ -91,13 +99,13 @@ export const TOTable = ({
         item.to_number.toLowerCase().includes(query) ||
         (item.operator && item.operator.toLowerCase().includes(query)) ||
         (item.receiver && item.receiver.toLowerCase().includes(query)) ||
-        (item.pack_name && item.pack_name.toLowerCase().includes(query))
+        (item.pack_name && item.pack_name.toLowerCase().includes(query)),
     );
   }, [orders, searchQuery]);
 
   const totalQuantity = useMemo(
     () => filteredOrders.reduce((sum, item) => sum + (item.quantity || 0), 0),
-    [filteredOrders]
+    [filteredOrders],
   );
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
@@ -111,7 +119,7 @@ export const TOTable = ({
     setVisibleColumns((prev) =>
       prev.includes(colKey)
         ? prev.filter((k) => k !== colKey)
-        : [...prev, colKey]
+        : [...prev, colKey],
     );
   };
 
@@ -211,7 +219,9 @@ export const TOTable = ({
 
             {/* Selector Số lượng dòng hiển thị */}
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-base-content/60 hidden sm:inline">Dòng:</span>
+              <span className="text-base-content/60 hidden sm:inline">
+                Dòng:
+              </span>
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
@@ -241,13 +251,16 @@ export const TOTable = ({
                         <th key={col.key} className="text-xs py-3">
                           {col.label}
                         </th>
-                      )
+                      ),
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-base-200">
                 {currentOrders.map((item) => (
-                  <tr key={item.to_number} className="hover:bg-base-200/40 transition-colors">
+                  <tr
+                    key={item.to_number}
+                    className="hover:bg-base-200/40 transition-colors"
+                  >
                     {visibleColumns.includes("to_number") && (
                       <td>
                         <span className="font-bold text-primary font-mono text-sm">
@@ -280,7 +293,9 @@ export const TOTable = ({
                               : "badge-ghost opacity-70"
                           }`}
                         >
-                          {item.dg_type && item.dg_type[0] === 1 ? "NON DG" : "DG"}
+                          {item.dg_type && item.dg_type[0] === 1
+                            ? "NON DG"
+                            : "DG"}
                         </span>
                       </td>
                     )}
