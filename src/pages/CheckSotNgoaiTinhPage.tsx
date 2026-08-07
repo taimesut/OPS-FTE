@@ -13,6 +13,7 @@ export const CheckSotNgoaiTinhPage = () => {
   const [orders, setOrders] = useState<TransferOrder[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocs(getSocs() || []);
     setCurrentSoc(getSoc() || "");
   }, []);
@@ -49,9 +50,7 @@ export const CheckSotNgoaiTinhPage = () => {
           apiClient.get(
             `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
               receiver
-            )}&status=2&sender=${encodeURIComponent(
-              sender
-            )}&ctime=${sevenDaysAgo},${now}`
+            )}&status=2&ctime=${sevenDaysAgo},${now}`
           )
         )
       );

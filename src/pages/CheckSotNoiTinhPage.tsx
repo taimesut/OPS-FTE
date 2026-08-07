@@ -13,6 +13,7 @@ export const CheckSotNoiTinhPage = () => {
   const [orders, setOrders] = useState<TransferOrder[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHubs(getHubs());
     setSoc(getSoc());
   }, []);
@@ -43,7 +44,7 @@ export const CheckSotNoiTinhPage = () => {
       const sevenDaysAgo = now - 7 * 24 * 60 * 60;
       const url = `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
         hub
-      )}&status=2&sender=${encodeURIComponent(currentSoc)}&ctime=${sevenDaysAgo},${now}`;
+      )}&status=2&ctime=${sevenDaysAgo},${now}`;
 
       const response = await apiClient.get(url);
       const list = response.data?.data?.list || [];
