@@ -220,7 +220,7 @@ export default function EmbeddedQRScanner({
       />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:p-3">
-        <div className="pointer-events-auto min-w-0 max-w-[calc(100vw-4.5rem)] truncate rounded-full bg-slate-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
+        <div className="pointer-events-auto min-w-0 max-w-[calc(100vw-4.5rem)] break-safe rounded-full bg-slate-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
           {status === "ready" ? "Đưa mã vào giữa khung" : "Đang kết nối camera..."}
         </div>
         <button
@@ -235,7 +235,7 @@ export default function EmbeddedQRScanner({
 
       {(status === "starting" || status === "error" || status === "popup") && (
         <div className="absolute inset-x-2 bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-3">
-          <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur">
+          <div className="mx-auto min-w-0 max-w-md rounded-2xl border border-white/10 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur">
             {status === "starting" && (
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -244,7 +244,7 @@ export default function EmbeddedQRScanner({
             )}
             {(status === "error" || status === "popup") && (
               <>
-                <p className="text-sm font-semibold">{errorMessage || "Camera trong iframe chưa sẵn sàng."}</p>
+                <p className="break-safe text-sm font-semibold">{errorMessage || "Camera trong iframe chưa sẵn sàng."}</p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"

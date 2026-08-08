@@ -27,15 +27,15 @@ export default function QRCodeModal({
         <h3 className="break-words text-center text-lg font-bold">{title}</h3>
 
         <div className="flex flex-col items-center gap-5 py-5">
-          <div className="max-w-full rounded-xl bg-white p-3 shadow-md sm:p-4">
-            <QRCode value={value} size={220} style={{ maxWidth: "100%", height: "auto" }} />
+          <div className="aspect-square w-[min(220px,68vw)] max-w-full rounded-xl bg-white p-3 shadow-md sm:p-4">
+            <QRCode value={value} size={220} style={{ width: "100%", height: "100%" }} />
           </div>
 
-          <div className="text-center break-all">
-            <div className="font-mono font-bold text-primary">{value}</div>
+          <div className="w-full break-safe text-center">
+            <div className="break-safe font-mono font-bold text-primary">{value}</div>
 
             {description && (
-              <div className="mt-2 text-sm text-base-content/60">
+              <div className="mt-2 break-safe text-sm text-base-content/60">
                 {description}
               </div>
             )}

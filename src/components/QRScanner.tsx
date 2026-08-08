@@ -301,7 +301,7 @@ export default function QRScanner({ onScan, initialStream }: Props) {
       {/* Target Laser Overlay Guide */}
       {!cameraError && (
         <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-6">
-          <div className="relative w-64 h-64 md:w-72 md:h-72 border-2 border-primary/80 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center">
+          <div className="relative h-[min(52vw,16rem)] w-[min(84vw,22rem)] overflow-hidden rounded-3xl border-2 border-primary/80 shadow-2xl flex items-center justify-center md:h-72 md:w-72">
             {/* Corner Markers */}
             <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-xl"></div>
             <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-xl"></div>
@@ -321,12 +321,12 @@ export default function QRScanner({ onScan, initialStream }: Props) {
       {!cameraError && (
         <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-3">
           {/* Zoom Quick Selector Buttons */}
-          <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-xl">
+          <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-black/70 p-2 shadow-xl backdrop-blur-md">
             <button
               type="button"
               onClick={() => handleZoomChange(currentZoom - 0.5)}
               disabled={currentZoom <= (zoomCapable ? minZoom : 1)}
-              className="btn btn-xs btn-circle btn-ghost text-white disabled:opacity-30"
+              className="btn btn-sm btn-circle min-h-10 min-w-10 btn-ghost text-white disabled:opacity-30"
               title="Thu nhỏ"
             >
               <ZoomOut className="w-4 h-4" />
@@ -338,7 +338,7 @@ export default function QRScanner({ onScan, initialStream }: Props) {
                 key={level}
                 type="button"
                 onClick={() => handleZoomChange(level)}
-                className={`btn btn-xs rounded-xl font-mono text-xs px-2.5 ${
+              className={`btn btn-sm min-h-10 min-w-10 rounded-xl px-2.5 font-mono text-xs ${
                   Math.round(currentZoom) === level
                     ? "btn-primary font-bold shadow-xs"
                     : "btn-ghost text-white/80"
@@ -352,7 +352,7 @@ export default function QRScanner({ onScan, initialStream }: Props) {
               type="button"
               onClick={() => handleZoomChange(currentZoom + 0.5)}
               disabled={currentZoom >= (zoomCapable ? maxZoom : 4)}
-              className="btn btn-xs btn-circle btn-ghost text-white disabled:opacity-30"
+              className="btn btn-sm btn-circle min-h-10 min-w-10 btn-ghost text-white disabled:opacity-30"
               title="Phóng to"
             >
               <ZoomIn className="w-4 h-4" />
@@ -365,7 +365,7 @@ export default function QRScanner({ onScan, initialStream }: Props) {
               <button
                 type="button"
                 onClick={handleToggleTorch}
-                className={`btn btn-circle shadow-lg ${
+                className={`btn btn-circle min-h-11 min-w-11 shadow-lg ${
                   torchOn ? "btn-warning" : "btn-neutral text-white"
                 }`}
                 title={torchOn ? "Tắt đèn Flash" : "Bật đèn Flash"}
@@ -377,7 +377,7 @@ export default function QRScanner({ onScan, initialStream }: Props) {
             <button
               type="button"
               onClick={handleToggleCamera}
-              className="btn btn-circle btn-neutral text-white shadow-lg"
+            className="btn btn-circle min-h-11 min-w-11 btn-neutral text-white shadow-lg"
               title="Đổi camera"
             >
               <SwitchCamera className="w-5 h-5" />
