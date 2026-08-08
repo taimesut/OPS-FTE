@@ -10,7 +10,7 @@ export interface AppConfig {
   scanner_url?: string;
 }
 
-export const SCANNER_URL = "https://taimesut.net";
+export const SCANNER_URL = "https://scan-qr.taimesut.net";
 
 export const getConfigs = (): AppConfig => {
   try {
