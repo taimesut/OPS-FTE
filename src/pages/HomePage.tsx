@@ -57,20 +57,20 @@ export const HomePage = () => {
           {/* Header */}
           <div className="space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-primary">
-              Mesut
+              HIHI HAHA
             </h1>
           </div>
 
           {/* Contact Action Buttons */}
           <div className="space-y-2.5 pt-1">
             <a
-              href="https://zalo.me/0328805839"
+              href="https://zalo.me/0987654321"
               target="_blank"
               rel="noreferrer"
               className="btn btn-primary min-h-12 w-full gap-2 rounded-2xl font-bold shadow-md text-sm"
             >
               <ZaloIcon className="w-6 h-6 shrink-0" />
-              <span>Zalo: 0328 805 839</span>
+              <span>Zalo: 0987 654 321</span>
             </a>
 
             <a
@@ -78,7 +78,7 @@ export const HomePage = () => {
               className="btn btn-outline min-h-11 w-full gap-2 rounded-2xl font-bold text-xs border-base-300"
             >
               <Phone className="w-4 h-4 text-emerald-500" />
-              <span>Hotline: 0328 805 839</span>
+              <span>Hotline: 0987 654 321</span>
             </a>
           </div>
 
@@ -89,7 +89,7 @@ export const HomePage = () => {
               className="flex items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
             >
               <Mail className="w-3.5 h-3.5 text-primary" />
-              <span>nguyenthanhtaiabcxyz@gmail.com</span>
+              <span>thanhtai.nguyen04@spxexpress.com</span>
             </a>
           </div>
         </div>
