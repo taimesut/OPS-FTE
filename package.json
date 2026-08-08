@@ -8,6 +8,7 @@
     "build": "node node_modules/typescript/lib/tsc.js -b && vite build && node post-build-pwa.mjs",
     "build:scanner": "vite build --config vite.scanner.config.ts",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
