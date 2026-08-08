@@ -1,13 +1,22 @@
 export const LOOSE_ORDER_SEARCH_PATH =
   "/api/fleet_order/order/tracking_list/search";
 
-export const DEFAULT_LOOSE_ORDER_PAYLOAD = {
-  count: 1000,
-  current_station_ids: "1030",
-  next_station_ids: "1069",
-  order_status: "8",
-  page_no: 1,
-} as const;
+export const createLooseOrderPayload = (
+  currentStationId: string,
+  nextStationIds: string[],
+) => {
+  const currentId = currentStationId.trim();
+  const destinationIds = [...new Set(nextStationIds.map((id) => id.trim()).filter(Boolean))];
+  if (!currentId) throw new Error("SOC nguồn chưa có ID.");
+  if (destinationIds.length === 0) throw new Error("Tuyến đích chưa có ID.");
+  return {
+    count: 1000,
+    current_station_ids: currentId,
+    next_station_ids: destinationIds.join(","),
+    order_status: "8",
+    page_no: 1,
+  } as const;
+};
 
 export interface LooseOrderSummary {
   total: number;

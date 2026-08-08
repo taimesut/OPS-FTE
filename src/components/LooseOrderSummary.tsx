@@ -41,9 +41,19 @@ const Metric = ({ icon: Icon, label, tone, value }: MetricProps) => (
 
 interface LooseOrderSummaryProps {
   state: LooseOrderCheckState;
+  currentName: string;
+  currentId: string;
+  destinationName: string;
+  destinationIds: string[];
 }
 
-export const LooseOrderSummary = ({ state }: LooseOrderSummaryProps) => (
+export const LooseOrderSummary = ({
+  state,
+  currentName,
+  currentId,
+  destinationName,
+  destinationIds,
+}: LooseOrderSummaryProps) => (
   <section
     aria-labelledby="loose-order-heading"
     className="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-xs"
@@ -67,10 +77,11 @@ export const LooseOrderSummary = ({ state }: LooseOrderSummaryProps) => (
         <Route className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <div className="min-w-0 leading-tight">
           <p className="font-mono text-xs font-black tracking-wide">
-            1030 <span className="text-primary">→</span> 1069
+            {currentId || "—"} <span className="text-primary">→</span>{" "}
+            {destinationIds.join(", ") || "—"}
           </p>
           <p className="truncate text-[10px] font-semibold text-base-content/55 sm:max-w-72">
-            Pleiku SOC → 44-GLI An Khe Hub · tuyến tạm
+            {currentName || "Chưa cấu hình SOC"} → {destinationName || "Chưa chọn tuyến"}
           </p>
         </div>
       </div>
@@ -79,7 +90,7 @@ export const LooseOrderSummary = ({ state }: LooseOrderSummaryProps) => (
     <div className="p-4" aria-live="polite">
       {state.status === "idle" ? (
         <p className="rounded-xl border border-dashed border-base-300 px-4 py-5 text-center text-sm font-medium text-base-content/60">
-          Bấm “Tìm kiếm” để kiểm tra hàng xá lẻ trên tuyến tạm.
+          Chọn tuyến và bấm “Tìm kiếm” để kiểm tra hàng xá lẻ.
         </p>
       ) : state.status === "loading" ? (
         <div className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Đang tải hàng xá lẻ">

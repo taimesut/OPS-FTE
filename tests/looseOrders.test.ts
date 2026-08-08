@@ -1,23 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DEFAULT_LOOSE_ORDER_PAYLOAD,
+  createLooseOrderPayload,
   LOOSE_ORDER_SEARCH_PATH,
   summarizeLooseOrderResponse,
 } from "../src/utils/looseOrders.ts";
 
-test("exposes the fixed loose-order request contract", () => {
+test("builds the loose-order request contract from configured route IDs", () => {
   assert.equal(
     LOOSE_ORDER_SEARCH_PATH,
     "/api/fleet_order/order/tracking_list/search",
   );
-  assert.deepEqual(DEFAULT_LOOSE_ORDER_PAYLOAD, {
+  assert.deepEqual(createLooseOrderPayload("5001", ["6001", "6002", "6001"]), {
     count: 1000,
-    current_station_ids: "1030",
-    next_station_ids: "1069",
+    current_station_ids: "5001",
+    next_station_ids: "6001,6002",
     order_status: "8",
     page_no: 1,
   });
+});
+
+test("rejects a loose-order route with missing IDs", () => {
+  assert.throws(() => createLooseOrderPayload("", ["6001"]), /nguồn.*ID/i);
+  assert.throws(() => createLooseOrderPayload("5001", []), /đích.*ID/i);
 });
 
 test("uses API total and counts DG and high-value flags independently", () => {

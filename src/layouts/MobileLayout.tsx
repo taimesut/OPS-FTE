@@ -18,7 +18,7 @@ interface MobileLayoutProps {
 
 export const MobileLayout = ({ children }: MobileLayoutProps) => {
   const location = useLocation();
-  const currentSoc = getSoc() || "PLEIKU SOC";
+  const currentSoc = getSoc() || "SOC";
 
   const closeDrawer = () => {
     const checkbox = document.getElementById(

@@ -1,15 +1,18 @@
 import apiClient from "./apiClient";
 import {
-  DEFAULT_LOOSE_ORDER_PAYLOAD,
+  createLooseOrderPayload,
   LOOSE_ORDER_SEARCH_PATH,
   summarizeLooseOrderResponse,
   type LooseOrderSummary,
 } from "./looseOrders";
 
-export const fetchLooseOrderSummary = async (): Promise<LooseOrderSummary> => {
+export const fetchLooseOrderSummary = async (
+  currentStationId: string,
+  nextStationIds: string[],
+): Promise<LooseOrderSummary> => {
   const response = await apiClient.post(
     LOOSE_ORDER_SEARCH_PATH,
-    DEFAULT_LOOSE_ORDER_PAYLOAD,
+    createLooseOrderPayload(currentStationId, nextStationIds),
     { suppressErrorToast: true },
   );
 

@@ -4,6 +4,8 @@ import {
   getSoc,
   getSocs,
   getCookies,
+  getSocId,
+  getStationIds,
 } from "../utils/config";
 import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
@@ -30,6 +32,7 @@ export const CheckSotNgoaiTinhPage = () => {
 
   const checkSotNgoaiTinh = async () => {
     const sender = getSoc();
+    const senderId = getSocId();
     const cookies = getCookies();
 
     if (!soc) {
@@ -42,6 +45,13 @@ export const CheckSotNgoaiTinhPage = () => {
         "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
         "error",
       );
+      return;
+    }
+
+    const receivers = getGroupSocsBySOC(soc);
+    const receiverIds = getStationIds(receivers);
+    if (!senderId || receiverIds.length !== receivers.length) {
+      showToast("SOC nguồn hoặc một SOC trong tuyến chưa có ID. Vui lòng bổ sung trong Cài đặt!", "error");
       return;
     }
 
@@ -59,8 +69,6 @@ export const CheckSotNgoaiTinhPage = () => {
       const checkPackedOrders = async () => {
         const now = Math.floor(Date.now() / 1000);
         const sevenDaysAgo = now - 7 * 24 * 60 * 60;
-
-        const receivers = getGroupSocsBySOC(soc);
 
         const responses = await Promise.all(
           receivers.map((receiver) =>
@@ -84,7 +92,7 @@ export const CheckSotNgoaiTinhPage = () => {
           new Map(rawList.map((item) => [item.to_number, item])).values(),
         ).filter(
           (item: { current_station_name: string }) =>
-            item.current_station_name === "Pleiku SOC",
+            item.current_station_name === sender,
         );
         setOrders(uniqueList);
 
@@ -103,7 +111,7 @@ export const CheckSotNgoaiTinhPage = () => {
 
       const results = await Promise.allSettled([
         checkPackedOrders(),
-        looseOrders.run(),
+        looseOrders.run(senderId, receiverIds),
       ]);
 
       for (const result of results) {
@@ -158,14 +166,20 @@ export const CheckSotNgoaiTinhPage = () => {
         }
       />
 
-      <LooseOrderSummary state={looseOrders.state} />
+      <LooseOrderSummary
+        state={looseOrders.state}
+        currentName={currentSoc}
+        currentId={getSocId()}
+        destinationName={soc ? getGroupSocsBySOC(soc).join(" + ") : ""}
+        destinationIds={soc ? getStationIds(getGroupSocsBySOC(soc)) : []}
+      />
 
       <section aria-labelledby="packed-orders-heading" className="space-y-3">
         <SectionHeading
           icon={PackageCheck}
           id="packed-orders-heading"
           title="Hàng đã đóng bao"
-          description="Transfer Order (TO) đang còn tại Pleiku SOC"
+          description={`Transfer Order (TO) đang còn tại ${currentSoc || "SOC nguồn"}`}
           tone="success"
         />
 

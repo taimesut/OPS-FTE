@@ -1,8 +1,11 @@
 export interface AppConfig {
   soc: string;
+  soc_id?: string;
   cookies: string;
   hubs: string[];
+  hub_ids?: Record<string, string>;
   socs: string[];
+  soc_ids?: Record<string, string>;
   group_socs: Record<string, string[]>;
   raw_group_socs_text?: string;
   proxy_url?: string;
@@ -69,3 +72,14 @@ export const getSoc = (): string => {
   const configs = getConfigs();
   return configs.soc || "";
 };
+
+export const getSocId = (): string => getConfigs().soc_id || "";
+
+export const getStationId = (name: string): string => {
+  const configs = getConfigs();
+  if (name === configs.soc) return configs.soc_id || "";
+  return configs.hub_ids?.[name] || configs.soc_ids?.[name] || "";
+};
+
+export const getStationIds = (names: string[]): string[] =>
+  names.map(getStationId).filter(Boolean);

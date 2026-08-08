@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getHubs, getSoc, getCookies } from "../utils/config";
+import { getHubs, getSoc, getSocId, getStationId, getCookies } from "../utils/config";
 import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
 import { LooseOrderSummary } from "../components/LooseOrderSummary";
@@ -25,6 +25,8 @@ export const CheckSotNoiTinhPage = () => {
 
   const checkSotNoiTinh = async () => {
     const currentSoc = getSoc();
+    const currentSocId = getSocId();
+    const destinationId = getStationId(hub);
     const cookies = getCookies();
 
     if (!hub) {
@@ -37,6 +39,11 @@ export const CheckSotNoiTinhPage = () => {
         "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
         "error",
       );
+      return;
+    }
+
+    if (!currentSocId || !destinationId) {
+      showToast("SOC nguồn hoặc Hub đích chưa có ID. Vui lòng bổ sung trong Cài đặt!", "error");
       return;
     }
 
@@ -61,7 +68,7 @@ export const CheckSotNoiTinhPage = () => {
         const response = await apiClient.get(url);
         const list = (response.data?.data?.list || []).filter(
           (item: { current_station_name: string }) =>
-            item.current_station_name === "Pleiku SOC",
+            item.current_station_name === currentSoc,
         );
         setOrders(list);
         if (list.length === 0) {
@@ -79,7 +86,7 @@ export const CheckSotNoiTinhPage = () => {
 
       const results = await Promise.allSettled([
         checkPackedOrders(),
-        looseOrders.run(),
+        looseOrders.run(currentSocId, [destinationId]),
       ]);
 
       for (const result of results) {
@@ -133,14 +140,20 @@ export const CheckSotNoiTinhPage = () => {
         }
       />
 
-      <LooseOrderSummary state={looseOrders.state} />
+      <LooseOrderSummary
+        state={looseOrders.state}
+        currentName={soc}
+        currentId={getSocId()}
+        destinationName={hub}
+        destinationIds={hub ? [getStationId(hub)].filter(Boolean) : []}
+      />
 
       <section aria-labelledby="packed-orders-heading" className="space-y-3">
         <SectionHeading
           icon={PackageCheck}
           id="packed-orders-heading"
           title="Hàng đã đóng bao"
-          description="Transfer Order (TO) đang còn tại Pleiku SOC"
+          description={`Transfer Order (TO) đang còn tại ${soc || "SOC nguồn"}`}
           tone="success"
         />
 

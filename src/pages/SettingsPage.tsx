@@ -1,8 +1,15 @@
 import { useState } from "react";
 import { getConfigs, saveConfigs, SCANNER_URL, type AppConfig } from "../utils/config";
+import {
+  createStationIdMap,
+  formatStationEntry,
+  parseStationLines,
+  validateUniqueStations,
+} from "../utils/stations";
 import { showToast } from "../components/Toast";
 import { MobileActionBar } from "../components/MobileActionBar";
 import { PageHeader } from "../components/PageHeader";
+import { DEFAULT_STATION_CONFIG } from "../config/defaultStationConfig";
 import {
   Settings,
   Key,
@@ -24,23 +31,33 @@ export const SettingsPage = () => {
   const [initialConfig] = useState(() => getConfigs());
   const initialGroupSocsText = initialConfig.raw_group_socs_text
     || Object.values(initialConfig.group_socs || {}).map((list) => list.join(" @ ")).join("\n");
-  const [soc, setSoc] = useState(initialConfig.soc || "");
+  const [socText, setSocText] = useState(
+    formatStationEntry(initialConfig.soc || "", initialConfig.soc_id),
+  );
   const [cookies, setCookies] = useState(initialConfig.cookies || "");
-  const [hubsText, setHubsText] = useState((initialConfig.hubs || []).join("\n"));
-  const [socsText, setSocsText] = useState((initialConfig.socs || []).join("\n"));
+  const [hubsText, setHubsText] = useState(
+    (initialConfig.hubs || [])
+      .map((name) => formatStationEntry(name, initialConfig.hub_ids?.[name]))
+      .join("\n"),
+  );
+  const [socsText, setSocsText] = useState(
+    (initialConfig.socs || [])
+      .map((name) => formatStationEntry(name, initialConfig.soc_ids?.[name]))
+      .join("\n"),
+  );
   const [groupSocsText, setGroupSocsText] = useState(initialGroupSocsText);
   const [logUrl, setLogUrl] = useState(initialConfig.ggsheet_log_url || "");
 
   const handleSave = () => {
-    const hubs = hubsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const socs = socsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    try {
+      const sourceEntries = parseStationLines(socText, "SOC nguồn");
+      if (sourceEntries.length !== 1) {
+        throw new Error("SOC nguồn phải có đúng một dòng theo định dạng Tên | ID.");
+      }
+      const hubEntries = parseStationLines(hubsText, "Hub nội tỉnh");
+      const socEntries = parseStationLines(socsText, "SOC ngoại tỉnh");
+      validateUniqueStations([...sourceEntries, ...hubEntries, ...socEntries]);
+      const source = sourceEntries[0];
 
     const group_socs: Record<string, string[]> = {};
     const groupLines = groupSocsText
@@ -55,31 +72,35 @@ export const SettingsPage = () => {
       }
     });
 
-    const newConfig: AppConfig = {
-      soc: soc.trim(),
+      const configuredSocNames = new Set(socEntries.map(({ name }) => name));
+      const missingGroupSoc = Object.values(group_socs)
+        .flat()
+        .find((name) => !configuredSocNames.has(name));
+      if (missingGroupSoc) {
+        throw new Error(`SOC "${missingGroupSoc}" trong nhóm chưa có dòng Tên | ID ở danh sách SOC ngoại tỉnh.`);
+      }
+
+      const previousConfig = getConfigs();
+      const newConfig: AppConfig = {
+      ...previousConfig,
+      soc: source.name,
+      soc_id: source.id,
       cookies: cookies.trim(),
-      hubs,
-      socs,
+      hubs: hubEntries.map(({ name }) => name),
+      hub_ids: createStationIdMap(hubEntries),
+      socs: socEntries.map(({ name }) => name),
+      soc_ids: createStationIdMap(socEntries),
       group_socs,
       raw_group_socs_text: groupSocsText,
       ggsheet_log_url: logUrl.trim(),
       scanner_url: getConfigs().scanner_url,
-    };
+      };
 
-    saveConfigs(newConfig);
-    showToast("Đã lưu cài đặt thành công!", "success");
-  };
-
-  const handleLoadSample = () => {
-    setSoc("Pleiku SOC");
-    setHubsText(
-      "44-GLI An Khe Hub\n44-GLI Ayun Pa Hub\n44-GLI Chu Pah Hub\n44-GLI Chu Prong 02 Hub\n44-GLI Chu Prong Hub\n44-GLI Chu Puh Hub\n44-GLI Chu Se Hub\n44-GLI Dak Doa Hub\n44-GLI Duc Co Hub\n44-GLI Ia Grai Hub\n44-GLI Kbang Hub\n44-GLI Krong Pa Hub\n44-GLI Mang Yang Hub\n44-GLI MBH An Khe Hub\n44-GLI MBH Ayun Pa Hub\n44-GLI MBH Chu Prong Hub\n44-GLI MBH Dak Doa Hub\n44-GLI MBH Ia Grai Hub\n44-GLI Phu Thien Hub\n44-GLI Pleiku 02 Hub\n44-GLI Pleiku 03 Hub\n44-GLI Pleiku 04 Hub\n44-GLI Pleiku Hub"
-    );
-    setSocsText("DN Mega SOC\nBD A Mega SOC\nBD B Mega SOC\nBN A Mega SOC\nBN B Mega SOC\nHCM Mega SOC\nHN SOC\nBMT SOC\nKon Tum SOC");
-    setGroupSocsText(
-      "DN Mega SOC @Vinh SOC @Cam Xuyen SOC @Tuy Phuoc SOC @Tuy Hoa SOC @Quang Ngai SOC @Dien Khanh SOC @Dong Hoi SOC\nBD A Mega SOC @Phan Rang SOC @Duc Trong SOC\nBMT SOC @Gia Nghia SOC"
-    );
-    showToast("Đã điền dữ liệu mẫu Pleiku SOC!", "info");
+      saveConfigs(newConfig);
+      showToast("Đã lưu cấu hình Tên và ID trạm thành công!", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Cấu hình trạm không hợp lệ.", "error");
+    }
   };
 
   const handleExportJSON = () => {
@@ -90,10 +111,28 @@ export const SettingsPage = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pleiku-soc-config-${Date.now()}.json`;
+    a.download = `station-config-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast("Đã xuất tệp JSON cấu hình!", "info");
+  };
+
+  const handleLoadSample = () => {
+    const hasFormData = [socText, cookies, hubsText, socsText, groupSocsText, logUrl]
+      .some((value) => value.trim());
+    if (hasFormData && !confirm("Tải mẫu sẽ thay thế dữ liệu đang hiển thị trên form. Tiếp tục?")) {
+      return;
+    }
+
+    setSocText(formatStationEntry(DEFAULT_STATION_CONFIG.soc, DEFAULT_STATION_CONFIG.soc_id));
+    setCookies("");
+    setHubsText(DEFAULT_STATION_CONFIG.hubs.map((name) =>
+      formatStationEntry(name, DEFAULT_STATION_CONFIG.hub_ids?.[name])).join("\n"));
+    setSocsText(DEFAULT_STATION_CONFIG.socs.map((name) =>
+      formatStationEntry(name, DEFAULT_STATION_CONFIG.soc_ids?.[name])).join("\n"));
+    setGroupSocsText(DEFAULT_STATION_CONFIG.raw_group_socs_text || "");
+    setLogUrl("");
+    showToast("Đã điền mẫu Hub/SOC và ID. Hãy nhập Cookie rồi bấm Lưu Cài Đặt.", "info");
   };
 
   const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,10 +145,12 @@ export const SettingsPage = () => {
         const imported = JSON.parse(event.target?.result as string);
         if (typeof imported === "object" && imported !== null) {
           saveConfigs(imported);
-          setSoc(imported.soc || "");
+          setSocText(formatStationEntry(imported.soc || "", imported.soc_id));
           setCookies(imported.cookies || "");
-          setHubsText((imported.hubs || []).join("\n"));
-          setSocsText((imported.socs || []).join("\n"));
+          setHubsText((imported.hubs || []).map((name: string) =>
+            formatStationEntry(name, imported.hub_ids?.[name])).join("\n"));
+          setSocsText((imported.socs || []).map((name: string) =>
+            formatStationEntry(name, imported.soc_ids?.[name])).join("\n"));
           setLogUrl(imported.ggsheet_log_url || "");
           if (imported.raw_group_socs_text) {
             setGroupSocsText(imported.raw_group_socs_text);
@@ -131,7 +172,7 @@ export const SettingsPage = () => {
   const handleReset = () => {
     if (confirm("Bạn có chắc chắn muốn xóa tất cả cài đặt hiện tại?")) {
       localStorage.removeItem("configs");
-      setSoc("");
+      setSocText("");
       setCookies("");
       setHubsText("");
       setSocsText("");
@@ -150,9 +191,9 @@ export const SettingsPage = () => {
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
           <button
+            type="button"
             onClick={handleLoadSample}
             className="btn min-h-11 w-full btn-ghost gap-1.5 rounded-xl bg-primary/10 font-bold text-primary hover:bg-primary/20 sm:w-auto"
-            title="Tải dữ liệu mẫu Pleiku SOC"
           >
             <Sparkles className="w-4 h-4" /> Tải mẫu
           </button>
@@ -181,17 +222,17 @@ export const SettingsPage = () => {
         <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-primary">
             <Building className="w-4 h-4" />
-            1. Tên SOC
+            1. SOC nguồn (Tên | ID)
           </label>
           <input
             type="text"
-            value={soc}
-            onChange={(e) => setSoc(e.target.value)}
-            placeholder="Ví dụ: 44-GLI Pleiku SOC"
+            value={socText}
+            onChange={(e) => setSocText(e.target.value)}
+            placeholder="Ví dụ: SOC nguồn | 1001"
             className="input input-bordered w-full focus:input-primary rounded-xl font-bold text-base"
           />
           <span className="text-xs text-base-content/60">
-            Dùng làm tên nơi gửi khi kiểm tra các Transfer Order xuất kho.
+            Tên dùng để lọc TO; ID dùng làm current_station_ids khi kiểm tra hàng xá lẻ.
           </span>
         </div>
 
@@ -258,17 +299,17 @@ export const SettingsPage = () => {
         <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-accent">
             <MapPin className="w-4 h-4" />
-            5. Danh sách Hubs Nội Tỉnh (Mỗi dòng 1 Hub)
+            5. Hubs nội tỉnh — mỗi dòng Tên | ID
           </label>
           <textarea
             value={hubsText}
             onChange={(e) => setHubsText(e.target.value)}
             rows={4}
-            placeholder={`44-GLI Pleiku Hub\n44-GLI Pleiku 02 Hub\n44-GLI Pleiku 03 Hub\n44-GLI Pleiku 04 Hub`}
+            placeholder={`Hub Alpha | 2001\nHub Beta | 2002`}
             className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-medium text-sm leading-relaxed"
           ></textarea>
           <span className="text-xs text-base-content/60">
-            Hiển thị trong danh sách chọn của trang Kiểm Tra Sót Nội Tỉnh.
+            Tên hiển thị trong danh sách; ID được gửi tới API hàng xá lẻ.
           </span>
         </div>
 
@@ -276,17 +317,17 @@ export const SettingsPage = () => {
         <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-warning">
             <Globe className="w-4 h-4" />
-            6. Danh sách SOCs Ngoại Tỉnh (Mỗi dòng 1 SOC)
+            6. SOCs ngoại tỉnh — mỗi dòng Tên | ID
           </label>
           <textarea
             value={socsText}
             onChange={(e) => setSocsText(e.target.value)}
             rows={4}
-            placeholder={`HN SOC\nHCM SOC\nDN Mega SOC`}
+            placeholder={`HN SOC | 2001\nHCM SOC | 2002\nDN Mega SOC | 2003`}
             className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-medium text-sm leading-relaxed"
           ></textarea>
           <span className="text-xs text-base-content/60">
-            Hiển thị trong danh sách chọn của trang Kiểm Tra Sót Ngoại Tỉnh.
+            Tên hiển thị và dùng cho receiver; ID dùng cho API hàng xá lẻ.
           </span>
         </div>
 

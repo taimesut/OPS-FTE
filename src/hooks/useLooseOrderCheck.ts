@@ -14,11 +14,11 @@ const FALLBACK_ERROR =
 export const useLooseOrderCheck = () => {
   const [state, setState] = useState<LooseOrderCheckState>({ status: "idle" });
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (currentStationId: string, nextStationIds: string[]) => {
     setState({ status: "loading" });
 
     try {
-      const summary = await fetchLooseOrderSummary();
+      const summary = await fetchLooseOrderSummary(currentStationId, nextStationIds);
       setState({ status: "success", summary });
     } catch (error) {
       const message =
