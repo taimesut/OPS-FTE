@@ -68,9 +68,9 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
             <label
               htmlFor="mobile-sidebar-drawer"
               aria-label="open sidebar"
-              className="btn btn-square btn-ghost drawer-button min-h-11 min-w-11 rounded-xl"
+              className="btn btn-square btn-ghost drawer-button relative z-50 min-h-11 min-w-11 touch-manipulation rounded-xl p-2"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="pointer-events-none h-6 w-6" />
             </label>
           </div>
 
