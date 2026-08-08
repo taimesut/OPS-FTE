@@ -51,7 +51,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
   ];
 
   return (
-    <div className="drawer app-shell min-h-screen bg-base-100 font-sans relative overflow-x-hidden">
+    <div className="drawer app-shell min-h-screen bg-base-100 font-sans relative overflow-x-clip">
 
       {/* Drawer Toggle Checkbox */}
       <input
@@ -78,7 +78,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
             <span className="p-1.5 bg-primary/10 text-primary rounded-xl">
               <Package className="w-5 h-5" />
             </span>
-            <span className="truncate">
+            <span className="truncate" title={currentSoc}>
               <span className="text-primary font-black">SPX</span> <span className="align-middle">{currentSoc}</span>
             </span>
           </div>
@@ -89,7 +89,7 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
         </header>
 
         {/* Dynamic Page View Container */}
-        <main className="app-main min-w-0 flex-1 bg-base-200/40 pb-20 md:pb-12">{children}</main>
+        <main className="app-main min-w-0 flex-1 bg-base-200/40 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-12">{children}</main>
       </div>
 
       {/* Drawer Sidebar */}

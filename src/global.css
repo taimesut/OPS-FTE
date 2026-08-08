@@ -11,10 +11,13 @@
 }
 
 body {
-  font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+  font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
+  font-synthesis: none;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
 }
 
 /* Force SPX Shopee Orange primary brand color across all themes */
@@ -162,13 +165,16 @@ input, select, textarea {
   }
 }
 
-html {
-  min-width: 320px;
-  overflow-x: hidden;
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
-#root {
-  min-width: 0;
+html {
+  overflow-x: clip;
 }
 
 .app-shell {
@@ -177,7 +183,109 @@ html {
 
 .app-main {
   min-width: 0;
-  overflow-x: clip;
+}
+
+.app-page {
+  width: 100%;
+  max-width: 80rem;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 1rem 0.75rem calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+.app-page-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.app-page-description {
+  max-width: 60rem;
+  margin-top: 0.375rem;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.app-page-header {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.875rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  padding-bottom: 1rem;
+}
+
+.app-page-actions {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-page-actions > * {
+  min-width: 0;
+}
+
+.app-icon-badge {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 0.875rem;
+}
+
+.app-icon-badge svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app-section-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+}
+
+.app-section-description {
+  margin-top: 0.125rem;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.app-surface {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 1rem;
+  background: var(--color-base-100, #fff);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.break-safe {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobile-action-bar {
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 30;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--color-base-100, #fff) 94%, transparent);
+  padding: 0.75rem;
+  box-shadow: 0 14px 32px rgb(15 23 42 / 0.14);
+  backdrop-filter: blur(14px);
 }
 
 .settings-page {
@@ -185,6 +293,39 @@ html {
 }
 
 @media (min-width: 768px) {
+  .app-page {
+    padding: 1.5rem 1.5rem 2rem;
+  }
+
+  .app-page-title {
+    font-size: 1.875rem;
+  }
+
+  .app-page-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .app-page-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .mobile-action-bar {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
   .settings-page {
     padding-bottom: 1.5rem;
   }
