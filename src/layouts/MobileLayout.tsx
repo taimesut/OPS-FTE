@@ -27,6 +27,13 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
     if (checkbox) checkbox.checked = false;
   };
 
+  const toggleDrawer = () => {
+    const checkbox = document.getElementById(
+      "mobile-sidebar-drawer",
+    ) as HTMLInputElement | null;
+    if (checkbox) checkbox.checked = !checkbox.checked;
+  };
+
   const navItems = [
     {
       path: "/",
@@ -65,13 +72,14 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
         {/* Sticky Top Navbar */}
         <header className="navbar h-14 min-h-14 bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-2 sm:px-3 md:px-6">
           <div className="flex-none">
-            <label
-              htmlFor="mobile-sidebar-drawer"
+            <button
+              type="button"
+              onClick={toggleDrawer}
               aria-label="open sidebar"
               className="btn btn-square btn-ghost drawer-button relative z-50 min-h-11 min-w-11 touch-manipulation rounded-xl p-2"
             >
               <Menu className="pointer-events-none h-6 w-6" />
-            </label>
+            </button>
           </div>
 
           <div className="mx-1 min-w-0 flex-1 px-1 sm:mx-2 sm:px-2 font-black text-base sm:text-lg md:text-xl tracking-tight flex items-center gap-2">

@@ -21,23 +21,18 @@ export default function ToggleTheme() {
   };
 
   return (
-    <label
-      className="swap swap-rotate relative z-50 inline-flex min-h-11 min-w-11 cursor-pointer touch-manipulation items-center justify-center rounded-xl p-2"
+    <button
+      type="button"
+      onClick={toggleTheme}
       aria-label={`Chuyển sang giao diện ${theme === "light" ? "tối" : "sáng"}`}
+      aria-pressed={theme === "dark"}
+      className="btn btn-square btn-ghost relative z-50 min-h-11 min-w-11 touch-manipulation rounded-xl p-2"
     >
-      <input
-        type="checkbox"
-        checked={theme === "dark"}
-        onChange={toggleTheme}
-        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-      />
-
-      {/* Sun */}
-
-      <Sun className="swap-off pointer-events-none h-6 w-6 fill-current" />
-      {/* Moon */}
-
-      <Moon className="swap-on pointer-events-none h-6 w-6 fill-current" />
-    </label>
+      {theme === "light" ? (
+        <Sun className="pointer-events-none h-6 w-6 fill-current" />
+      ) : (
+        <Moon className="pointer-events-none h-6 w-6 fill-current" />
+      )}
+    </button>
   );
 }
