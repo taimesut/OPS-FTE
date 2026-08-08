@@ -10,6 +10,7 @@ export const fetchLooseOrderSummary = async (): Promise<LooseOrderSummary> => {
   const response = await apiClient.post(
     LOOSE_ORDER_SEARCH_PATH,
     DEFAULT_LOOSE_ORDER_PAYLOAD,
+    { suppressErrorToast: true },
   );
 
   return summarizeLooseOrderResponse(response.data);

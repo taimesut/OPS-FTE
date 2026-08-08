@@ -3,6 +3,12 @@ import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from "axio
 import { getCookies, getProxyUrl } from "./config";
 import { showToast } from "../components/Toast";
 
+declare module "axios" {
+  interface AxiosRequestConfig {
+    suppressErrorToast?: boolean;
+  }
+}
+
 const apiClient = axios.create({
   timeout: 30000,
   headers: {
@@ -115,6 +121,10 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     console.error("[API Response Error Object]", error);
+
+    if (error.config?.suppressErrorToast) {
+      return Promise.reject(error);
+    }
 
     if (error.response) {
       const serverMsg =

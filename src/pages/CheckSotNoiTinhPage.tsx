@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { getHubs, getSoc, getCookies } from "../utils/config";
 import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
+import { LooseOrderSummary } from "../components/LooseOrderSummary";
 import { showToast } from "../components/Toast";
-import { Search, MapPin } from "lucide-react";
+import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
+import { Search, MapPin, PackageCheck } from "lucide-react";
 
 export const CheckSotNoiTinhPage = () => {
   const [hubs, setHubs] = useState<string[]>([]);
@@ -11,6 +13,7 @@ export const CheckSotNoiTinhPage = () => {
   const [hub, setHub] = useState("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
+  const looseOrders = useLooseOrderCheck();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -46,28 +49,42 @@ export const CheckSotNoiTinhPage = () => {
     setLoading(true);
 
     try {
-      const now = Math.floor(Date.now() / 1000);
-      const sevenDaysAgo = now - 7 * 24 * 60 * 60;
-      const url = `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
-        hub,
-      )}&status=2&ctime=${sevenDaysAgo},${now}`;
+      const checkPackedOrders = async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+        const url = `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
+          hub,
+        )}&status=2&ctime=${sevenDaysAgo},${now}`;
 
-      const response = await apiClient.get(url);
-      const list = (response.data?.data?.list || []).filter(
-        (item: { current_station_name: string }) =>
-          item.current_station_name === "Pleiku SOC",
-      );
-      setOrders(list);
-      if (list.length === 0) {
-        showToast(
-          `Không có TO nào bị sót từ ${currentSoc} tới Hub ${hub}`,
-          "info",
+        const response = await apiClient.get(url);
+        const list = (response.data?.data?.list || []).filter(
+          (item: { current_station_name: string }) =>
+            item.current_station_name === "Pleiku SOC",
         );
-      } else {
-        showToast(`Tìm thấy ${list.length} TO sót tới Hub ${hub}`, "success");
+        setOrders(list);
+        if (list.length === 0) {
+          showToast(
+            `Không có TO nào bị sót từ ${currentSoc} tới Hub ${hub}`,
+            "info",
+          );
+        } else {
+          showToast(
+            `Tìm thấy ${list.length} TO sót tới Hub ${hub}`,
+            "success",
+          );
+        }
+      };
+
+      const results = await Promise.allSettled([
+        checkPackedOrders(),
+        looseOrders.run(),
+      ]);
+
+      for (const result of results) {
+        if (result.status === "rejected") {
+          console.error("[Check sót nội tỉnh]", result.reason);
+        }
       }
-    } catch (err) {
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -126,13 +143,30 @@ export const CheckSotNoiTinhPage = () => {
         </div>
       </div>
 
-      {/* Main Table */}
-      <TOTable
-        orders={orders}
-        storageKey="tuy-chon-check-sot-noi-tinh"
-        emptyTitle="Chưa có dữ liệu sót nội tỉnh"
-        emptyDescription="Vui lòng chọn Hub nội tỉnh và nhấn nút 'Tìm kiếm' để kiểm tra danh sách TO."
-      />
+      <LooseOrderSummary state={looseOrders.state} />
+
+      <section aria-labelledby="packed-orders-heading" className="space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success">
+            <PackageCheck className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 id="packed-orders-heading" className="font-black tracking-tight">
+              Hàng đã đóng bao
+            </h2>
+            <p className="text-xs text-base-content/60">
+              Transfer Order (TO) đang còn tại Pleiku SOC
+            </p>
+          </div>
+        </div>
+
+        <TOTable
+          orders={orders}
+          storageKey="tuy-chon-check-sot-noi-tinh"
+          emptyTitle="Chưa có dữ liệu sót nội tỉnh"
+          emptyDescription="Vui lòng chọn Hub nội tỉnh và nhấn nút 'Tìm kiếm' để kiểm tra danh sách TO."
+        />
+      </section>
     </div>
   );
 };
