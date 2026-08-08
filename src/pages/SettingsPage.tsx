@@ -197,10 +197,10 @@ export const SettingsPage = () => {
 
         {/* 2. Cookie Shopee Express */}
         <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center justify-between text-sm font-bold text-secondary">
-            <span className="flex items-center gap-2">
+          <label className="flex flex-col items-start gap-2 text-sm font-bold text-secondary sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex min-w-0 items-start gap-2">
               <Key className="w-4 h-4" />
-              2. Cookie Shopee Express (SPX Cookie)
+              <span className="break-safe">2. Cookie Shopee Express (SPX Cookie)</span>
             </span>
             {cookies ? (
               <span className="badge badge-success badge-sm gap-1">
