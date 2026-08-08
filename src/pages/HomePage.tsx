@@ -52,11 +52,8 @@ const ZaloIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 
 export const HomePage = () => {
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] min-w-0 w-full items-center justify-center overflow-hidden p-3 sm:p-4 font-sans">
-      {/* Glowing Rainbow Aura Outer Wrapper */}
-      <div className="aura aura-rainbow p-1 rounded-3xl">
-        {/* Support Contact Card */}
-        <div className="relative w-full max-w-[calc(100vw-1.5rem)] bg-base-100/95 backdrop-blur-xl border border-base-200 shadow-2xl rounded-2xl p-4 sm:max-w-sm sm:rounded-3xl sm:p-6 space-y-5 text-center">
+    <div className="app-page flex min-h-[calc(100dvh-3.5rem)] items-center justify-center">
+        <div className="app-surface w-full max-w-md space-y-5 p-4 text-center sm:p-6">
           {/* Header */}
           <div className="space-y-1">
             <h1 className="text-3xl font-black tracking-tight text-primary">
@@ -89,14 +86,13 @@ export const HomePage = () => {
           <div className="border-t border-base-200 pt-3">
             <a
               href="mailto:nguyenthanhtaiabcxyz@gmail.com"
-              className="text-xs font-semibold text-base-content/60 hover:text-primary transition-colors flex items-center justify-center gap-1.5"
+              className="flex items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
             >
               <Mail className="w-3.5 h-3.5 text-primary" />
               <span>nguyenthanhtaiabcxyz@gmail.com</span>
             </a>
           </div>
         </div>
-      </div>
     </div>
   );
 };

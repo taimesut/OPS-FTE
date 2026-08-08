@@ -11,6 +11,7 @@ const TONES = {
 
 interface SectionHeadingProps {
   icon: LucideIcon;
+  id?: string;
   title: string;
   description?: ReactNode;
   tone?: keyof typeof TONES;
@@ -18,6 +19,7 @@ interface SectionHeadingProps {
 
 export const SectionHeading = ({
   icon: Icon,
+  id,
   title,
   description,
   tone = "primary",
@@ -27,7 +29,7 @@ export const SectionHeading = ({
       <Icon aria-hidden="true" />
     </span>
     <div className="min-w-0">
-      <h2 className="app-section-title">{title}</h2>
+      <h2 id={id} className="app-section-title">{title}</h2>
       {description && <p className="app-section-description">{description}</p>}
     </div>
   </div>
