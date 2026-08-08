@@ -116,6 +116,7 @@ export default function EmbeddedQRScanner({
       const timer = window.setTimeout(() => startSession(mode), 0);
       return () => window.clearTimeout(timer);
     }
+    frameLoadedRef.current = false;
     const timer = window.setTimeout(stopSession, 0);
     return () => window.clearTimeout(timer);
   }, [mode, open, startSession, stopSession]);
@@ -200,15 +201,14 @@ export default function EmbeddedQRScanner({
     onCloseRef.current();
   };
 
+  if (!open || !mode) return null;
+
   return (
     <div
-      className={`fixed inset-0 z-[70] bg-slate-950 transition-opacity duration-200 ${
-        open ? "opacity-100" : "pointer-events-none opacity-0"
-      }`}
+      className="fixed inset-0 z-[70] bg-slate-950"
       role="dialog"
       aria-modal="true"
       aria-label="Quét mã QR trực tiếp"
-      aria-hidden={!open}
     >
       <iframe
         ref={iframeRef}
