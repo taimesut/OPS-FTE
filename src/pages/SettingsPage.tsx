@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { getConfigs, saveConfigs, SCANNER_URL, type AppConfig } from "../utils/config";
 import { showToast } from "../components/Toast";
+import { MobileActionBar } from "../components/MobileActionBar";
+import { PageHeader } from "../components/PageHeader";
 import {
   Settings,
   Key,
@@ -140,39 +142,27 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="settings-page mx-auto min-w-0 max-w-4xl p-3 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
-      {/* Header */}
-      <div className="border-b border-base-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="p-2 bg-primary/10 text-primary rounded-xl">
-              <Settings className="w-5 h-5" />
-            </span>
-            <h1 className="min-w-0 break-words text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
-              Cài Đặt Cấu Hình
-            </h1>
-          </div>
-          <p className="text-xs md:text-sm text-base-content/70 mt-1">
-            Nhập Cookie SPX, Mã SOC nguồn, danh sách Hub, SOCs và Webhook nhận Log Sự Vụ
-          </p>
-        </div>
-
-        {/* Action Header Buttons */}
-        <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center">
+    <div className="settings-page app-page max-w-4xl space-y-5 text-base-content md:space-y-6">
+      <PageHeader
+        icon={Settings}
+        title="Cài Đặt Cấu Hình"
+        description="Nhập Cookie SPX, Mã SOC nguồn, danh sách Hub, SOCs và Webhook nhận Log Sự Vụ"
+        actions={
+          <div className="grid w-full gap-2 sm:flex sm:w-auto">
           <button
             onClick={handleLoadSample}
-            className="btn min-h-11 flex-1 btn-ghost gap-1.5 rounded-xl text-primary font-bold bg-primary/10 hover:bg-primary/20 sm:flex-none"
+            className="btn min-h-11 w-full btn-ghost gap-1.5 rounded-xl bg-primary/10 font-bold text-primary hover:bg-primary/20 sm:w-auto"
             title="Tải dữ liệu mẫu Pleiku SOC"
           >
             <Sparkles className="w-4 h-4" /> Tải mẫu
           </button>
           <button
             onClick={handleExportJSON}
-            className="btn min-h-11 flex-1 btn-outline gap-1.5 rounded-xl sm:flex-none"
+            className="btn min-h-11 w-full btn-outline gap-1.5 rounded-xl sm:w-auto"
           >
             <Download className="w-4 h-4" /> Xuất JSON
           </button>
-          <label className="btn min-h-11 flex-1 btn-outline gap-1.5 rounded-xl cursor-pointer sm:flex-none">
+          <label className="btn min-h-11 w-full cursor-pointer btn-outline gap-1.5 rounded-xl sm:w-auto">
             <Upload className="w-4 h-4" /> Nhập JSON
             <input
               type="file"
@@ -181,13 +171,14 @@ export const SettingsPage = () => {
               className="hidden"
             />
           </label>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Form Fields Section */}
       <div className="space-y-6">
         {/* 1. Mã SOC hiện tại */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-primary">
             <Building className="w-4 h-4" />
             1. Tên SOC
@@ -205,7 +196,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 2. Cookie Shopee Express */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center justify-between text-sm font-bold text-secondary">
             <span className="flex items-center gap-2">
               <Key className="w-4 h-4" />
@@ -232,7 +223,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 3. Link Google Sheet Log Sự Vụ */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-success">
             <FileSpreadsheet className="w-4 h-4" />
             3. Link Google Sheet / GAS Web App URL nhận Log Sự Vụ
@@ -250,13 +241,13 @@ export const SettingsPage = () => {
         </div>
 
         {/* 4. Scanner live */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <ScanLine className="w-4 h-4" />
             4. Scanner QR trực tiếp
           </label>
           <div className="flex flex-col gap-2 rounded-xl border border-info/20 bg-info/5 p-4">
-            <span className="font-mono text-sm font-bold text-info break-all">{SCANNER_URL}</span>
+            <span className="break-safe font-mono text-sm font-bold text-info">{SCANNER_URL}</span>
             <span className="text-xs text-base-content/60">
               Link quét QR đã được cố định để mở camera live. Bạn vẫn có thể dùng nút chụp ảnh nếu trình duyệt không cấp quyền camera.
             </span>
@@ -264,7 +255,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 5. Hubs nội tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-accent">
             <MapPin className="w-4 h-4" />
             5. Danh sách Hubs Nội Tỉnh (Mỗi dòng 1 Hub)
@@ -282,7 +273,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 5. SOCs ngoại tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-warning">
             <Globe className="w-4 h-4" />
             6. Danh sách SOCs Ngoại Tỉnh (Mỗi dòng 1 SOC)
@@ -300,7 +291,7 @@ export const SettingsPage = () => {
         </div>
 
         {/* 6. Nhóm SOCs ngoại tỉnh */}
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 space-y-2 sm:rounded-2xl sm:p-5">
+        <div className="app-surface space-y-2 p-4 sm:p-5">
           <label className="flex items-center gap-2 text-sm font-bold text-info">
             <Share2 className="w-4 h-4" />
             7. Cấu hình Nhóm SOC Ngoại Tỉnh (Ký tự @ phân cách)
@@ -319,11 +310,11 @@ export const SettingsPage = () => {
       </div>
 
       {/* Sticky Bottom Save Bar for Mobile */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-base-200 bg-base-100/95 px-3 pt-3 shadow-2xl backdrop-blur-md safe-bottom md:static md:mt-2 md:border-t-0 md:bg-transparent md:px-0 md:pt-0 md:shadow-none md:backdrop-blur-none">
+      <MobileActionBar className="md:mt-2">
         <button
           type="button"
           onClick={handleReset}
-          className="btn min-h-11 btn-ghost text-error gap-1 rounded-xl"
+          className="btn min-h-11 self-start btn-ghost text-error gap-1 rounded-xl"
         >
           <RefreshCw className="w-4 h-4 text-error" /> Xóa
         </button>
@@ -331,12 +322,12 @@ export const SettingsPage = () => {
         <button
           type="button"
           onClick={handleSave}
-          className="btn min-h-11 flex-1 gap-2 rounded-xl px-4 shadow-md font-bold text-base sm:flex-none sm:px-8"
+          className="btn min-h-11 w-full gap-2 rounded-xl px-4 text-base font-bold shadow-md sm:w-auto sm:px-8"
         >
           <Save className="w-5 h-5" />
           Lưu Cài Đặt
         </button>
-      </div>
+      </MobileActionBar>
     </div>
   );
 };

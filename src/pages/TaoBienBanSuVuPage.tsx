@@ -3,6 +3,8 @@ import { showToast } from "../components/Toast";
 import { getLogUrl } from "../utils/config";
 import { decodeBarcodeImage } from "../utils/barcode";
 import EmbeddedQRScanner, { type ScanMode } from "../components/EmbeddedQRScanner";
+import { MobileActionBar } from "../components/MobileActionBar";
+import { PageHeader } from "../components/PageHeader";
 import {
   QrCode,
   FileText,
@@ -38,11 +40,11 @@ interface IncidentItemCardProps {
 }
 
 const IncidentItemCard = ({ item, index, onRemove }: IncidentItemCardProps) => (
-  <article className="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-xs">
+  <article className="app-surface p-4 sm:p-5">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Đơn sự vụ #{index + 1}</span>
-        <p className="mt-1 break-all font-mono text-base font-black text-primary">{item.trackingCode}</p>
+        <p className="mt-1 break-safe font-mono text-base font-black text-primary">{item.trackingCode}</p>
       </div>
       <button
         type="button"
@@ -59,6 +61,39 @@ const IncidentItemCard = ({ item, index, onRemove }: IncidentItemCardProps) => (
     </div>
   </article>
 );
+
+const INCIDENT_STEPS = [
+  ["lhtrip", "LH TRIP"],
+  ["scan_items", "Thêm đơn"],
+  ["preview", "Xem trước"],
+] as const;
+
+interface IncidentStepIndicatorProps {
+  currentStep: "lhtrip" | "scan_items" | "preview";
+}
+
+const IncidentStepIndicator = ({ currentStep }: IncidentStepIndicatorProps) => {
+  const currentIndex = INCIDENT_STEPS.findIndex(([value]) => value === currentStep);
+
+  return (
+    <ol aria-label="Tiến trình tạo biên bản" className="grid grid-cols-3 gap-2">
+      {INCIDENT_STEPS.map(([value, label], index) => (
+        <li
+          key={value}
+          className={`min-w-0 rounded-xl border px-2 py-2.5 text-center text-[11px] font-bold sm:px-3 sm:text-xs ${
+            index === currentIndex
+              ? "border-primary bg-primary/10 text-primary"
+              : index < currentIndex
+                ? "border-success/30 bg-success/10 text-success"
+                : "border-base-200 bg-base-100 text-base-content/50"
+          }`}
+        >
+          <span className="block truncate">{index + 1}. {label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+};
 
 export const TaoBienBanSuVuPage = () => {
   const [step, setStep] = useState<"lhtrip" | "scan_items" | "preview">("lhtrip");
@@ -221,7 +256,7 @@ export const TaoBienBanSuVuPage = () => {
   };
 
   return (
-    <div className="mx-auto min-w-0 max-w-4xl p-3 pb-20 sm:p-4 md:p-6 font-sans text-base-content space-y-5 md:space-y-6">
+    <div className="app-page max-w-4xl space-y-5 text-base-content md:space-y-6">
       <EmbeddedQRScanner
         open={scannerMode !== null}
         mode={scannerMode}
@@ -229,26 +264,16 @@ export const TaoBienBanSuVuPage = () => {
         onClose={() => setScannerMode(null)}
       />
 
-      {/* Header Section */}
-      <div className="border-b border-base-200 pb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="p-2 bg-primary/10 text-primary rounded-xl">
-              <Truck className="w-5 h-5" />
-            </span>
-            <h1 className="min-w-0 break-words text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
-              Tạo Biên Bản Sự Vụ LH TRIP
-            </h1>
-          </div>
-          <p className="text-xs md:text-sm text-base-content/60 mt-1">
-            Quét mã chuyến xe Linehaul (LH TRIP), nhập các đơn sự vụ và tự động xuất log Google Sheet
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title="Tạo Biên Bản Sự Vụ LH TRIP"
+        description="Quét mã chuyến xe Linehaul (LH TRIP), nhập các đơn sự vụ và tự động xuất log Google Sheet"
+      />
+      <IncidentStepIndicator currentStep={step} />
 
       {/* BƯỚC 1: Quét / Nhập mã LH TRIP */}
       {step === "lhtrip" && (
-        <div className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 sm:rounded-2xl sm:p-5 md:p-8 space-y-6">
+        <div className="app-surface space-y-6 p-4 sm:p-5 md:p-8">
           <div className="space-y-3">
             <label className="text-base font-bold flex items-center gap-2 text-base-content">
               <Truck className="w-5 h-5 text-primary" />
@@ -261,19 +286,19 @@ export const TaoBienBanSuVuPage = () => {
                 value={lhTrip}
                 onChange={(e) => setLhTrip(e.target.value.toUpperCase())}
                 placeholder="Dán hoặc quét mã chuyến LH..."
-                className="input input-bordered w-full focus:input-primary text-xl font-mono font-bold tracking-wider rounded-xl uppercase h-14"
+                className="input input-bordered min-h-14 w-full min-w-0 rounded-xl text-xl font-mono font-bold uppercase tracking-wider focus:input-primary"
                 autoFocus
               />
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <button
                     type="button"
                     onClick={() => setScannerMode("lhtrip")}
-                    className="btn btn-primary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs"
+                    className="btn btn-primary min-h-12 w-full gap-2 rounded-xl text-sm font-bold shadow-xs"
                   >
                     <QrCode className="w-5 h-5" /> Quét trực tiếp
                   </button>
                 <label
-                  className={`btn btn-secondary flex-1 h-12 gap-2 rounded-xl text-sm font-bold shadow-xs ${
+                  className={`btn btn-secondary min-h-12 w-full gap-2 rounded-xl text-sm font-bold shadow-xs ${
                     decodingCapture ? "btn-disabled" : "cursor-pointer"
                   }`}
                 >
@@ -301,7 +326,7 @@ export const TaoBienBanSuVuPage = () => {
           <div className="flex justify-end border-t border-base-200 pt-5">
             <button
               onClick={handleStartScanItems}
-              className="btn btn-primary gap-2 w-full sm:w-auto rounded-xl h-12 text-base font-bold px-8 shadow-md"
+              className="btn btn-primary min-h-12 w-full gap-2 rounded-xl px-8 text-base font-bold shadow-md sm:w-auto"
             >
               Bắt đầu thêm đơn sự vụ
               <Package className="w-5 h-5" />
@@ -314,7 +339,7 @@ export const TaoBienBanSuVuPage = () => {
       {step === "scan_items" && (
         <div className="space-y-6">
           {/* Active LH TRIP Banner */}
-          <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 sm:rounded-2xl sm:p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3 sm:flex-row sm:items-center sm:justify-between sm:rounded-2xl sm:p-4">
             <div className="flex min-w-0 items-center gap-3">
               <span className="p-2 bg-primary text-primary-content rounded-xl font-bold">
                 <Truck className="w-5 h-5" />
@@ -323,7 +348,7 @@ export const TaoBienBanSuVuPage = () => {
                 <span className="text-xs text-base-content/60 font-semibold block">
                   Mã LH TRIP đang chọn:
                 </span>
-                <strong className="block break-all text-xl font-mono font-black text-primary">
+                <strong className="block break-safe text-xl font-mono font-black text-primary">
                   {lhTrip}
                 </strong>
               </div>
@@ -339,7 +364,7 @@ export const TaoBienBanSuVuPage = () => {
           {/* Form thêm đơn hàng sự vụ */}
           <form
             onSubmit={handleAddItem}
-            className="card bg-base-100 border border-base-200 shadow-xs rounded-xl p-4 sm:rounded-2xl sm:p-5 md:p-6 space-y-4"
+            className="app-surface space-y-4 p-4 sm:p-5 md:p-6"
           >
             <h3 className="flex min-w-0 items-start gap-2 text-base font-bold">
               <Package className="w-5 h-5 text-secondary" />
@@ -354,16 +379,16 @@ export const TaoBienBanSuVuPage = () => {
                 placeholder="Nhập hoặc quét mã đơn bị sự vụ..."
                 className="input input-bordered w-full focus:input-primary text-lg font-mono font-bold rounded-xl uppercase"
               />
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <button
                     type="button"
                     onClick={() => setScannerMode("item")}
-                    className="btn btn-primary flex-1 gap-2 rounded-xl font-bold"
+                    className="btn btn-primary min-h-12 w-full gap-2 rounded-xl font-bold"
                   >
                     <QrCode className="w-5 h-5" /> Quét trực tiếp
                   </button>
                 <label
-                  className={`btn btn-secondary flex-1 gap-2 rounded-xl font-bold ${
+                  className={`btn btn-secondary min-h-12 w-full gap-2 rounded-xl font-bold ${
                     decodingCapture ? "btn-disabled" : "cursor-pointer"
                   }`}
                 >
@@ -392,7 +417,7 @@ export const TaoBienBanSuVuPage = () => {
               <label className="text-xs font-bold text-base-content/70 block">
                 Chọn lý do sự vụ cho đơn này:
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {REASON_OPTIONS.map((reason) => {
                   const isSelected = currentReason === reason;
                   return (
@@ -400,13 +425,13 @@ export const TaoBienBanSuVuPage = () => {
                       key={reason}
                       type="button"
                       onClick={() => setCurrentReason(reason)}
-                      className={`min-h-11 p-3 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                      className={`flex min-h-11 items-center justify-between rounded-xl border p-3 text-left text-xs font-bold transition-all ${
                         isSelected
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-base-200 bg-base-100 hover:bg-base-200/50 text-base-content/70"
                       }`}
                     >
-                      <span>{reason}</span>
+                      <span className="break-safe pr-2">{reason}</span>
                       {isSelected && <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />}
                     </button>
                   );
@@ -425,7 +450,7 @@ export const TaoBienBanSuVuPage = () => {
           </form>
 
           {/* Bảng danh sách đơn sự vụ đã thêm */}
-          <div className="card bg-base-100 border border-base-200 shadow-xs rounded-2xl overflow-hidden">
+          <div className="app-surface overflow-hidden">
             <div className="flex flex-col items-stretch gap-3 border-b border-base-200 bg-base-200/30 p-4 sm:flex-row sm:items-center sm:justify-between">
               <span className="min-w-0 text-sm font-bold">
                 Danh sách đơn sự vụ ({items.length} đơn)
@@ -453,7 +478,7 @@ export const TaoBienBanSuVuPage = () => {
                   ))}
                 </div>
                 <div className="hidden overflow-x-auto md:block">
-                  <table className="table table-sm w-full">
+                  <table className="table table-sm w-full min-w-[36rem]">
                     <thead className="bg-base-200/50 text-xs font-bold">
                       <tr>
                         <th className="w-12 text-center">STT</th>
@@ -466,7 +491,7 @@ export const TaoBienBanSuVuPage = () => {
                       {items.map((item, index) => (
                         <tr key={item.id} className="hover:bg-base-200/30">
                           <td className="text-center font-bold text-base-content/60">{index + 1}</td>
-                          <td className="break-all font-mono font-bold text-primary">{item.trackingCode}</td>
+                          <td className="break-safe font-mono font-bold text-primary">{item.trackingCode}</td>
                           <td>
                             <span className="badge badge-warning badge-sm font-bold">{item.reason}</span>
                           </td>
@@ -487,7 +512,7 @@ export const TaoBienBanSuVuPage = () => {
                 </div>
               </>
             ) : (
-              <div className="p-8 text-center text-base-content/60 text-sm">
+              <div className="p-6 text-center text-sm text-base-content/60 sm:p-8">
                 Chưa có đơn sự vụ nào. Hãy quét hoặc nhập mã đơn hàng phía trên.
               </div>
             )}
@@ -499,7 +524,7 @@ export const TaoBienBanSuVuPage = () => {
       {step === "preview" && (
         <div className="space-y-6">
           {/* Action Toolbar */}
-          <div className="sticky bottom-2 z-20 flex flex-col items-stretch justify-between gap-3 rounded-xl border border-base-200 bg-base-100/95 p-3 shadow-lg backdrop-blur safe-bottom sm:flex-row sm:items-center sm:rounded-2xl sm:p-4 md:static md:shadow-xs">
+          <MobileActionBar className="sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={() => setStep("scan_items")}
               className="btn btn-sm min-h-11 btn-ghost gap-1 rounded-xl"
@@ -534,10 +559,10 @@ export const TaoBienBanSuVuPage = () => {
                 Tạo LH TRIP mới
               </button>
             </div>
-          </div>
+          </MobileActionBar>
 
           {/* Formatted Log String Preview Box */}
-          <div className="card bg-slate-900 text-slate-100 rounded-2xl p-5 space-y-3 shadow-lg">
+          <div className="min-w-0 space-y-3 rounded-2xl bg-slate-900 p-4 text-slate-100 shadow-lg sm:p-5">
             <div className="flex flex-col items-stretch gap-3 border-b border-slate-700 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="min-w-0 text-xs font-bold text-amber-400 uppercase tracking-wider">
                 Định dạng xuất log Google Sheet (2 Cột)
@@ -560,7 +585,7 @@ export const TaoBienBanSuVuPage = () => {
                 <span className="text-slate-400 block">
                   Cột 2 (Đơn sự vụ định dạng: Mã đơn 1@lí do#Mã đơn 2@lí do):
                 </span>
-                <div className="p-3 bg-slate-950 rounded-xl text-amber-300 break-all leading-relaxed border border-slate-800 font-bold">
+                <div className="break-safe rounded-xl border border-slate-800 bg-slate-950 p-3 font-bold leading-relaxed text-amber-300">
                   {getIncidentLogsString() || "---"}
                 </div>
               </div>
@@ -568,7 +593,7 @@ export const TaoBienBanSuVuPage = () => {
           </div>
 
           {/* Printable Report Document Card */}
-          <div className="min-w-0 overflow-hidden bg-white text-slate-900 border border-slate-300 rounded-xl p-4 shadow-md font-sans sm:rounded-2xl sm:p-6 md:p-8 print:shadow-none print:border-none">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-slate-300 bg-white p-4 font-sans text-slate-900 shadow-md sm:rounded-2xl sm:p-6 md:p-8 print:border-none print:shadow-none">
             <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
               <h2 className="text-xl md:text-2xl font-black uppercase tracking-wide text-slate-900">
                 BIÊN BẢN SỰ VỤ TỔNG HỢP LH TRIP
@@ -598,9 +623,9 @@ export const TaoBienBanSuVuPage = () => {
                         {index + 1}
                       </td>
                       <td className="p-2 font-mono font-bold border-r border-slate-300 text-slate-900">
-                        {item.trackingCode}
+                        <span className="break-safe">{item.trackingCode}</span>
                       </td>
-                      <td className="p-2 text-slate-800">{item.reason}</td>
+                      <td className="break-safe p-2 text-slate-800">{item.reason}</td>
                     </tr>
                   ))}
                 </tbody>
