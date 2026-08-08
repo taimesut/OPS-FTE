@@ -67,11 +67,11 @@ const TransferOrderCard = ({
   visibleColumns,
   onViewQR,
 }: TransferOrderCardProps) => (
-  <article className="rounded-xl border border-base-200 bg-base-100 p-4 shadow-xs sm:rounded-2xl">
+  <article className="app-surface p-4 sm:p-5">
     <div className="flex items-start justify-between gap-3 border-b border-base-200 pb-3">
       <div className="min-w-0">
         <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Mã TO</span>
-        <p className="break-all font-mono text-base font-black text-primary">
+        <p className="break-safe font-mono text-base font-black text-primary">
           {item.to_number}
         </p>
       </div>
@@ -91,19 +91,19 @@ const TransferOrderCard = ({
       {visibleColumns.includes("route") && (
         <div className="col-span-2 min-w-0">
           <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Điểm đến</dt>
-          <dd className="break-words font-semibold">{item.receiver || "---"}</dd>
+          <dd className="break-safe font-semibold">{item.receiver || "---"}</dd>
         </div>
       )}
       {visibleColumns.includes("operator") && (
         <div className="min-w-0">
           <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Người đóng</dt>
-          <dd className="break-words font-medium">{item.operator || "---"}</dd>
+          <dd className="break-safe font-medium">{item.operator || "---"}</dd>
         </div>
       )}
       {visibleColumns.includes("pack_name") && (
         <div className="min-w-0">
           <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Tên bao</dt>
-          <dd className="break-words font-medium">{item.pack_name || "Mặc định"}</dd>
+          <dd className="break-safe font-medium">{item.pack_name || "Mặc định"}</dd>
         </div>
       )}
       {visibleColumns.includes("quantity") && (
@@ -240,38 +240,38 @@ export const TOTable = ({
     <div className="space-y-4">
       {/* Dynamic Stats Banner - 2 Columns */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        <div className="stat min-w-0 bg-base-100 border border-base-200 rounded-xl shadow-xs p-3 sm:rounded-2xl sm:p-4">
+        <div className="stat min-w-0 rounded-xl border border-base-200 bg-base-100 p-3 shadow-xs sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số TO
           </div>
           <div className="stat-value text-2xl md:text-3xl text-primary font-black mt-1">
             {filteredOrders.length}
           </div>
-          <div className="stat-desc text-xs opacity-70">
+          <div className="break-safe text-xs leading-relaxed opacity-70">
             {orders.length !== filteredOrders.length
               ? `Lọc từ ${orders.length} TO`
               : "Tổng số Transfer Order"}
           </div>
         </div>
 
-        <div className="stat min-w-0 bg-base-100 border border-base-200 rounded-xl shadow-xs p-3 sm:rounded-2xl sm:p-4">
+        <div className="stat min-w-0 rounded-xl border border-base-200 bg-base-100 p-3 shadow-xs sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số kiện
           </div>
           <div className="stat-value text-2xl md:text-3xl text-secondary font-black mt-1">
             {totalQuantity}
           </div>
-          <div className="stat-desc text-xs opacity-70">Tổng sản phẩm/kiện</div>
+          <div className="break-safe text-xs leading-relaxed opacity-70">Tổng sản phẩm/kiện</div>
         </div>
       </div>
 
       {/* Main Card Container */}
-      <div className="rounded-2xl border border-base-200 bg-base-100 shadow-xs overflow-hidden">
+      <div className="app-surface overflow-hidden">
         {/* Toolbar Controls */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 sm:p-4 bg-base-200/30 border-b border-base-200">
+        <div className="grid gap-2 border-b border-base-200 bg-base-200/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3 sm:p-4">
           {/* Tìm kiếm nhanh */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
+          <div className="relative min-w-0 w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
             <input
               type="text"
               value={searchQuery}
@@ -280,16 +280,16 @@ export const TOTable = ({
                 setCurrentPage(1);
               }}
               placeholder="Tìm kiếm mã TO, người đóng, điểm đến..."
-              className="input input-sm input-bordered min-h-11 w-full pl-9 focus:input-primary rounded-xl"
+              className="input input-sm input-bordered min-h-11 w-full min-w-0 rounded-xl pl-9 focus:input-primary"
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-end">
             {/* Button Tùy chọn cột */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowColumnConfig(!showColumnConfig)}
-                className="btn btn-sm min-h-11 btn-outline gap-2 rounded-xl border-base-300 hover:border-primary"
+                className="btn btn-sm min-h-11 w-full min-w-0 btn-outline gap-2 rounded-xl border-base-300 hover:border-primary sm:w-auto"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 <span className="hidden sm:inline">Tùy chọn cột</span>
@@ -321,7 +321,7 @@ export const TOTable = ({
             </div>
 
             {/* Selector Số lượng dòng hiển thị */}
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex min-w-0 items-center justify-end gap-2 text-xs">
               <span className="text-base-content/60 hidden sm:inline">
                 Dòng:
               </span>
@@ -331,7 +331,7 @@ export const TOTable = ({
                   setItemsPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="select select-bordered select-sm min-h-11 rounded-xl"
+                className="select select-bordered select-sm min-h-11 w-full min-w-0 rounded-xl sm:w-auto"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
@@ -358,8 +358,8 @@ export const TOTable = ({
               />
             ))}
           </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="table table-sm md:table-md w-full whitespace-nowrap">
+          <div className="hidden max-w-full overflow-x-auto md:block">
+            <table className="table table-sm w-full min-w-[60rem] whitespace-nowrap md:table-md">
               <thead className="bg-base-200/50 text-base-content font-bold border-b border-base-200">
                 <tr>
                   {TABLE_COLUMNS.map(
@@ -473,12 +473,12 @@ export const TOTable = ({
           </>
         ) : (
           /* Empty State */
-          <div className="p-12 flex flex-col items-center justify-center text-center">
+          <div className="flex flex-col items-center justify-center p-8 text-center sm:p-12">
             <div className="w-16 h-16 rounded-2xl bg-base-200 flex items-center justify-center mb-4 text-base-content/30">
               <PackageCheck className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold">{emptyTitle}</h3>
-            <p className="text-sm text-base-content/60 max-w-sm mt-1">
+            <p className="mt-1 max-w-sm break-safe text-sm text-base-content/60">
               {emptyDescription}
             </p>
           </div>
@@ -486,8 +486,8 @@ export const TOTable = ({
 
         {/* Pagination Footer */}
         {filteredOrders.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-base-200 bg-base-200/20 text-xs">
-            <div className="text-base-content/70">
+          <div className="grid gap-3 border-t border-base-200 bg-base-200/20 p-3 text-xs sm:flex sm:items-center sm:justify-between sm:p-4">
+            <div className="break-safe leading-relaxed text-base-content/70">
               Hiển thị{" "}
               <span className="font-bold text-base-content">
                 {(currentPage - 1) * itemsPerPage + 1}
