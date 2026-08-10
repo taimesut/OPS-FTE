@@ -4,6 +4,7 @@ import { CheckSotNgoaiTinhPage } from "./pages/CheckSotNgoaiTinhPage";
 import { CheckSotNoiTinhPage } from "./pages/CheckSotNoiTinhPage";
 import { MobileLayout } from "./layouts/MobileLayout";
 import { HomePage } from "./pages/HomePage";
+import { LayMaTOPage } from "./pages/LayMaTOPage";
 import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
 import { ToastContainer } from "./components/Toast";
 
@@ -22,6 +23,7 @@ export const App = () => {
           <Route path="/check-sot/noi-tinh" element={<CheckSotNoiTinhPage />} />
           <Route path="/cai-dat" element={<SettingsPage />} />
           <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
+          <Route path="/lay-ma-to" element={<LayMaTOPage />} />
           {/* Route bắt lỗi 404 */}
           <Route path="*" element={<HomePage />} />
         </Routes>

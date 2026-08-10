@@ -8,6 +8,7 @@ import {
   X,
   Package,
   Menu,
+  QrCode,
 } from "lucide-react";
 import ToggleTheme from "../components/ToggleTheme";
 import { getSoc } from "../utils/config";
@@ -54,6 +55,11 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       path: "/tao-bien-ban-su-vu",
       label: "Tạo biên bản sự vụ",
       icon: NotebookPen,
+    },
+    {
+      path: "/lay-ma-to",
+      label: "Lấy mã TO",
+      icon: QrCode,
     },
   ];
 
