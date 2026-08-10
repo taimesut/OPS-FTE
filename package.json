@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "node node_modules/typescript/lib/tsc.js -b && vite build && node post-build-pwa.mjs",
+    "build:launcher": "vite build --config vite.launcher.config.ts",
     "build:scanner": "vite build --config vite.scanner.config.ts",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts",
+    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts tests/launcher.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

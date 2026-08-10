@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ee4d2d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OPS FTE" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="OPS FTE" />
+    <meta name="description" content="Lối tắt mở ứng dụng OPS FTE" />
+    <link rel="manifest" href="/launcher-manifest.json" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png" />
+    <title>OPS FTE</title>
+    <style>
+      :root {
+        color: #17212b;
+        background: #f3f5f7;
+        font-family: "Arial Narrow", "Roboto Condensed", "Segoe UI", sans-serif;
+        font-synthesis: none;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        min-height: 100svh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        overflow-x: hidden;
+        padding: max(22px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
+        background:
+          linear-gradient(135deg, rgba(21, 38, 54, 0.035) 25%, transparent 25%) 0 0 / 16px 16px,
+          #f3f5f7;
+      }
+
+      .launcher-card {
+        position: relative;
+        width: min(100%, 420px);
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #dce1e5;
+        border-radius: 8px;
+        box-shadow: 0 22px 55px rgba(30, 43, 56, 0.13);
+      }
+
+      .top-rail {
+        height: 8px;
+        background: repeating-linear-gradient(
+          -45deg,
+          #ee4d2d 0 11px,
+          #ffb19f 11px 19px
+        );
+      }
+
+      .card-content {
+        padding: 28px 24px 24px;
+      }
+
+      .utility-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 30px;
+      }
+
+      .app-mark {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .app-icon {
+        display: block;
+        width: 54px;
+        height: 54px;
+        border-radius: 13px;
+        box-shadow: 0 7px 18px rgba(238, 77, 45, 0.2);
+      }
+
+      .app-name {
+        display: block;
+        color: #17212b;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+
+      .app-type {
+        display: block;
+        margin-top: 3px;
+        color: #697783;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 0.72rem;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 9px;
+        color: #17683e;
+        background: #eaf8f0;
+        border: 1px solid #cbead8;
+        border-radius: 999px;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .status::before {
+        width: 7px;
+        height: 7px;
+        background: #24a561;
+        border-radius: 50%;
+        content: "";
+      }
+
+      .eyebrow {
+        margin: 0 0 9px;
+        color: #d94227;
+        font-size: 0.73rem;
+        font-weight: 900;
+        letter-spacing: 0.17em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 320px;
+        margin: 0;
+        color: #17212b;
+        font-size: clamp(2.25rem, 10vw, 3.25rem);
+        font-stretch: condensed;
+        font-weight: 900;
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+      }
+
+      .instructions {
+        max-width: 335px;
+        margin: 18px 0 25px;
+        color: #566470;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 0.98rem;
+        line-height: 1.58;
+      }
+
+      .route {
+        position: relative;
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 12px;
+        margin: 0 0 25px;
+        padding: 15px 16px;
+        background: #f7f8f9;
+        border: 1px solid #e4e8eb;
+        border-radius: 6px;
+      }
+
+      .route-line {
+        position: relative;
+        width: 2px;
+        height: 42px;
+        margin: 3px auto 0;
+        background: repeating-linear-gradient(to bottom, #ee4d2d 0 4px, transparent 4px 8px);
+      }
+
+      .route-line::before,
+      .route-line::after {
+        position: absolute;
+        left: 50%;
+        width: 10px;
+        height: 10px;
+        border: 2px solid #ee4d2d;
+        border-radius: 50%;
+        background: #fff;
+        content: "";
+        transform: translateX(-50%);
+      }
+
+      .route-line::before {
+        top: -2px;
+      }
+
+      .route-line::after {
+        bottom: -2px;
+        background: #ee4d2d;
+      }
+
+      .route-copy {
+        display: grid;
+        gap: 8px;
+        color: #33414c;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 0.8rem;
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
+      .launch-button {
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 16px 18px 16px 21px;
+        color: #ffffff;
+        background: #df4529;
+        border: 1px solid #c83921;
+        border-radius: 6px;
+        box-shadow: 0 10px 22px rgba(223, 69, 41, 0.24);
+        font-family: "Segoe UI", sans-serif;
+        font-size: 1.02rem;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .launch-button::after {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 50%;
+        content: "→";
+        font-size: 1.15rem;
+      }
+
+      .launch-button:hover {
+        background: #ca3b22;
+      }
+
+      .launch-button:focus-visible {
+        outline: 4px solid rgba(238, 77, 45, 0.25);
+        outline-offset: 4px;
+      }
+
+      .privacy-note {
+        margin: 16px 0 0;
+        color: #74818b;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        text-align: center;
+      }
+
+      @media (max-width: 350px) {
+        .card-content {
+          padding-inline: 19px;
+        }
+
+        .app-type {
+          display: none;
+        }
+
+        .status {
+          padding-inline: 7px;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .launch-button {
+          transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+        }
+
+        .launch-button:active {
+          box-shadow: 0 5px 12px rgba(223, 69, 41, 0.2);
+          transform: translateY(1px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="launcher-card">
+      <div class="top-rail" aria-hidden="true"></div>
+      <div class="card-content">
+        <div class="utility-row">
+          <div class="app-mark">
+            <img class="app-icon" src="/icons/icon-192.png" alt="" width="54" height="54" />
+            <span>
+              <span class="app-name">OPS FTE</span>
+              <span class="app-type">Lối tắt vận hành</span>
+            </span>
+          </div>
+          <span class="status">Sẵn sàng</span>
+        </div>
+
+        <p class="eyebrow">Điểm chờ an toàn</p>
+        <h1>Bạn quyết định khi nào bắt đầu.</h1>
+        <p class="instructions">
+          Hãy thêm trang này vào màn hình chính trước. Trang sẽ đứng yên cho đến khi bạn chủ động mở ứng dụng.
+        </p>
+
+        <div class="route" aria-label="Hành trình mở ứng dụng">
+          <span class="route-line" aria-hidden="true"></span>
+          <span class="route-copy">
+            <span>Thêm OPS FTE vào màn hình chính</span>
+            <span>Nhấn nút để đi tới ứng dụng chính</span>
+          </span>
+        </div>
+
+        <a class="launch-button" href="https://script.google.com/a/macros/spxexpress.com/s/AKfycbxpxCw-YlSW0G60Yzr7QgWv2HxVNzkTxXyn9WWObnBRg0312loguB2d1Spqgvnx_wt3/exec">
+          Mở ứng dụng
+        </a>
+        <p class="privacy-note">Không đếm ngược · Không tự động chuyển trang</p>
+      </div>
+    </main>
+  </body>
+</html>
