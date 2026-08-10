@@ -1,5 +1,8 @@
 import { type FormEvent, useState } from "react";
-import { PackageCheck, QrCode, Search } from "lucide-react";
+import { PackageCheck, QrCode, ScanLine, Search } from "lucide-react";
+import EmbeddedQRScanner, {
+  type ScanMode,
+} from "../components/EmbeddedQRScanner";
 import { PageHeader } from "../components/PageHeader";
 import QRCodeModal from "../components/QRCodeModal";
 import { showToast } from "../components/Toast";
@@ -15,6 +18,16 @@ export const LayMaTOPage = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TransferOrderLookupResult | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState<ScanMode | null>(null);
+
+  const handleScan = (value: string) => {
+    const normalizedValue = value.trim();
+    setScannerMode(null);
+    if (!normalizedValue) return;
+
+    setShipmentId(normalizedValue);
+    showToast(`Đã nhận mã đơn: ${normalizedValue}`, "success");
+  };
 
   const handleLookup = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -52,6 +65,13 @@ export const LayMaTOPage = () => {
 
   return (
     <div className="app-page space-y-5 text-base-content md:space-y-6">
+      <EmbeddedQRScanner
+        open={scannerMode !== null}
+        mode={scannerMode}
+        onScan={handleScan}
+        onClose={() => setScannerMode(null)}
+      />
+
       <PageHeader
         icon={QrCode}
         title="Lấy mã Transfer Order"
@@ -87,23 +107,35 @@ export const LayMaTOPage = () => {
             />
           </label>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn-primary min-h-12 w-full gap-2 rounded-xl shadow-xs sm:w-fit sm:min-w-40"
-          >
-            {loading ? (
-              <>
-                <span className="loading loading-spinner loading-sm" />
-                Đang lấy mã TO
-              </>
-            ) : (
-              <>
-                <Search className="h-4 w-4" aria-hidden="true" />
-                Lấy mã TO
-              </>
-            )}
-          </button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary min-h-12 w-full gap-2 rounded-xl shadow-xs"
+            >
+              {loading ? (
+                <>
+                  <span className="loading loading-spinner loading-sm" />
+                  Đang lấy mã TO
+                </>
+              ) : (
+                <>
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                  Lấy mã TO
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setScannerMode("item")}
+              disabled={loading}
+              className="btn btn-outline min-h-12 w-full gap-2 rounded-xl"
+            >
+              <ScanLine className="h-5 w-5" aria-hidden="true" />
+              Quét QR
+            </button>
+          </div>
         </form>
       </section>
 
