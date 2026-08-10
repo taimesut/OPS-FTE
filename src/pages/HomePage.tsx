@@ -89,7 +89,7 @@ export const HomePage = () => {
               className="flex items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
             >
               <Mail className="w-3.5 h-3.5 text-primary" />
-              <span>thanhtai.nguyen04@spxexpress.com</span>
+              <span>0987.654.321@spxexpress.com</span>
             </a>
           </div>
         </div>
