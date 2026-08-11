@@ -71,44 +71,62 @@ const TransferOrderCard = ({
   visibleColumns,
   onViewQR,
 }: TransferOrderCardProps) => {
-  const showPrimaryMetrics =
-    visibleColumns.includes("quantity") || visibleColumns.includes("weight");
-  const showFlags =
-    visibleColumns.includes("high_value") ||
-    visibleColumns.includes("dg_type");
+  const showToNumber = visibleColumns.includes("to_number");
+  const showAction = visibleColumns.includes("action");
+  const showHeader = showToNumber || showAction;
+  const showRoute = visibleColumns.includes("route");
+  const showQuantity = visibleColumns.includes("quantity");
+  const showWeight = visibleColumns.includes("weight");
+  const showPrimaryMetrics = showQuantity || showWeight;
+  const showHighValue = visibleColumns.includes("high_value");
+  const showDgType = visibleColumns.includes("dg_type");
+  const showFlags = showHighValue || showDgType;
   const showDetails = [
     "operator",
     "pack_name",
     "status",
     "complete_time",
   ].some((column) => visibleColumns.includes(column));
+  const showBody = showRoute || showPrimaryMetrics || showFlags || showDetails;
+  const showDetailSeparator = showRoute || showPrimaryMetrics || showFlags;
   const isDg = isDgType(item.dg_type);
+
+  if (!showHeader && !showBody) return null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-base-300/70 bg-base-100 shadow-sm">
-      <header className="flex items-start justify-between gap-3 border-b border-base-200 bg-base-200/30 p-4">
-        <div className="min-w-0">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-            Mã TO
-          </span>
-          <p className="break-safe font-mono text-base font-black text-primary">
-            {item.to_number}
-          </p>
-        </div>
-        {visibleColumns.includes("action") && (
-          <button
-            type="button"
-            className="btn btn-sm min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
-            onClick={onViewQR}
-          >
-            <QrCode className="h-4 w-4" />
-            QR
-          </button>
-        )}
-      </header>
+      {showHeader && (
+        <header
+          className={`flex items-start justify-between gap-3 bg-base-200/30 p-4 ${
+            showBody ? "border-b border-base-200" : ""
+          }`}
+        >
+          {showToNumber && (
+            <div className="min-w-0">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+                Mã TO
+              </span>
+              <p className="break-safe font-mono text-base font-black text-primary">
+                {item.to_number}
+              </p>
+            </div>
+          )}
+          {showAction && (
+            <button
+              type="button"
+              className="btn btn-sm ml-auto min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
+              onClick={onViewQR}
+            >
+              <QrCode className="h-4 w-4" />
+              QR
+            </button>
+          )}
+        </header>
+      )}
 
-      <div className="space-y-3 p-4">
-        {visibleColumns.includes("route") && (
+      {showBody && (
+        <div className="space-y-3 p-4">
+        {showRoute && (
           <dl className="rounded-xl border border-primary/15 bg-primary/5 p-3">
             <div className="min-w-0">
               <dt className="text-[11px] font-bold uppercase tracking-wide text-primary/70">
@@ -122,8 +140,12 @@ const TransferOrderCard = ({
         )}
 
         {showPrimaryMetrics && (
-          <dl className="grid grid-cols-2 gap-2">
-            {visibleColumns.includes("quantity") && (
+          <dl
+            className={`grid gap-2 ${
+              showQuantity && showWeight ? "grid-cols-2" : "grid-cols-1"
+            }`}
+          >
+            {showQuantity && (
               <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
                   Số kiện
@@ -133,7 +155,7 @@ const TransferOrderCard = ({
                 </dd>
               </div>
             )}
-            {visibleColumns.includes("weight") && (
+            {showWeight && (
               <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
                   Khối lượng
@@ -147,8 +169,12 @@ const TransferOrderCard = ({
         )}
 
         {showFlags && (
-          <dl className="grid grid-cols-2 gap-2">
-            {visibleColumns.includes("high_value") && (
+          <dl
+            className={`grid gap-2 ${
+              showHighValue && showDgType ? "grid-cols-2" : "grid-cols-1"
+            }`}
+          >
+            {showHighValue && (
               <div className="min-w-0 rounded-xl border border-base-200 p-3">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
                   GTC
@@ -166,7 +192,7 @@ const TransferOrderCard = ({
                 </dd>
               </div>
             )}
-            {visibleColumns.includes("dg_type") && (
+            {showDgType && (
               <div className="min-w-0 rounded-xl border border-base-200 p-3">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
                   DG
@@ -186,7 +212,11 @@ const TransferOrderCard = ({
         )}
 
         {showDetails && (
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-base-200 pt-3 text-sm">
+          <dl
+            className={`grid grid-cols-2 gap-x-3 gap-y-3 text-sm ${
+              showDetailSeparator ? "border-t border-base-200 pt-3" : ""
+            }`}
+          >
             {visibleColumns.includes("operator") && (
               <div className="min-w-0">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
@@ -232,7 +262,8 @@ const TransferOrderCard = ({
             )}
           </dl>
         )}
-      </div>
+        </div>
+      )}
     </article>
   );
 };
