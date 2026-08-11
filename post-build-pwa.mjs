@@ -113,6 +113,11 @@ if (faviconUri) {
   );
 }
 
+// ZXing ships one control-character lookup table as a template literal whose
+// literal tab lands at end-of-line after minification. Escape it without
+// changing the runtime string so generated deploy artifacts stay diff-clean.
+html = html.replace(/\t(?=\r?\n)/g, '\\t');
+
 writeFileSync(distHtml, html, 'utf-8');
 
 const finalSize = Buffer.byteLength(html, 'utf-8');
@@ -121,4 +126,5 @@ console.log(`✅ Patched dist/index.html — Total size: ${finalKb} KB`);
 console.log('   ✓ manifest.json → inline data URI');
 console.log('   ✓ apple-touch-icon PNGs → base64 data URIs');
 console.log('   ✓ favicon SVG → data URI');
+console.log('   ✓ trailing control tabs → JavaScript escapes');
 console.log('\n🚀 dist/index.html ready for Apps Script deploy!');
