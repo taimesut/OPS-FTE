@@ -10,9 +10,20 @@
     <main class="scanner-shell">
       <video id="camera" autoplay muted playsinline></video>
       <div class="shade"></div>
+      <div id="capture-flash" class="capture-flash" hidden aria-hidden="true"></div>
+      <header id="pda-hud" class="pda-hud" hidden aria-label="Tiến độ bàn giao PDA">
+        <strong id="pda-progress">0/— hoàn tất</strong>
+        <span id="pda-uploading">0 đang tải</span>
+      </header>
       <div class="target"><span></span></div>
-      <p id="status">Đang mở camera…</p>
+      <p id="status" role="status" aria-live="polite">Đang mở camera…</p>
       <button id="close" class="icon-button close" type="button" aria-label="Đóng">×</button>
+      <section id="pda-panel" class="pda-panel" hidden aria-live="polite">
+        <p id="pda-phase">Đang chuẩn bị</p>
+        <strong id="pda-name"></strong>
+        <button id="pda-capture" type="button" hidden>Chụp ảnh PDA</button>
+        <button id="pda-fallback" type="button" hidden>Dùng camera hệ thống</button>
+      </section>
       <div class="controls">
         <button id="zoom-out" type="button" aria-label="Giảm zoom">−</button>
         <strong id="zoom-label">1x</strong>
