@@ -19,27 +19,27 @@ class MemorySheet {
   getDataRange() { return { getValues: () => this.rows.map((row) => [...row]) }; }
   appendRow(row: Row) { this.rows.push([...row]); return this; }
   getRange(row: number, column: number, rowCount = 1, columnCount = 1) {
-    const sheet = this;
-    return {
-      getValues() {
+    const range = {
+      getValues: () => {
         return Array.from({ length: rowCount }, (_, rowOffset) =>
           Array.from({ length: columnCount }, (_, columnOffset) =>
-            sheet.rows[row - 1 + rowOffset]?.[column - 1 + columnOffset] ?? ""));
+            this.rows[row - 1 + rowOffset]?.[column - 1 + columnOffset] ?? ""));
       },
-      getDisplayValues() {
-        return this.getValues().map((values) => values.map((value) => String(value ?? "")));
+      getDisplayValues: () => {
+        return range.getValues().map((values) => values.map((value) => String(value ?? "")));
       },
-      setValues(values: Row[]) {
-        if (sheet.failNextWrite) { sheet.failNextWrite = false; throw new Error("sheet write failed"); }
+      setValues: (values: Row[]) => {
+        if (this.failNextWrite) { this.failNextWrite = false; throw new Error("sheet write failed"); }
         values.forEach((valuesRow, rowOffset) => {
           const targetRow = row - 1 + rowOffset;
-          sheet.rows[targetRow] ||= [];
-          valuesRow.forEach((value, columnOffset) => { sheet.rows[targetRow][column - 1 + columnOffset] = value; });
+          this.rows[targetRow] ||= [];
+          valuesRow.forEach((value, columnOffset) => { this.rows[targetRow][column - 1 + columnOffset] = value; });
         });
-        return this;
+        return range;
       },
-      setValue(value: unknown) { return this.setValues([[value]]); },
+      setValue: (value: unknown) => range.setValues([[value]]),
     };
+    return range;
   }
 }
 
