@@ -9,6 +9,7 @@ import {
   ArrowRight,
   PackageCheck,
 } from "lucide-react";
+import { summarizePackedOrders } from "../utils/packedOrderMetrics";
 
 export interface TransferOrder {
   to_number: string;
@@ -216,8 +217,8 @@ export const TOTable = ({
     );
   }, [orders, searchQuery]);
 
-  const totalQuantity = useMemo(
-    () => filteredOrders.reduce((sum, item) => sum + (item.quantity || 0), 0),
+  const packedMetrics = useMemo(
+    () => summarizePackedOrders(filteredOrders),
     [filteredOrders],
   );
 
@@ -238,8 +239,8 @@ export const TOTable = ({
 
   return (
     <div className="space-y-4">
-      {/* Dynamic Stats Banner - 2 Columns */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+      {/* Dynamic Stats Banner */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <div className="stat min-w-0 rounded-xl border border-base-200 bg-base-100 p-3 shadow-xs sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số TO
@@ -259,9 +260,33 @@ export const TOTable = ({
             Tổng số kiện
           </div>
           <div className="stat-value text-2xl md:text-3xl text-secondary font-black mt-1">
-            {totalQuantity}
+            {packedMetrics.totalQuantity}
           </div>
           <div className="break-safe text-xs leading-relaxed opacity-70">Tổng sản phẩm/kiện</div>
+        </div>
+
+        <div className="stat min-w-0 rounded-xl border border-warning/25 bg-warning/5 p-3 shadow-xs sm:rounded-2xl sm:p-4">
+          <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
+            Số bao DG
+          </div>
+          <div className="stat-value mt-1 text-2xl font-black text-warning md:text-3xl">
+            {packedMetrics.dgBagCount}
+          </div>
+          <div className="break-safe text-xs leading-relaxed opacity-70">
+            Bao có hàng nguy hiểm
+          </div>
+        </div>
+
+        <div className="stat min-w-0 rounded-xl border border-error/25 bg-error/5 p-3 shadow-xs sm:rounded-2xl sm:p-4">
+          <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
+            Số bao GTC
+          </div>
+          <div className="stat-value mt-1 text-2xl font-black text-error md:text-3xl">
+            {packedMetrics.gtcBagCount}
+          </div>
+          <div className="break-safe text-xs leading-relaxed opacity-70">
+            Bao có hàng giá trị cao
+          </div>
         </div>
       </div>
 
