@@ -9,7 +9,10 @@ import {
   ArrowRight,
   PackageCheck,
 } from "lucide-react";
-import { summarizePackedOrders } from "../utils/packedOrderMetrics";
+import {
+  isDgType,
+  summarizePackedOrders,
+} from "../utils/packedOrderMetrics";
 
 export interface TransferOrder {
   to_number: string;
@@ -67,98 +70,172 @@ const TransferOrderCard = ({
   item,
   visibleColumns,
   onViewQR,
-}: TransferOrderCardProps) => (
-  <article className="app-surface p-4 sm:p-5">
-    <div className="flex items-start justify-between gap-3 border-b border-base-200 pb-3">
-      <div className="min-w-0">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Mã TO</span>
-        <p className="break-safe font-mono text-base font-black text-primary">
-          {item.to_number}
-        </p>
-      </div>
-      {visibleColumns.includes("action") && (
-        <button
-          type="button"
-          className="btn btn-sm min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
-          onClick={onViewQR}
-        >
-          <QrCode className="h-4 w-4" />
-          QR
-        </button>
-      )}
-    </div>
+}: TransferOrderCardProps) => {
+  const showPrimaryMetrics =
+    visibleColumns.includes("quantity") || visibleColumns.includes("weight");
+  const showFlags =
+    visibleColumns.includes("high_value") ||
+    visibleColumns.includes("dg_type");
+  const showDetails = [
+    "operator",
+    "pack_name",
+    "status",
+    "complete_time",
+  ].some((column) => visibleColumns.includes(column));
+  const isDg = isDgType(item.dg_type);
 
-    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
-      {visibleColumns.includes("route") && (
-        <div className="col-span-2 min-w-0">
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Điểm đến</dt>
-          <dd className="break-safe font-semibold">{item.receiver || "---"}</dd>
-        </div>
-      )}
-      {visibleColumns.includes("operator") && (
+  return (
+    <article className="overflow-hidden rounded-2xl border border-base-300/70 bg-base-100 shadow-sm">
+      <header className="flex items-start justify-between gap-3 border-b border-base-200 bg-base-200/30 p-4">
         <div className="min-w-0">
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Người đóng</dt>
-          <dd className="break-safe font-medium">{item.operator || "---"}</dd>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+            Mã TO
+          </span>
+          <p className="break-safe font-mono text-base font-black text-primary">
+            {item.to_number}
+          </p>
         </div>
-      )}
-      {visibleColumns.includes("pack_name") && (
-        <div className="min-w-0">
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Tên bao</dt>
-          <dd className="break-safe font-medium">{item.pack_name || "Mặc định"}</dd>
-        </div>
-      )}
-      {visibleColumns.includes("quantity") && (
-        <div>
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Số kiện</dt>
-          <dd className="font-bold">{item.quantity}</dd>
-        </div>
-      )}
-      {visibleColumns.includes("weight") && (
-        <div>
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Khối lượng</dt>
-          <dd className="font-medium">{(item.weight / 1000).toFixed(2)} kg</dd>
-        </div>
-      )}
-      {visibleColumns.includes("high_value") && (
-        <div>
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">GTC</dt>
-          <dd>
-            <span className={`badge badge-sm font-semibold ${item.high_value === 1 ? "badge-error text-error-content" : "badge-ghost opacity-70"}`}>
-              {item.high_value === 1 ? "GTC (Y)" : "N"}
-            </span>
-          </dd>
-        </div>
-      )}
-      {visibleColumns.includes("dg_type") && (
-        <div>
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">DG</dt>
-          <dd>
-            <span className={`badge badge-sm font-semibold ${item.dg_type.length === 0 || item.dg_type[0] === 1 ? "badge-ghost opacity-70" : "badge-warning"}`}>
-              {item.dg_type.length === 0 || item.dg_type[0] === 1 ? "NON DG" : "DG"}
-            </span>
-          </dd>
-        </div>
-      )}
-      {visibleColumns.includes("status") && (
-        <div className="col-span-2">
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Trạng thái</dt>
-          <dd>
-            <span className="badge badge-success badge-sm gap-1 border-0 bg-success/15 font-bold text-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              {item.status || "Đã đóng gói"}
-            </span>
-          </dd>
-        </div>
-      )}
-      {visibleColumns.includes("complete_time") && (
-        <div className="col-span-2">
-          <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">Thời gian HT</dt>
-          <dd className="text-base-content/70">{formatTransferTime(item.complete_time)}</dd>
-        </div>
-      )}
-    </dl>
-  </article>
-);
+        {visibleColumns.includes("action") && (
+          <button
+            type="button"
+            className="btn btn-sm min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
+            onClick={onViewQR}
+          >
+            <QrCode className="h-4 w-4" />
+            QR
+          </button>
+        )}
+      </header>
+
+      <div className="space-y-3 p-4">
+        {visibleColumns.includes("route") && (
+          <dl className="rounded-xl border border-primary/15 bg-primary/5 p-3">
+            <div className="min-w-0">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-primary/70">
+                Điểm đến
+              </dt>
+              <dd className="break-safe mt-0.5 font-semibold text-base-content">
+                {item.receiver || "---"}
+              </dd>
+            </div>
+          </dl>
+        )}
+
+        {showPrimaryMetrics && (
+          <dl className="grid grid-cols-2 gap-2">
+            {visibleColumns.includes("quantity") && (
+              <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
+                  Số kiện
+                </dt>
+                <dd className="mt-0.5 font-black tabular-nums">
+                  {item.quantity}
+                </dd>
+              </div>
+            )}
+            {visibleColumns.includes("weight") && (
+              <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
+                  Khối lượng
+                </dt>
+                <dd className="mt-0.5 font-semibold tabular-nums">
+                  {(item.weight / 1000).toFixed(2)} kg
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+
+        {showFlags && (
+          <dl className="grid grid-cols-2 gap-2">
+            {visibleColumns.includes("high_value") && (
+              <div className="min-w-0 rounded-xl border border-base-200 p-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
+                  GTC
+                </dt>
+                <dd className="mt-1">
+                  <span
+                    className={`badge badge-sm font-semibold ${
+                      item.high_value === 1
+                        ? "badge-error text-error-content"
+                        : "badge-ghost opacity-70"
+                    }`}
+                  >
+                    {item.high_value === 1 ? "GTC (Y)" : "N"}
+                  </span>
+                </dd>
+              </div>
+            )}
+            {visibleColumns.includes("dg_type") && (
+              <div className="min-w-0 rounded-xl border border-base-200 p-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
+                  DG
+                </dt>
+                <dd className="mt-1">
+                  <span
+                    className={`badge badge-sm font-semibold ${
+                      isDg ? "badge-warning" : "badge-ghost opacity-70"
+                    }`}
+                  >
+                    {isDg ? "DG" : "NON DG"}
+                  </span>
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+
+        {showDetails && (
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-base-200 pt-3 text-sm">
+            {visibleColumns.includes("operator") && (
+              <div className="min-w-0">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+                  Người đóng
+                </dt>
+                <dd className="break-safe font-medium">
+                  {item.operator || "---"}
+                </dd>
+              </div>
+            )}
+            {visibleColumns.includes("pack_name") && (
+              <div className="min-w-0">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+                  Tên bao
+                </dt>
+                <dd className="break-safe font-medium">
+                  {item.pack_name || "Mặc định"}
+                </dd>
+              </div>
+            )}
+            {visibleColumns.includes("status") && (
+              <div className="min-w-0">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+                  Trạng thái
+                </dt>
+                <dd className="mt-1">
+                  <span className="badge badge-success badge-sm gap-1 border-0 bg-success/15 font-bold text-success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                    {item.status || "Đã đóng gói"}
+                  </span>
+                </dd>
+              </div>
+            )}
+            {visibleColumns.includes("complete_time") && (
+              <div className="min-w-0">
+                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
+                  Thời gian HT
+                </dt>
+                <dd className="text-base-content/70">
+                  {formatTransferTime(item.complete_time)}
+                </dd>
+              </div>
+            )}
+          </dl>
+        )}
+      </div>
+    </article>
+  );
+};
 
 export const TOTable = ({
   orders,
@@ -430,12 +507,12 @@ export const TOTable = ({
                       <td>
                         <span
                           className={`badge badge-sm font-semibold ${
-                            item.dg_type.length === 0 || item.dg_type[0] === 1
+                            !isDgType(item.dg_type)
                               ? "badge-ghost opacity-70"
                               : "badge-warning"
                           }`}
                         >
-                          {item.dg_type.length === 0 || item.dg_type[0] === 1
+                          {!isDgType(item.dg_type)
                             ? "NON DG"
                             : "DG"}
                         </span>
