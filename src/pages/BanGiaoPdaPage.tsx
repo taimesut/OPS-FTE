@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -9,10 +9,14 @@ import {
 import EmbeddedQRScanner from "../components/EmbeddedQRScanner";
 import { PageHeader } from "../components/PageHeader";
 import { PdaEvidenceCapture } from "../components/PdaEvidenceCapture";
+import { PdaFastScanner } from "../components/PdaFastScanner";
 import { PdaHandoverCard } from "../components/PdaHandoverCard";
 import { showToast } from "../components/Toast";
-import { compressPdaEvidence } from "../utils/imageCompression";
+import { usePdaUploadQueue } from "../hooks/usePdaUploadQueue";
+import { compressPdaEvidenceBlob } from "../utils/imageCompression";
 import {
+  canSubmitPdaHandover,
+  getPdaItemPriority,
   getPdaProgress,
   isPdaShift,
   PDA_SHIFTS,
@@ -25,11 +29,16 @@ import {
   fetchPdaHandover,
   getGasErrorMessage,
   submitPdaSession,
-  uploadPdaPhoto,
   validatePdaScan,
 } from "../utils/pdaHandoverApi";
 
-type PendingAction = "bootstrap" | "scan" | "upload" | "submit" | null;
+type PendingAction = "bootstrap" | "compression" | "submit" | null;
+
+interface ScanValidationResult {
+  accepted: boolean;
+  pdaName?: string;
+  message?: string;
+}
 
 const submittedAtFormatter = new Intl.DateTimeFormat("vi-VN", {
   dateStyle: "short",
@@ -57,17 +66,85 @@ export function BanGiaoPdaPage() {
   const [shift, setShift] = useState<PdaShift | "">("");
   const [session, setSession] = useState<PdaHandoverSession | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [validationPending, setValidationPending] = useState(false);
+  const [fastScannerOpen, setFastScannerOpen] = useState(false);
+  const [legacyScannerOpen, setLegacyScannerOpen] = useState(false);
+  const [fastScannerSupported, setFastScannerSupported] = useState(true);
   const [captureTarget, setCaptureTarget] = useState<string | null>(null);
+  const validationPendingRef = useRef(false);
+  const lastAcceptedPdaRef = useRef<string | null>(null);
 
-  const busy = pendingAction !== null;
   const readOnly = session?.status === "SUBMITTED";
   const progress = getPdaProgress(session?.items ?? []);
+  const handleUploaded = useCallback((item: Parameters<typeof replacePdaItem>[1]) => {
+    setSession((current) =>
+      current ? replacePdaItem(current, item) : current,
+    );
+    showToast(`Đã lưu ảnh ${item.pdaName}.`, "success");
+  }, []);
+  const {
+    jobs,
+    enqueue,
+    retry,
+    uploadingCount,
+    hasBlockingJobs,
+  } = usePdaUploadQueue({
+    sessionId: session?.status === "DRAFT" ? session.sessionId : null,
+    onUploaded: handleUploaded,
+  });
+
+  const jobsByName = useMemo(
+    () => new Map(jobs.map((job) => [job.pdaName, job])),
+    [jobs],
+  );
+  const sortedItems = useMemo(() => {
+    if (!session) return [];
+    return session.items
+      .map((item, index) => ({ item, index }))
+      .sort((left, right) => {
+        const priorityDifference =
+          getPdaItemPriority(left.item, jobsByName.get(left.item.pdaName)?.status) -
+          getPdaItemPriority(right.item, jobsByName.get(right.item.pdaName)?.status);
+        return priorityDifference || left.index - right.index;
+      })
+      .map(({ item }) => item);
+  }, [jobsByName, session]);
+
+  const interactionPending =
+    validationPending || pendingAction !== null || captureTarget !== null;
+  const canSubmit = canSubmitPdaHandover({
+    backendComplete: progress.canSubmit,
+    hasBlockingJobs,
+    interactionPending,
+  });
+  const busy = validationPending || pendingAction !== null;
+  const selectionLocked = busy || hasBlockingJobs;
+
+  const submitBlockReason = useMemo(() => {
+    if (pendingAction === "submit") return "Đang gửi bàn giao...";
+    if (validationPending) return "Đang xác thực mã PDA...";
+    if (pendingAction === "compression" || captureTarget) {
+      return "Hoàn tất hoặc đóng bước chụp ảnh.";
+    }
+    if (jobs.some((job) => job.status === "FAILED")) {
+      return "Có ảnh tải lỗi. Hãy thử tải lại hoặc chụp lại.";
+    }
+    if (uploadingCount > 0) return `Đang tải ${uploadingCount} ảnh lên Drive...`;
+    if (jobs.some((job) => job.status === "QUEUED")) {
+      return "Ảnh đang chờ lượt tải lên.";
+    }
+    if (!progress.canSubmit) {
+      return `Còn ${Math.max(0, progress.total - progress.completed)} PDA chưa hoàn tất.`;
+    }
+    return "Đã đủ bằng chứng, có thể gửi bàn giao.";
+  }, [captureTarget, jobs, pendingAction, progress, uploadingCount, validationPending]);
 
   const resetSession = () => {
     setSession(null);
-    setScannerOpen(false);
+    setFastScannerOpen(false);
+    setLegacyScannerOpen(false);
     setCaptureTarget(null);
+    lastAcceptedPdaRef.current = null;
   };
 
   const handleBootstrap = async () => {
@@ -94,41 +171,89 @@ export function BanGiaoPdaPage() {
     }
   };
 
-  const handleScan = async (secret: string) => {
-    setScannerOpen(false);
-    if (!session || pendingAction !== null) return;
-
-    setPendingAction("scan");
-    try {
-      const nextItem = await validatePdaScan(session.sessionId, secret);
-      setSession((current) =>
-        current ? replacePdaItem(current, nextItem) : current,
-      );
-      if (nextItem.completed) {
-        showToast("PDA này đã hoàn tất.", "info");
-      } else {
-        setCaptureTarget(nextItem.pdaName);
-      }
-    } catch (error) {
-      showToast(getGasErrorMessage(error), "error");
-    } finally {
-      setPendingAction(null);
+  const validateScannedPda = useCallback(async (secret: string): Promise<ScanValidationResult> => {
+    if (!session || readOnly || validationPendingRef.current) {
+      return { accepted: false, message: "Chưa thể xác thực PDA lúc này." };
     }
+
+    const sessionId = session.sessionId;
+    validationPendingRef.current = true;
+    setValidationPending(true);
+    try {
+      const nextItem = await validatePdaScan(sessionId, secret);
+      setSession((current) =>
+        current?.sessionId === sessionId
+          ? replacePdaItem(current, nextItem)
+          : current,
+      );
+
+      const uploadStatus = jobsByName.get(nextItem.pdaName)?.status;
+      if (
+        nextItem.completed ||
+        uploadStatus === "QUEUED" ||
+        uploadStatus === "UPLOADING"
+      ) {
+        lastAcceptedPdaRef.current = null;
+        return {
+          accepted: false,
+          message: `${nextItem.pdaName} đã được ghi nhận.`,
+        };
+      }
+
+      lastAcceptedPdaRef.current = nextItem.pdaName;
+      return { accepted: true, pdaName: nextItem.pdaName };
+    } catch (error) {
+      lastAcceptedPdaRef.current = null;
+      return { accepted: false, message: getGasErrorMessage(error) };
+    } finally {
+      validationPendingRef.current = false;
+      setValidationPending(false);
+    }
+  }, [jobsByName, readOnly, session]);
+
+  const handleFastEvidence = useCallback((pdaName: string, blob: Blob) => {
+    lastAcceptedPdaRef.current = null;
+    enqueue(pdaName, blob);
+  }, [enqueue]);
+
+  const handleFastUnsupported = () => {
+    setFastScannerSupported(false);
+    setFastScannerOpen(false);
+    const acceptedPdaName = lastAcceptedPdaRef.current;
+    lastAcceptedPdaRef.current = null;
+    if (acceptedPdaName) {
+      setCaptureTarget(acceptedPdaName);
+    } else {
+      setLegacyScannerOpen(true);
+    }
+  };
+
+  const handleFastClose = () => {
+    lastAcceptedPdaRef.current = null;
+    setFastScannerOpen(false);
+  };
+
+  const handleLegacyScan = async (secret: string) => {
+    setLegacyScannerOpen(false);
+    const result = await validateScannedPda(secret);
+    if (result.accepted && result.pdaName) {
+      lastAcceptedPdaRef.current = null;
+      setCaptureTarget(result.pdaName);
+      return;
+    }
+    showToast(result.message || "Mã PDA không hợp lệ. Vui lòng quét lại.", "warning");
   };
 
   const handlePhoto = async (file: File) => {
     if (!session || !captureTarget || pendingAction !== null) return;
 
     const pdaName = captureTarget;
-    setPendingAction("upload");
+    setPendingAction("compression");
     try {
-      const dataUrl = await compressPdaEvidence(file);
-      const nextItem = await uploadPdaPhoto(session.sessionId, pdaName, dataUrl);
-      setSession((current) =>
-        current ? replacePdaItem(current, nextItem) : current,
-      );
+      const blob = await compressPdaEvidenceBlob(file);
+      enqueue(pdaName, blob);
       setCaptureTarget(null);
-      showToast(`Đã lưu ảnh ${pdaName}.`, "success");
+      showToast(`Đã xếp tải ảnh ${pdaName}.`, "success");
     } catch (error) {
       showToast(getGasErrorMessage(error), "error");
     } finally {
@@ -136,15 +261,27 @@ export function BanGiaoPdaPage() {
     }
   };
 
+  const handleRetry = (pdaName: string) => {
+    retry(pdaName);
+    showToast(`Đang thử tải lại ảnh ${pdaName}.`, "info");
+  };
+
+  const handleOpenScanner = () => {
+    lastAcceptedPdaRef.current = null;
+    if (fastScannerSupported) setFastScannerOpen(true);
+    else setLegacyScannerOpen(true);
+  };
+
   const handleSubmit = async () => {
-    if (!session || readOnly || !progress.canSubmit || pendingAction !== null) {
-      return;
-    }
+    if (!session || readOnly || !canSubmit) return;
 
     setPendingAction("submit");
     try {
       const submittedSession = await submitPdaSession(session.sessionId);
       setSession(submittedSession);
+      setFastScannerOpen(false);
+      setLegacyScannerOpen(false);
+      setCaptureTarget(null);
       showToast("Đã gửi bàn giao PDA.", "success");
     } catch (error) {
       showToast(getGasErrorMessage(error), "error");
@@ -154,18 +291,29 @@ export function BanGiaoPdaPage() {
   };
 
   return (
-    <div className="app-page space-y-5 pb-36 text-base-content md:space-y-6 md:pb-8">
+    <div className="app-page space-y-5 pb-40 text-base-content md:space-y-6 md:pb-8">
+      <PdaFastScanner
+        open={fastScannerOpen}
+        completed={progress.completed}
+        total={progress.total}
+        uploading={uploadingCount}
+        onValidate={validateScannedPda}
+        onEvidence={handleFastEvidence}
+        onUnsupported={handleFastUnsupported}
+        onClose={handleFastClose}
+      />
+
       <EmbeddedQRScanner
-        open={scannerOpen}
-        mode={scannerOpen ? "item" : null}
-        onScan={handleScan}
-        onClose={() => setScannerOpen(false)}
+        open={legacyScannerOpen}
+        mode={legacyScannerOpen ? "item" : null}
+        onScan={handleLegacyScan}
+        onClose={() => setLegacyScannerOpen(false)}
       />
 
       <PdaEvidenceCapture
         open={captureTarget !== null}
         pdaName={captureTarget}
-        uploading={pendingAction === "upload"}
+        uploading={pendingAction === "compression"}
         onFile={handlePhoto}
         onClose={() => setCaptureTarget(null)}
       />
@@ -194,7 +342,7 @@ export function BanGiaoPdaPage() {
               type="date"
               value={handoverDate}
               max={today}
-              disabled={busy}
+              disabled={selectionLocked}
               onChange={(event) => {
                 setHandoverDate(event.target.value);
                 resetSession();
@@ -207,7 +355,7 @@ export function BanGiaoPdaPage() {
             <span className="label-text mb-2 text-sm">Ca làm việc</span>
             <select
               value={shift}
-              disabled={busy}
+              disabled={selectionLocked}
               onChange={(event) => {
                 const value = event.target.value;
                 setShift(isPdaShift(value) ? value : "");
@@ -227,7 +375,7 @@ export function BanGiaoPdaPage() {
           <button
             type="button"
             onClick={handleBootstrap}
-            disabled={busy || !shift || !handoverDate}
+            disabled={selectionLocked || !shift || !handoverDate}
             className="btn btn-primary min-h-12 w-full gap-2 rounded-xl sm:col-span-2"
           >
             {pendingAction === "bootstrap" ? (
@@ -270,7 +418,7 @@ export function BanGiaoPdaPage() {
                   Danh sách PDA
                 </h2>
                 <p className="app-section-description">
-                  Quét đúng mã QR rồi chụp ảnh từng máy.
+                  PDA cần xử lý và ảnh lỗi luôn được đưa lên đầu.
                 </p>
               </div>
               <span className="shrink-0 font-mono text-sm font-black text-primary">
@@ -279,15 +427,21 @@ export function BanGiaoPdaPage() {
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              {session.items.map((item) => (
-                <PdaHandoverCard
-                  key={item.pdaName}
-                  item={item}
-                  busy={busy}
-                  readOnly={readOnly}
-                  onCapture={setCaptureTarget}
-                />
-              ))}
+              {sortedItems.map((item) => {
+                const job = jobsByName.get(item.pdaName);
+                return (
+                  <PdaHandoverCard
+                    key={item.pdaName}
+                    item={item}
+                    busy={busy}
+                    readOnly={readOnly}
+                    uploadStatus={job?.status}
+                    uploadError={job?.error}
+                    onCapture={setCaptureTarget}
+                    onRetry={handleRetry}
+                  />
+                );
+              })}
             </div>
           </section>
 
@@ -305,18 +459,23 @@ export function BanGiaoPdaPage() {
                 max={Math.max(progress.total, 1)}
                 aria-label={`Đã hoàn tất ${progress.completed} trên ${progress.total} PDA`}
               />
+              {!readOnly ? (
+                <p className={`mt-2 text-xs font-semibold ${canSubmit ? "text-success" : "text-base-content/65"}`} role="status">
+                  {submitBlockReason}
+                </p>
+              ) : null}
             </div>
 
             {!readOnly ? (
               <div className="grid min-w-0 grid-cols-2 gap-2 md:flex md:shrink-0">
                 <button
                   type="button"
-                  onClick={() => setScannerOpen(true)}
+                  onClick={handleOpenScanner}
                   disabled={busy}
                   className="btn btn-outline min-h-12 min-w-0 gap-2 rounded-xl md:min-w-36"
-                  aria-label="Quét mã QR PDA"
+                  aria-label="Quét liên tục mã QR PDA"
                 >
-                  {pendingAction === "scan" ? (
+                  {validationPending ? (
                     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
                   ) : (
                     <ScanLine className="h-5 w-5" aria-hidden="true" />
@@ -326,7 +485,7 @@ export function BanGiaoPdaPage() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={busy || !progress.canSubmit}
+                  disabled={!canSubmit}
                   className="btn btn-primary min-h-12 min-w-0 gap-2 rounded-xl md:min-w-40"
                 >
                   {pendingAction === "submit" ? (

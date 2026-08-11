@@ -1,15 +1,26 @@
-import { Camera, CheckCircle2, Clock3, ScanLine } from "lucide-react";
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  LoaderCircle,
+  ScanLine,
+} from "lucide-react";
 import {
   derivePdaItemState,
   type PdaHandoverItem,
   type PdaItemState,
 } from "../utils/pdaHandover";
+import type { PdaUploadStatus } from "../utils/pdaUploadQueue";
 
 interface PdaHandoverCardProps {
   item: PdaHandoverItem;
   busy: boolean;
   readOnly: boolean;
+  uploadStatus?: PdaUploadStatus;
+  uploadError?: string | null;
   onCapture: (pdaName: string) => void;
+  onRetry: (pdaName: string) => void;
 }
 
 const STATUS: Record<
@@ -58,12 +69,23 @@ export function PdaHandoverCard({
   item,
   busy,
   readOnly,
+  uploadStatus,
+  uploadError,
   onCapture,
+  onRetry,
 }: PdaHandoverCardProps) {
   const state = derivePdaItemState(item);
-  const status = STATUS[state];
-  const StatusIcon = status.icon;
+  const persistedStatus = STATUS[state];
+  const uploadPresentation = uploadStatus === "FAILED"
+    ? { label: "Tải ảnh lỗi", badge: "badge-error", icon: AlertCircle }
+    : uploadStatus === "UPLOADING"
+      ? { label: "Đang tải ảnh", badge: "badge-info", icon: LoaderCircle }
+      : uploadStatus === "QUEUED"
+        ? { label: "Đang chờ tải", badge: "badge-info", icon: Clock3 }
+        : persistedStatus;
+  const StatusIcon = uploadPresentation.icon;
   const canCapture = !readOnly && state !== "PENDING_SCAN";
+  const canRetry = !readOnly && uploadStatus === "FAILED";
 
   return (
     <article className="app-surface overflow-hidden" aria-label={`Thiết bị ${item.pdaName}`}>
@@ -86,9 +108,12 @@ export function PdaHandoverCard({
             <h2 className="break-safe text-lg font-black tracking-tight">
               {item.pdaName}
             </h2>
-            <span className={`badge min-h-7 gap-1.5 px-2.5 font-bold ${status.badge}`}>
-              <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              {status.label}
+            <span className={`badge min-h-7 gap-1.5 px-2.5 font-bold ${uploadPresentation.badge}`}>
+              <StatusIcon
+                className={`h-3.5 w-3.5 ${uploadStatus === "UPLOADING" ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+              {uploadPresentation.label}
             </span>
           </div>
 
@@ -106,21 +131,41 @@ export function PdaHandoverCard({
               </dd>
             </div>
           </dl>
+          {uploadStatus === "FAILED" && uploadError ? (
+            <p className="break-safe mt-2 text-xs font-semibold text-error" role="alert">
+              {uploadError}
+            </p>
+          ) : null}
         </div>
       </div>
 
-      {canCapture ? (
+      {canCapture || canRetry ? (
         <div className="border-t border-base-200 bg-base-200/35 p-3">
-          <button
-            type="button"
-            onClick={() => onCapture(item.pdaName)}
-            disabled={busy}
-            className="btn btn-outline min-h-11 w-full gap-2 rounded-xl"
-            aria-label={`${state === "COMPLETED" ? "Chụp lại" : "Chụp ảnh"} ${item.pdaName}`}
-          >
-            <Camera className="h-4 w-4" aria-hidden="true" />
-            {state === "COMPLETED" ? "Chụp lại" : "Chụp ảnh"}
-          </button>
+          <div className={`grid gap-2 ${canCapture && canRetry ? "grid-cols-2" : ""}`}>
+            {canRetry ? (
+              <button
+                type="button"
+                onClick={() => onRetry(item.pdaName)}
+                disabled={busy}
+                className="btn btn-error min-h-11 min-w-0 rounded-xl"
+                aria-label={`Thử tải lại ảnh ${item.pdaName}`}
+              >
+                Thử tải lại
+              </button>
+            ) : null}
+            {canCapture ? (
+              <button
+                type="button"
+                onClick={() => onCapture(item.pdaName)}
+                disabled={busy}
+                className="btn btn-outline min-h-11 min-w-0 gap-2 rounded-xl"
+                aria-label={`${state === "COMPLETED" ? "Chụp lại" : "Chụp ảnh"} ${item.pdaName}`}
+              >
+                <Camera className="h-4 w-4" aria-hidden="true" />
+                {state === "COMPLETED" ? "Chụp lại" : "Chụp ảnh"}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </article>

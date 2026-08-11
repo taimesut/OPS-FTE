@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canSubmitPdaHandover,
   derivePdaItemState,
+  getPdaItemPriority,
   getPdaProgress,
   isPdaShift,
   PDA_SHIFTS,
@@ -137,4 +139,59 @@ test("normalizes Apps Script failures for display", () => {
     getGasErrorMessage(null),
     "Không thể kết nối Google Apps Script.",
   );
+});
+
+test("blocks submit until backend, queue and interaction state are all clear", () => {
+  assert.equal(
+    canSubmitPdaHandover({
+      backendComplete: true,
+      hasBlockingJobs: false,
+      interactionPending: false,
+    }),
+    true,
+  );
+
+  for (const blocked of [
+    { backendComplete: false, hasBlockingJobs: false, interactionPending: false },
+    { backendComplete: true, hasBlockingJobs: true, interactionPending: false },
+    { backendComplete: true, hasBlockingJobs: false, interactionPending: true },
+  ]) {
+    assert.equal(canSubmitPdaHandover(blocked), false);
+  }
+});
+
+test("prioritizes failed and unfinished PDA before uploads and completed items", () => {
+  const pending = item("PDA01");
+  const waitingPhoto = item("PDA02", { scanAt: "2026-08-11T01:00:00.000Z" });
+  const uploading = item("PDA03", { scanAt: "2026-08-11T01:00:00.000Z" });
+  const complete = completedItem("PDA04");
+
+  assert.equal(getPdaItemPriority(complete, "FAILED"), 0);
+  assert.equal(getPdaItemPriority(pending), 0);
+  assert.equal(getPdaItemPriority(waitingPhoto), 0);
+  assert.equal(getPdaItemPriority(uploading, "QUEUED"), 1);
+  assert.equal(getPdaItemPriority(uploading, "UPLOADING"), 1);
+  assert.equal(getPdaItemPriority(complete, "COMPLETED"), 2);
+  assert.equal(getPdaItemPriority(complete), 2);
+});
+
+test("priority sorting is stable and does not mutate the session snapshot", () => {
+  const items = [
+    completedItem("PDA04"),
+    item("PDA02"),
+    item("PDA01"),
+    completedItem("PDA03"),
+  ];
+  const originalOrder = items.map(({ pdaName }) => pdaName);
+  const sorted = [...items].sort(
+    (left, right) => getPdaItemPriority(left) - getPdaItemPriority(right),
+  );
+
+  assert.deepEqual(sorted.map(({ pdaName }) => pdaName), [
+    "PDA02",
+    "PDA01",
+    "PDA04",
+    "PDA03",
+  ]);
+  assert.deepEqual(items.map(({ pdaName }) => pdaName), originalOrder);
 });

@@ -1,3 +1,5 @@
+import type { PdaUploadStatus } from "./pdaUploadQueue";
+
 export const PDA_SHIFTS = [
   "06:00-15:00",
   "13:00-22:00",
@@ -78,6 +80,27 @@ export function getPdaProgress(
     0,
   );
   return { completed, total, canSubmit: total > 0 && completed === total };
+}
+
+export function canSubmitPdaHandover(input: {
+  backendComplete: boolean;
+  hasBlockingJobs: boolean;
+  interactionPending: boolean;
+}): boolean {
+  return (
+    input.backendComplete &&
+    !input.hasBlockingJobs &&
+    !input.interactionPending
+  );
+}
+
+export function getPdaItemPriority(
+  item: PdaHandoverItem,
+  uploadStatus?: PdaUploadStatus,
+): number {
+  if (uploadStatus === "FAILED") return 0;
+  if (uploadStatus === "QUEUED" || uploadStatus === "UPLOADING") return 1;
+  return derivePdaItemState(item) === "COMPLETED" ? 2 : 0;
 }
 
 export function replacePdaItem(

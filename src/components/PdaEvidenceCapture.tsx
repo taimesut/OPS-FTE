@@ -61,7 +61,7 @@ export function PdaEvidenceCapture({
           {uploading ? (
             <div className="flex min-h-14 items-center justify-center gap-3 rounded-xl bg-base-200 px-4 text-sm font-bold" role="status">
               <LoaderCircle className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
-              Đang nén và tải ảnh...
+              Đang chuẩn bị ảnh...
             </div>
           ) : (
             <label className="btn btn-primary min-h-14 w-full cursor-pointer gap-2 rounded-xl text-base">
