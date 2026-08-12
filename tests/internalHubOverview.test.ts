@@ -182,11 +182,25 @@ test("builds the exact seven-day packed-order search URL", () => {
 });
 
 test("keeps only packed orders currently at the configured SOC", () => {
+  const validMatchingOrder = {
+    to_number: "A",
+    sender: "BD A Mega SOC",
+    receiver: "44-GLI An Khe Hub",
+    operator: "Operator",
+    quantity: 5,
+    weight: 2_500,
+    status: "Packed",
+    complete_time: 1_000_000,
+    pack_name: "Bao 90x70",
+    high_value: 2,
+    dg_type: [1],
+    current_station_name: "Pleiku SOC",
+  };
   const response = {
     retcode: 0,
     data: {
       list: [
-        { to_number: "A", current_station_name: "Pleiku SOC" },
+        validMatchingOrder,
         { to_number: "B", current_station_name: "Other SOC" },
       ],
     },
@@ -195,6 +209,40 @@ test("keeps only packed orders currently at the configured SOC", () => {
     parsePackedOrdersForSoc(response, "Pleiku SOC").map((item) => item.to_number),
     ["A"],
   );
+});
+
+test("rejects malformed packed orders matching the configured SOC", () => {
+  const validOrder = {
+    to_number: "A",
+    sender: "BD A Mega SOC",
+    receiver: "44-GLI An Khe Hub",
+    operator: "Operator",
+    quantity: 5,
+    weight: 2_500,
+    status: "Packed",
+    complete_time: 1_000_000,
+    pack_name: "Bao 90x70",
+    high_value: 2,
+    dg_type: [1],
+    current_station_name: "Pleiku SOC",
+  };
+
+  for (const malformedOrder of [
+    { ...validOrder, to_number: " " },
+    { ...validOrder, quantity: Number.NaN },
+    { ...validOrder, weight: Number.POSITIVE_INFINITY },
+    { ...validOrder, high_value: "1" },
+    { ...validOrder, dg_type: {} },
+  ]) {
+    assert.throws(
+      () =>
+        parsePackedOrdersForSoc(
+          { retcode: 0, data: { list: [malformedOrder] } },
+          "Pleiku SOC",
+        ),
+      /Transfer Order|packed/i,
+    );
+  }
 });
 
 test("rejects packed responses with a non-zero application retcode", () => {
@@ -250,4 +298,37 @@ test("maps packed parse errors independently and preserves a fulfilled loose bra
     ok: true,
     data: { total: 7, dgCount: 2, highValueCount: 1 },
   });
+});
+
+test("preserves the loose sibling when a matching packed order is malformed", async () => {
+  const looseSummary = { total: 7, dgCount: 2, highValueCount: 1 };
+  const result = await fetchHubOverviewBranches(
+    "Pleiku SOC",
+    "1030",
+    { name: "44-GLI An Khe Hub", id: "1069" },
+    1_000_000,
+    {
+      fetchPackedOrders: async () => ({
+        data: {
+          retcode: 0,
+          data: {
+            list: [
+              {
+                to_number: "TO-A",
+                current_station_name: "Pleiku SOC",
+                quantity: "5",
+                weight: 2_500,
+                high_value: 2,
+              },
+            ],
+          },
+        },
+      }),
+      fetchLooseOrders: async () => looseSummary,
+    },
+  );
+
+  assert.equal(result.packed.ok, false);
+  assert.match(result.packed.ok ? "" : result.packed.error, /Transfer Order|packed/i);
+  assert.deepEqual(result.loose, { ok: true, data: looseSummary });
 });

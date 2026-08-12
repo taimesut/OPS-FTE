@@ -4,6 +4,31 @@ import type { LooseOrderSummary } from "./looseOrders";
 
 const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
 
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isTransferOrder = (value: unknown): value is TransferOrder => {
+  if (typeof value !== "object" || value === null) return false;
+
+  const order = value as Record<string, unknown>;
+  return (
+    typeof order.to_number === "string" &&
+    order.to_number.trim().length > 0 &&
+    typeof order.sender === "string" &&
+    typeof order.receiver === "string" &&
+    typeof order.operator === "string" &&
+    isFiniteNumber(order.quantity) &&
+    isFiniteNumber(order.weight) &&
+    typeof order.status === "string" &&
+    isFiniteNumber(order.complete_time) &&
+    typeof order.pack_name === "string" &&
+    isFiniteNumber(order.high_value) &&
+    Array.isArray(order.dg_type) &&
+    order.dg_type.every(isFiniteNumber) &&
+    typeof order.current_station_name === "string"
+  );
+};
+
 export const createPackedOrdersSearchPath = (
   hubName: string,
   nowSeconds: number,
@@ -35,14 +60,20 @@ export const parsePackedOrdersForSoc = (
     throw new Error("Dữ liệu packed không hợp lệ: thiếu data.list.");
   }
 
-  const list = root.data.list;
-
-  return list.filter(
-    (item): item is TransferOrder =>
+  const matchingOrders = root.data.list.filter(
+    (item) =>
       typeof item === "object" &&
       item !== null &&
       (item as { current_station_name?: unknown }).current_station_name === soc,
   );
+
+  if (!matchingOrders.every(isTransferOrder)) {
+    throw new Error(
+      "Dữ liệu packed không hợp lệ: Transfer Order tại SOC bị thiếu hoặc sai trường bắt buộc.",
+    );
+  }
+
+  return matchingOrders;
 };
 
 const errorMessage = (error: unknown): string =>
