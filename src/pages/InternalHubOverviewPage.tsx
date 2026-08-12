@@ -150,6 +150,9 @@ export const InternalHubOverviewPage = () => {
   const [cooldownRemaining, setCooldownRemaining] = useState(() =>
     getOverviewCooldownRemaining(localStorage, Date.now()),
   );
+  const [packedResultGenerations, setPackedResultGenerations] = useState<
+    Record<string, number>
+  >({});
   const mountedRef = useRef(false);
   const generationRef = useRef(0);
 
@@ -174,6 +177,14 @@ export const InternalHubOverviewPage = () => {
   }, [cooldownRemaining]);
 
   const totals = useMemo(() => summarizeOverview(rows), [rows]);
+  const hasLooseData = useMemo(
+    () => rows.some((row) => row.loose.data !== null),
+    [rows],
+  );
+  const hasPackedData = useMemo(
+    () => rows.some((row) => row.packed.hasData),
+    [rows],
+  );
   const selectedRow = useMemo(
     () => rows.find((row) => row.name === selectedHubName) ?? null,
     [rows, selectedHubName],
@@ -242,6 +253,12 @@ export const InternalHubOverviewPage = () => {
       }
 
       if (isCurrentRun()) {
+        if (branches.packed.ok) {
+          setPackedResultGenerations((current) => ({
+            ...current,
+            [hub.name]: (current[hub.name] ?? 0) + 1,
+          }));
+        }
         setRows((currentRows) =>
           replaceHubRow(currentRows, hub, (row) => {
             const withLoose = mergeHubBranchResult(
@@ -330,35 +347,41 @@ export const InternalHubOverviewPage = () => {
           <SummaryCard
             icon={Boxes}
             label="Hàng xá lẻ"
-            value={numberFormatter.format(totals.looseTotal)}
+            value={
+              hasLooseData ? numberFormatter.format(totals.looseTotal) : "—"
+            }
             description="Tổng đơn chưa đóng bao"
             tone="bg-primary/10 text-primary"
           />
           <SummaryCard
             icon={ClipboardList}
             label="Transfer Order"
-            value={numberFormatter.format(totals.packedTo)}
+            value={hasPackedData ? numberFormatter.format(totals.packedTo) : "—"}
             description="Tổng TO đã đóng bao"
             tone="bg-secondary/10 text-secondary"
           />
           <SummaryCard
             icon={Package}
             label="Số kiện"
-            value={numberFormatter.format(totals.packedQuantity)}
+            value={
+              hasPackedData
+                ? numberFormatter.format(totals.packedQuantity)
+                : "—"
+            }
             description="Tổng kiện trong TO"
             tone="bg-info/10 text-info"
           />
           <SummaryCard
             icon={ShieldAlert}
             label="Bao DG"
-            value={numberFormatter.format(totals.packedDg)}
+            value={hasPackedData ? numberFormatter.format(totals.packedDg) : "—"}
             description="Bao có hàng nguy hiểm"
             tone="bg-warning/10 text-warning"
           />
           <SummaryCard
             icon={Gem}
             label="Bao GTC"
-            value={numberFormatter.format(totals.packedGtc)}
+            value={hasPackedData ? numberFormatter.format(totals.packedGtc) : "—"}
             description="Bao có hàng giá trị cao"
             tone="bg-error/10 text-error"
           />
@@ -414,6 +437,7 @@ export const InternalHubOverviewPage = () => {
             </div>
           ) : null}
           <TOTable
+            key={`${selectedRow.name}:${packedResultGenerations[selectedRow.name] ?? 0}`}
             orders={selectedRow.packed.orders}
             storageKey={DETAIL_STORAGE_KEY}
             emptyTitle={`Không có TO sót tới ${selectedRow.name}`}
