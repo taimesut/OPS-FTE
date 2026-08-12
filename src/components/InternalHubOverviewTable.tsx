@@ -1,14 +1,20 @@
+import { Fragment } from "react";
 import type {
   HubOverviewRow,
   HubOverviewStatus,
   OverviewTotals,
 } from "../utils/internalHubOverview";
+import { RefreshCw } from "lucide-react";
 
 interface InternalHubOverviewTableProps {
   rows: readonly HubOverviewRow[];
   totals: OverviewTotals;
   selectedHubName: string | null;
   onSelectHub: (name: string) => void;
+  onRefreshHub: (hub: HubOverviewRow) => void;
+  hubCooldownRemaining: Readonly<Record<string, number>>;
+  hubRunning: Readonly<Record<string, boolean>>;
+  allRunning: boolean;
 }
 
 const numberFormatter = new Intl.NumberFormat("vi-VN");
@@ -35,6 +41,13 @@ const formatUpdatedAt = (value: number | null): string => {
   if (value === null) return "—";
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "—" : updatedAtFormatter.format(date);
+};
+
+const hubKey = (row: HubOverviewRow): string => row.id.trim() || row.name;
+
+const formatCountdown = (milliseconds: number): string => {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1_000));
+  return `00:${String(seconds).padStart(2, "0")}`;
 };
 
 const StatusBadge = ({ status }: { status: HubOverviewStatus }) => {
@@ -102,14 +115,16 @@ const DetailButton = ({
   row,
   selected,
   onSelect,
+  compact = false,
 }: {
   row: HubOverviewRow;
   selected: boolean;
   onSelect: (name: string) => void;
+  compact?: boolean;
 }) => (
   <button
     type="button"
-    className="btn btn-sm min-h-11 min-w-0 rounded-xl btn-outline disabled:opacity-45"
+    className={`btn btn-sm min-h-11 min-w-0 rounded-xl btn-outline disabled:opacity-45 ${compact ? "mt-1 px-2 text-xs" : ""}`}
     disabled={!row.packed.hasData}
     aria-expanded={selected}
     aria-controls="overview-hub-detail"
@@ -120,153 +135,192 @@ const DetailButton = ({
     }
     onClick={() => onSelect(row.name)}
   >
-    {selected ? "Đóng chi tiết" : "Xem chi tiết"}
+    {selected ? (compact ? "Đóng" : "Đóng chi tiết") : compact ? "Chi tiết" : "Xem chi tiết"}
   </button>
 );
 
-const MobileMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="min-w-0 rounded-lg bg-base-200/45 px-2 py-2.5 text-center">
-    <dt className="break-safe text-[11px] font-bold uppercase tracking-wide text-base-content/55">
-      {label}
-    </dt>
-    <dd className="mt-1 break-safe text-base font-black tabular-nums text-base-content">
-      {value}
-    </dd>
-  </div>
-);
+const HubRefreshButton = ({
+  row,
+  remaining,
+  running,
+  allRunning,
+  onRefresh,
+}: {
+  row: HubOverviewRow;
+  remaining: number;
+  running: boolean;
+  allRunning: boolean;
+  onRefresh: (hub: HubOverviewRow) => void;
+}) => {
+  const locked = allRunning || running || remaining > 0;
+  const statusText = running
+    ? "Đang tải"
+    : remaining > 0
+      ? `Làm mới sau ${formatCountdown(remaining)}`
+      : "Làm mới";
+
+  return (
+    <div className="flex min-w-11 flex-col items-center gap-0.5">
+      <button
+        type="button"
+        className="btn btn-square btn-sm min-h-11 min-w-11 rounded-xl btn-ghost"
+        disabled={locked}
+        aria-label={`Làm mới dữ liệu của ${row.name}`}
+        aria-busy={running}
+        onClick={() => onRefresh(row)}
+      >
+        {running ? (
+          <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+        ) : (
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        )}
+      </button>
+      <span className="break-safe text-center text-[10px] font-semibold leading-tight text-base-content/60">
+        {statusText}
+      </span>
+    </div>
+  );
+};
+
+const hasBranchMessages = (row: HubOverviewRow): boolean =>
+  row.loose.error !== null ||
+  row.loose.stale ||
+  row.packed.error !== null ||
+  row.packed.stale;
 
 export function InternalHubOverviewTable({
   rows,
   totals,
   selectedHubName,
   onSelectHub,
+  onRefreshHub,
+  hubCooldownRemaining,
+  hubRunning,
+  allRunning,
 }: InternalHubOverviewTableProps) {
   const looseTotalsAvailable = rows.some((row) => row.loose.data !== null);
   const packedTotalsAvailable = rows.some((row) => row.packed.hasData);
 
   return (
     <div className="min-w-0 max-w-full">
-      <div className="space-y-3 md:hidden">
-        {rows.map((row) => {
-          const looseAvailable = row.loose.data !== null;
-          const selected = selectedHubName === row.name;
+      <div className="app-surface max-w-full overflow-hidden md:hidden">
+        <div className="max-w-full overflow-x-auto">
+          <table
+            className="table table-xs w-full min-w-[22rem] table-fixed tabular-nums"
+            aria-label="Tổng quan theo Hub trên mobile"
+          >
+            <colgroup>
+              <col className="w-[29%]" />
+              <col className="w-[21%]" />
+              <col className="w-[21%]" />
+              <col className="w-[12%]" />
+              <col className="w-[17%]" />
+            </colgroup>
+            <thead className="border-b border-base-200 bg-base-200/50 text-base-content">
+              <tr>
+                <th scope="col" className="break-safe px-1.5 py-2 text-left">Hub / trạng thái</th>
+                <th scope="col" className="break-safe px-1.5 py-2 text-right">Xá lẻ</th>
+                <th scope="col" className="break-safe px-1.5 py-2 text-right">Đóng bao</th>
+                <th scope="col" className="break-safe px-1.5 py-2 text-right">Kiện</th>
+                <th scope="col" className="break-safe px-1.5 py-2 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-base-200">
+              {rows.map((row) => {
+                const looseAvailable = row.loose.data !== null;
+                const selected = selectedHubName === row.name;
+                const key = hubKey(row);
+                const messages = hasBranchMessages(row);
 
-          return (
-            <article
-              key={row.id || row.name}
-              className="app-surface min-w-0 overflow-hidden"
-              aria-label={`Tổng quan ${row.name}`}
-            >
-              <header className="min-w-0 border-b border-base-200 p-4">
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="break-safe text-base font-black tracking-tight">
-                      {row.name}
-                    </h3>
-                    <p className="mt-1 break-safe text-xs text-base-content/60">
-                      Cập nhật: {formatUpdatedAt(row.updatedAt)}
-                    </p>
-                  </div>
-                  <StatusBadge status={row.status} />
-                </div>
-                <BranchMessages row={row} />
-              </header>
-
-              <div className="space-y-4 p-4">
-                <section aria-label={`Hàng xá lẻ của ${row.name}`}>
-                  <h4 className="mb-2 text-xs font-black uppercase tracking-wide text-base-content/65">
-                    Hàng xá lẻ
-                  </h4>
-                  <dl className="grid min-w-0 grid-cols-3 gap-2">
-                    <MobileMetric
-                      label="Tổng"
-                      value={formatMetric(row.loose.data?.total ?? 0, looseAvailable)}
-                    />
-                    <MobileMetric
-                      label="DG"
-                      value={formatMetric(row.loose.data?.dgCount ?? 0, looseAvailable)}
-                    />
-                    <MobileMetric
-                      label="GTC"
-                      value={formatMetric(row.loose.data?.highValueCount ?? 0, looseAvailable)}
-                    />
-                  </dl>
-                </section>
-
-                <section aria-label={`Hàng đã đóng bao của ${row.name}`}>
-                  <h4 className="mb-2 text-xs font-black uppercase tracking-wide text-base-content/65">
-                    Hàng đã đóng bao
-                  </h4>
-                  <dl className="grid min-w-0 grid-cols-4 gap-2">
-                    <MobileMetric
-                      label="TO"
-                      value={formatMetric(row.packed.orders.length, row.packed.hasData)}
-                    />
-                    <MobileMetric
-                      label="Kiện"
-                      value={formatMetric(row.packed.metrics.totalQuantity, row.packed.hasData)}
-                    />
-                    <MobileMetric
-                      label="DG"
-                      value={formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)}
-                    />
-                    <MobileMetric
-                      label="GTC"
-                      value={formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)}
-                    />
-                  </dl>
-                </section>
-
-                <DetailButton
-                  row={row}
-                  selected={selected}
-                  onSelect={onSelectHub}
-                />
-              </div>
-            </article>
-          );
-        })}
-
-        <footer className="app-surface min-w-0 overflow-hidden p-4" aria-label="Tổng cộng">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <h3 className="font-black">Tổng cộng</h3>
-            <span className="badge badge-neutral min-h-7 font-bold">
-              Hoàn tất {totals.completedHubs}/{totals.totalHubs} Hub
-            </span>
-          </div>
-          <dl className="mt-3 grid min-w-0 grid-cols-3 gap-2">
-            <MobileMetric
-              label="Xá lẻ"
-              value={formatMetric(totals.looseTotal, looseTotalsAvailable)}
-            />
-            <MobileMetric
-              label="DG xá lẻ"
-              value={formatMetric(totals.looseDg, looseTotalsAvailable)}
-            />
-            <MobileMetric
-              label="GTC xá lẻ"
-              value={formatMetric(totals.looseGtc, looseTotalsAvailable)}
-            />
-          </dl>
-          <dl className="mt-2 grid min-w-0 grid-cols-4 gap-2">
-            <MobileMetric
-              label="TO"
-              value={formatMetric(totals.packedTo, packedTotalsAvailable)}
-            />
-            <MobileMetric
-              label="Kiện"
-              value={formatMetric(totals.packedQuantity, packedTotalsAvailable)}
-            />
-            <MobileMetric
-              label="Bao DG"
-              value={formatMetric(totals.packedDg, packedTotalsAvailable)}
-            />
-            <MobileMetric
-              label="Bao GTC"
-              value={formatMetric(totals.packedGtc, packedTotalsAvailable)}
-            />
-          </dl>
-        </footer>
+                return (
+                  <Fragment key={key}>
+                    <tr className="align-top hover:bg-base-200/35">
+                      <th scope="row" className="min-w-0 px-1.5 py-2 text-left font-normal">
+                        <span className="block break-safe font-bold">{row.name}</span>
+                        <span className="mt-1 block"><StatusBadge status={row.status} /></span>
+                        <span className="mt-1 block break-safe text-[11px] text-base-content/60">
+                          {formatUpdatedAt(row.updatedAt)}
+                        </span>
+                        <DetailButton
+                          compact
+                          row={row}
+                          selected={selected}
+                          onSelect={onSelectHub}
+                        />
+                      </th>
+                      <td className="min-w-0 px-1.5 py-2 text-right align-top">
+                        <strong className="block break-safe font-black">
+                          {formatMetric(row.loose.data?.total ?? 0, looseAvailable)}
+                        </strong>
+                        <span className="mt-1 block break-safe text-[11px] leading-tight text-base-content/60">
+                          DG {formatMetric(row.loose.data?.dgCount ?? 0, looseAvailable)} · GTC {formatMetric(row.loose.data?.highValueCount ?? 0, looseAvailable)}
+                        </span>
+                      </td>
+                      <td className="min-w-0 px-1.5 py-2 text-right align-top">
+                        <strong className="block break-safe font-black">
+                          {formatMetric(row.packed.orders.length, row.packed.hasData)} TO
+                        </strong>
+                        <span className="mt-1 block break-safe text-[11px] leading-tight text-base-content/60">
+                          DG {formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)} · GTC {formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)}
+                        </span>
+                      </td>
+                      <td className="px-1.5 py-2 text-right align-top font-black">
+                        {formatMetric(row.packed.metrics.totalQuantity, row.packed.hasData)}
+                      </td>
+                      <td className="px-1.5 py-2 align-top">
+                        <HubRefreshButton
+                          row={row}
+                          remaining={hubCooldownRemaining[key] ?? 0}
+                          running={hubRunning[key] ?? false}
+                          allRunning={allRunning}
+                          onRefresh={onRefreshHub}
+                        />
+                      </td>
+                    </tr>
+                    {messages ? (
+                      <tr key={`${key}:messages`}>
+                        <td colSpan={5} className="px-1.5 py-1.5">
+                          <BranchMessages row={row} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+            <tfoot className="border-t border-base-300 bg-base-200/55 font-bold text-base-content">
+              <tr>
+                <th scope="row" className="break-safe px-1.5 py-2 text-left">
+                  <span className="block">Tổng cộng</span>
+                  <span className="block text-[11px] font-semibold text-base-content/65">
+                    Hoàn tất {totals.completedHubs}/{totals.totalHubs} Hub
+                  </span>
+                </th>
+                <td className="px-1.5 py-2 text-right align-top">
+                  <strong className="block">{formatMetric(totals.looseTotal, looseTotalsAvailable)}</strong>
+                  <span className="block break-safe text-[11px] font-semibold leading-tight text-base-content/60">
+                    DG {formatMetric(totals.looseDg, looseTotalsAvailable)} · GTC {formatMetric(totals.looseGtc, looseTotalsAvailable)}
+                  </span>
+                </td>
+                <td className="px-1.5 py-2 text-right align-top">
+                  <strong className="block">{formatMetric(totals.packedTo, packedTotalsAvailable)} TO</strong>
+                  <span className="block break-safe text-[11px] font-semibold leading-tight text-base-content/60">
+                    DG {formatMetric(totals.packedDg, packedTotalsAvailable)} · GTC {formatMetric(totals.packedGtc, packedTotalsAvailable)}
+                  </span>
+                </td>
+                <td className="px-1.5 py-2 text-right align-top">
+                  {formatMetric(totals.packedQuantity, packedTotalsAvailable)}
+                </td>
+                <td className="px-1.5 py-2 text-center align-top">—</td>
+              </tr>
+              <tr>
+                <td colSpan={5} className="px-1.5 pb-2 text-right text-[11px] font-semibold text-base-content/60">
+                  Cập nhật: {formatUpdatedAt(totals.latestUpdatedAt)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       <div className="app-surface hidden max-w-full overflow-hidden md:block">
@@ -295,9 +349,10 @@ export function InternalHubOverviewTable({
               {rows.map((row) => {
                 const looseAvailable = row.loose.data !== null;
                 const selected = selectedHubName === row.name;
+                const key = hubKey(row);
 
                 return (
-                  <tr key={row.id || row.name} className="align-top hover:bg-base-200/35">
+                  <tr key={key} className="align-top hover:bg-base-200/35">
                     <th scope="row" className="max-w-64 whitespace-normal">
                       <span className="break-safe font-bold">{row.name}</span>
                       <BranchMessages row={row} />
@@ -312,7 +367,16 @@ export function InternalHubOverviewTable({
                     <td><StatusBadge status={row.status} /></td>
                     <td className="whitespace-nowrap text-xs text-base-content/70">{formatUpdatedAt(row.updatedAt)}</td>
                     <td>
+                      <div className="flex min-w-[10rem] flex-wrap items-center gap-2">
+                        <HubRefreshButton
+                          row={row}
+                          remaining={hubCooldownRemaining[key] ?? 0}
+                          running={hubRunning[key] ?? false}
+                          allRunning={allRunning}
+                          onRefresh={onRefreshHub}
+                        />
                       <DetailButton row={row} selected={selected} onSelect={onSelectHub} />
+                      </div>
                     </td>
                   </tr>
                 );

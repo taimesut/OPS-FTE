@@ -269,7 +269,7 @@ export const InternalHubOverviewPage = () => {
         const message =
           error instanceof Error && error.message
             ? error.message
-            : "KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u.";
+            : "Không thể tải dữ liệu.";
         branches = failedBranches(message);
       }
 
@@ -444,7 +444,6 @@ export const InternalHubOverviewPage = () => {
   const handleHubRefresh = async (requestedHub: HubDefinition) => {
     if (!canRunHub(requestedHub)) return;
 
-    /* eslint-disable no-irregular-whitespace */
     const currentSoc = getSoc();
     const currentSocId = getSocId();
     const cookies = getCookies();
@@ -456,11 +455,10 @@ export const InternalHubOverviewPage = () => {
       hubs: currentHubs,
     });
     if (validationError) {
-      showToast(`${validationError} Vui lÃ²ng kiá»ƒm tra láº¡i trong CÃ i Ä‘áº·t.`, "error");
+      showToast(`${validationError} Vui lòng kiểm tra lại trong Cài đặt.`, "error");
       return;
     }
 
-    /* eslint-enable no-irregular-whitespace */
     const hub = currentHubs.find(
       (candidate) =>
         candidate.name === requestedHub.name || candidate.id === requestedHub.id,
@@ -514,8 +512,8 @@ export const InternalHubOverviewPage = () => {
       const hasError = !result.branches.loose.ok || !result.branches.packed.ok;
       showToast(
         hasError
-          ? `ÄÃ£ cáº­p nháº­t ${hub.name}, nhÆ°ng cÃ³ nhÃ¡nh lá»—i.`
-          : `ÄÃ£ cáº­p nháº­t ${hub.name}.`,
+          ? `Đã cập nhật ${hub.name}, nhưng có nhánh lỗi.`
+          : `Đã cập nhật ${hub.name}.`,
         hasError ? "warning" : "success",
       );
     } finally {
@@ -527,9 +525,6 @@ export const InternalHubOverviewPage = () => {
       }
     }
   };
-
-  // Wired into the overview table when its per-Hub action props are added.
-  void handleHubRefresh;
 
   const refreshLabel = running
     ? "Đang kiểm tra toàn bộ Hub"
@@ -647,6 +642,10 @@ export const InternalHubOverviewPage = () => {
             onSelectHub={(name) =>
               setSelectedHubName((current) => (current === name ? null : name))
             }
+            onRefreshHub={handleHubRefresh}
+            hubCooldownRemaining={hubCooldownRemaining}
+            hubRunning={hubRunning}
+            allRunning={running}
           />
         )}
       </section>
