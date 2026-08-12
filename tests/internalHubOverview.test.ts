@@ -11,6 +11,10 @@ import {
   summarizeOverview,
   validateOverviewConfig,
 } from "../src/utils/internalHubOverview.ts";
+import {
+  createPackedOrdersSearchPath,
+  parsePackedOrdersForSoc,
+} from "../src/utils/internalHubOverviewApi.ts";
 
 test("creates one idle row per configured Hub", () => {
   assert.deepEqual(
@@ -167,4 +171,26 @@ test("runs no more than three Hub workers concurrently and preserves order", asy
 
 test("rejects invalid concurrency limits", async () => {
   await assert.rejects(() => runWithConcurrency([async () => 1], 0), /limit/i);
+});
+
+test("builds the exact seven-day packed-order search URL", () => {
+  assert.equal(
+    createPackedOrdersSearchPath("44-GLI An Khe Hub", 1_000_000),
+    "/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=44-GLI%20An%20Khe%20Hub&status=2&ctime=395200,1000000",
+  );
+});
+
+test("keeps only packed orders currently at the configured SOC", () => {
+  const response = {
+    data: {
+      list: [
+        { to_number: "A", current_station_name: "Pleiku SOC" },
+        { to_number: "B", current_station_name: "Other SOC" },
+      ],
+    },
+  };
+  assert.deepEqual(
+    parsePackedOrdersForSoc(response, "Pleiku SOC").map((item) => item.to_number),
+    ["A"],
+  );
 });
