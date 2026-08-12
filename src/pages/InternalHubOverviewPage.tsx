@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Boxes,
   CheckCircle2,
@@ -28,11 +28,14 @@ import {
   createInitialHubRows,
   finishHubRefresh,
   getOverviewCooldownRemaining,
+  getOverviewHubCooldownRemaining,
   mergeHubBranchResult,
   OVERVIEW_COOLDOWN_MS,
+  OVERVIEW_HUB_COOLDOWN_MS,
   OVERVIEW_HUB_CONCURRENCY,
   runWithConcurrency,
   startOverviewCooldown,
+  startOverviewHubCooldown,
   summarizeOverview,
   validateOverviewConfig,
   type BranchResult,
@@ -56,6 +59,9 @@ const updatedAtFormatter = new Intl.DateTimeFormat("vi-VN", {
 
 const readHubs = (): HubDefinition[] =>
   getHubs().map((name) => ({ name, id: getStationId(name) }));
+
+const hubKey = (hub: Pick<HubDefinition, "id" | "name">): string =>
+  hub.id.trim() || hub.name;
 
 const formatCountdown = (milliseconds: number): string => {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1_000));
@@ -104,6 +110,8 @@ const failedBranches = (message: string): HubBranchResults => {
   return { loose: failure, packed: failure };
 };
 
+type GenerationGuard = (generation: number) => boolean;
+
 interface SummaryCardProps {
   icon: typeof CheckCircle2;
   label: string;
@@ -150,31 +158,66 @@ export const InternalHubOverviewPage = () => {
   const [cooldownRemaining, setCooldownRemaining] = useState(() =>
     getOverviewCooldownRemaining(localStorage, Date.now()),
   );
+  const [hubCooldownRemaining, setHubCooldownRemaining] = useState<
+    Record<string, number>
+  >(() =>
+    Object.fromEntries(
+      readHubs().map((hub) => [
+        hubKey(hub),
+        getOverviewHubCooldownRemaining(localStorage, hubKey(hub), Date.now()),
+      ]),
+    ),
+  );
+  const [hubRunning, setHubRunning] = useState<Record<string, boolean>>({});
   const [packedResultGenerations, setPackedResultGenerations] = useState<
     Record<string, number>
   >({});
   const mountedRef = useRef(false);
   const generationRef = useRef(0);
+  const activeGenerationsRef = useRef(new Set<number>());
+  const activeHubRequestsRef = useRef(new Set<string>());
+  const globalRunningRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
+    const activeGenerations = activeGenerationsRef.current;
+    const activeHubRequests = activeHubRequestsRef.current;
     return () => {
       mountedRef.current = false;
       generationRef.current += 1;
+      activeGenerations.clear();
+      activeHubRequests.clear();
+      globalRunningRef.current = false;
     };
   }, []);
 
   useEffect(() => {
-    if (cooldownRemaining <= 0) return;
+    const hasActiveCooldown =
+      cooldownRemaining > 0 ||
+      Object.values(hubCooldownRemaining).some((remaining) => remaining > 0);
+    if (!hasActiveCooldown) return;
 
     const intervalId = window.setInterval(() => {
-      setCooldownRemaining(
-        getOverviewCooldownRemaining(localStorage, Date.now()),
-      );
+      const now = Date.now();
+      setCooldownRemaining(getOverviewCooldownRemaining(localStorage, now));
+      setHubCooldownRemaining((current) => {
+        let changed = false;
+        const next: Record<string, number> = {};
+        Object.keys(current).forEach((key) => {
+          const remaining = getOverviewHubCooldownRemaining(
+            localStorage,
+            key,
+            now,
+          );
+          if (remaining > 0) next[key] = remaining;
+          if (remaining !== current[key]) changed = true;
+        });
+        return changed ? next : current;
+      });
     }, COOLDOWN_TICK_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [cooldownRemaining]);
+  }, [cooldownRemaining, hubCooldownRemaining]);
 
   const totals = useMemo(() => summarizeOverview(rows), [rows]);
   const hasLooseData = useMemo(
@@ -190,12 +233,98 @@ export const InternalHubOverviewPage = () => {
     [rows, selectedHubName],
   );
 
+  const targetedRunning = Object.values(hubRunning).some(Boolean);
+  const beginGeneration = () => {
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    activeGenerationsRef.current.add(generation);
+    return generation;
+  };
+  const isCurrentGeneration = (generation: number): boolean =>
+    mountedRef.current && activeGenerationsRef.current.has(generation);
+
+  const refreshHubData = useCallback(
+    async (
+      hub: HubDefinition,
+      currentSoc: string,
+      currentSocId: string,
+      generation: number,
+      isCurrentRun: GenerationGuard,
+    ): Promise<{ hubName: string; branches: HubBranchResults }> => {
+      if (isCurrentRun(generation)) {
+        setRows((currentRows) =>
+          replaceHubRow(currentRows, hub, beginHubRefresh),
+        );
+      }
+
+      let branches: HubBranchResults;
+      try {
+        branches = await fetchHubOverviewBranches(
+          currentSoc,
+          currentSocId,
+          hub,
+          Math.floor(Date.now() / 1_000),
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u.";
+        branches = failedBranches(message);
+      }
+
+      if (isCurrentRun(generation)) {
+        if (branches.packed.ok) {
+          setPackedResultGenerations((current) => ({
+            ...current,
+            [hub.name]: (current[hub.name] ?? 0) + 1,
+          }));
+        }
+        setRows((currentRows) =>
+          replaceHubRow(currentRows, hub, (row) => {
+            const withLoose = mergeHubBranchResult(
+              row,
+              "loose",
+              branches.loose,
+            );
+            const withPacked = mergeHubBranchResult(
+              withLoose,
+              "packed",
+              branches.packed,
+            );
+            return finishHubRefresh(withPacked, Date.now());
+          }),
+        );
+      }
+
+      return { hubName: hub.name, branches };
+    },
+    [],
+  );
+
+  const canRunHub = (hub: HubDefinition): boolean => {
+    const key = hubKey(hub);
+    return (
+      !running &&
+      !globalRunningRef.current &&
+      !hubRunning[key] &&
+      !activeHubRequestsRef.current.has(key) &&
+      getOverviewHubCooldownRemaining(localStorage, key, Date.now()) <= 0
+    );
+  };
+
   const handleRefresh = async () => {
     const currentCooldown = getOverviewCooldownRemaining(
       localStorage,
       Date.now(),
     );
-    if (running || currentCooldown > 0) {
+    if (
+      running ||
+      globalRunningRef.current ||
+      targetedRunning ||
+      activeHubRequestsRef.current.size > 0 ||
+      currentCooldown > 0
+    ) {
       if (currentCooldown > 0) setCooldownRemaining(currentCooldown);
       return;
     }
@@ -222,28 +351,53 @@ export const InternalHubOverviewPage = () => {
     setRunning(true);
     setSoc(currentSoc);
     setHubs(currentHubs);
+    setHubCooldownRemaining((current) =>
+      Object.fromEntries(
+        currentHubs.map((hub) => {
+          const key = hubKey(hub);
+          return [
+            key,
+            Math.max(
+              current[key] ?? 0,
+              getOverviewHubCooldownRemaining(localStorage, key, Date.now()),
+            ),
+          ];
+        }),
+      ),
+    );
+    setHubRunning((current) =>
+      Object.fromEntries(
+        currentHubs.map((hub) => [hubKey(hub), current[hubKey(hub)] ?? false]),
+      ),
+    );
     setRows((currentRows) => reconcileRows(currentRows, currentHubs));
 
-    const generation = generationRef.current + 1;
-    generationRef.current = generation;
-    const isCurrentRun = () =>
-      mountedRef.current && generationRef.current === generation;
+    globalRunningRef.current = true;
+    const generation = beginGeneration();
+    const isCurrentRun: GenerationGuard = (candidateGeneration) =>
+      isCurrentGeneration(candidateGeneration);
 
     const tasks = currentHubs.map((hub) => async () => {
-      if (isCurrentRun()) {
-        setRows((currentRows) =>
-          replaceHubRow(currentRows, hub, beginHubRefresh),
-        );
+      const key = hubKey(hub);
+      startOverviewHubCooldown(localStorage, key, Date.now());
+      if (isCurrentRun(generation)) {
+        setHubCooldownRemaining((current) => ({
+          ...current,
+          [key]: OVERVIEW_HUB_COOLDOWN_MS,
+        }));
+        setHubRunning((current) => ({ ...current, [key]: true }));
       }
 
       let branches: HubBranchResults;
       try {
-        branches = await fetchHubOverviewBranches(
+        const result = await refreshHubData(
+          hub,
           currentSoc,
           currentSocId,
-          hub,
-          Math.floor(Date.now() / 1_000),
+          generation,
+          isCurrentRun,
         );
+        branches = result.branches;
       } catch (error) {
         const message =
           error instanceof Error && error.message
@@ -252,28 +406,8 @@ export const InternalHubOverviewPage = () => {
         branches = failedBranches(message);
       }
 
-      if (isCurrentRun()) {
-        if (branches.packed.ok) {
-          setPackedResultGenerations((current) => ({
-            ...current,
-            [hub.name]: (current[hub.name] ?? 0) + 1,
-          }));
-        }
-        setRows((currentRows) =>
-          replaceHubRow(currentRows, hub, (row) => {
-            const withLoose = mergeHubBranchResult(
-              row,
-              "loose",
-              branches.loose,
-            );
-            const withPacked = mergeHubBranchResult(
-              withLoose,
-              "packed",
-              branches.packed,
-            );
-            return finishHubRefresh(withPacked, Date.now());
-          }),
-        );
+      if (isCurrentRun(generation)) {
+        setHubRunning((current) => ({ ...current, [key]: false }));
       }
 
       return { hubName: hub.name, branches };
@@ -283,10 +417,12 @@ export const InternalHubOverviewPage = () => {
     try {
       runResults = await runWithConcurrency(tasks, OVERVIEW_HUB_CONCURRENCY);
     } finally {
-      if (isCurrentRun()) setRunning(false);
+      const shouldUpdate = isCurrentRun(generation);
+      globalRunningRef.current = false;
+      if (shouldUpdate) setRunning(false);
     }
 
-    if (!isCurrentRun()) return;
+    if (!isCurrentGeneration(generation)) return;
     const hubsWithErrors = runResults.filter(
       ({ branches }) => !branches.loose.ok || !branches.packed.ok,
     ).length;
@@ -302,7 +438,98 @@ export const InternalHubOverviewPage = () => {
         "warning",
       );
     }
+    activeGenerationsRef.current.delete(generation);
   };
+
+  const handleHubRefresh = async (requestedHub: HubDefinition) => {
+    if (!canRunHub(requestedHub)) return;
+
+    /* eslint-disable no-irregular-whitespace */
+    const currentSoc = getSoc();
+    const currentSocId = getSocId();
+    const cookies = getCookies();
+    const currentHubs = readHubs();
+    const validationError = validateOverviewConfig({
+      soc: currentSoc,
+      socId: currentSocId,
+      cookies,
+      hubs: currentHubs,
+    });
+    if (validationError) {
+      showToast(`${validationError} Vui lÃ²ng kiá»ƒm tra láº¡i trong CÃ i Ä‘áº·t.`, "error");
+      return;
+    }
+
+    /* eslint-enable no-irregular-whitespace */
+    const hub = currentHubs.find(
+      (candidate) =>
+        candidate.name === requestedHub.name || candidate.id === requestedHub.id,
+    );
+    if (!hub) return;
+
+    const key = hubKey(hub);
+    const currentCooldown = getOverviewHubCooldownRemaining(
+      localStorage,
+      key,
+      Date.now(),
+    );
+    if (
+      running ||
+      globalRunningRef.current ||
+      activeHubRequestsRef.current.has(key) ||
+      currentCooldown > 0
+    ) {
+      if (currentCooldown > 0) {
+        setHubCooldownRemaining((current) => ({
+          ...current,
+          [key]: currentCooldown,
+        }));
+      }
+      return;
+    }
+
+    startOverviewHubCooldown(localStorage, key, Date.now());
+    activeHubRequestsRef.current.add(key);
+    setHubCooldownRemaining((current) => ({
+      ...current,
+      [key]: OVERVIEW_HUB_COOLDOWN_MS,
+    }));
+    setHubRunning((current) => ({ ...current, [key]: true }));
+    setSoc(currentSoc);
+    setHubs(currentHubs);
+    setRows((currentRows) => reconcileRows(currentRows, currentHubs));
+
+    const generation = beginGeneration();
+    const isCurrentRun: GenerationGuard = (candidateGeneration) =>
+      isCurrentGeneration(candidateGeneration);
+    try {
+      const result = await refreshHubData(
+        hub,
+        currentSoc,
+        currentSocId,
+        generation,
+        isCurrentRun,
+      );
+      if (!isCurrentRun(generation)) return;
+      const hasError = !result.branches.loose.ok || !result.branches.packed.ok;
+      showToast(
+        hasError
+          ? `ÄÃ£ cáº­p nháº­t ${hub.name}, nhÆ°ng cÃ³ nhÃ¡nh lá»—i.`
+          : `ÄÃ£ cáº­p nháº­t ${hub.name}.`,
+        hasError ? "warning" : "success",
+      );
+    } finally {
+      const shouldUpdate = isCurrentGeneration(generation);
+      activeHubRequestsRef.current.delete(key);
+      activeGenerationsRef.current.delete(generation);
+      if (shouldUpdate) {
+        setHubRunning((current) => ({ ...current, [key]: false }));
+      }
+    }
+  };
+
+  // Wired into the overview table when its per-Hub action props are added.
+  void handleHubRefresh;
 
   const refreshLabel = running
     ? "Đang kiểm tra toàn bộ Hub"
@@ -322,7 +549,9 @@ export const InternalHubOverviewPage = () => {
           <button
             type="button"
             className="btn btn-primary min-h-11 w-full gap-2 rounded-xl shadow-xs sm:w-auto"
-            disabled={running || cooldownRemaining > 0}
+            disabled={
+              running || targetedRunning || cooldownRemaining > 0
+            }
             onClick={handleRefresh}
           >
             {running ? (
