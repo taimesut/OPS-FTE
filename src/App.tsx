@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CheckSotNgoaiTinhPage } from "./pages/CheckSotNgoaiTinhPage";
 import { CheckSotNoiTinhPage } from "./pages/CheckSotNoiTinhPage";
+import { InternalHubOverviewPage } from "./pages/InternalHubOverviewPage";
 import { MobileLayout } from "./layouts/MobileLayout";
 import { HomePage } from "./pages/HomePage";
 import { LayMaTOPage } from "./pages/LayMaTOPage";
@@ -20,6 +21,10 @@ export const App = () => {
           <Route
             path="/check-sot/ngoai-tinh"
             element={<CheckSotNgoaiTinhPage />}
+          />
+          <Route
+            path="/check-sot/noi-tinh/overview"
+            element={<InternalHubOverviewPage />}
           />
           <Route path="/check-sot/noi-tinh" element={<CheckSotNoiTinhPage />} />
           <Route path="/cai-dat" element={<SettingsPage />} />

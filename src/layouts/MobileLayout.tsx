@@ -10,6 +10,7 @@ import {
   Menu,
   QrCode,
   TabletSmartphone,
+  LayoutDashboard,
 } from "lucide-react";
 import ToggleTheme from "../components/ToggleTheme";
 import { getSoc } from "../utils/config";
@@ -41,6 +42,11 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       path: "/",
       label: "Trang Chủ",
       icon: House,
+    },
+    {
+      path: "/check-sot/noi-tinh/overview",
+      label: "Overview nội tỉnh",
+      icon: LayoutDashboard,
     },
     {
       path: "/check-sot/noi-tinh",
