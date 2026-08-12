@@ -37,6 +37,9 @@ const STATUS_PRESENTATION: Record<
 const formatMetric = (value: number, available: boolean): string =>
   available ? numberFormatter.format(value) : "—";
 
+const formatTransferOrderCount = (value: number, available: boolean): string =>
+  available ? `${formatMetric(value, true)} TO` : "—";
+
 const formatUpdatedAt = (value: number | null): string => {
   if (value === null) return "—";
   const date = new Date(value);
@@ -258,7 +261,10 @@ export function InternalHubOverviewTable({
                       </td>
                       <td className="min-w-0 px-1.5 py-2 text-right align-top">
                         <strong className="block break-safe font-black">
-                          {formatMetric(row.packed.orders.length, row.packed.hasData)} TO
+                          {formatTransferOrderCount(
+                            row.packed.orders.length,
+                            row.packed.hasData,
+                          )}
                         </strong>
                         <span className="mt-1 block break-safe text-[11px] leading-tight text-base-content/60">
                           DG {formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)} · GTC {formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)}
@@ -303,7 +309,9 @@ export function InternalHubOverviewTable({
                   </span>
                 </td>
                 <td className="px-1.5 py-2 text-right align-top">
-                  <strong className="block">{formatMetric(totals.packedTo, packedTotalsAvailable)} TO</strong>
+                  <strong className="block">
+                    {formatTransferOrderCount(totals.packedTo, packedTotalsAvailable)}
+                  </strong>
                   <span className="block break-safe text-[11px] font-semibold leading-tight text-base-content/60">
                     DG {formatMetric(totals.packedDg, packedTotalsAvailable)} · GTC {formatMetric(totals.packedGtc, packedTotalsAvailable)}
                   </span>
@@ -375,7 +383,11 @@ export function InternalHubOverviewTable({
                           allRunning={allRunning}
                           onRefresh={onRefreshHub}
                         />
-                      <DetailButton row={row} selected={selected} onSelect={onSelectHub} />
+                        <DetailButton
+                          row={row}
+                          selected={selected}
+                          onSelect={onSelectHub}
+                        />
                       </div>
                     </td>
                   </tr>
