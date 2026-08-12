@@ -7,6 +7,9 @@ import {
 
 export const OVERVIEW_COOLDOWN_MS = 120_000;
 export const OVERVIEW_COOLDOWN_KEY = "internal-hub-overview:last-start-v1";
+export const OVERVIEW_HUB_COOLDOWN_MS = 15_000;
+export const OVERVIEW_HUB_COOLDOWN_KEY =
+  "internal-hub-overview:hub-last-start-v1";
 export const OVERVIEW_HUB_CONCURRENCY = 3;
 
 export interface StorageLike {
@@ -257,6 +260,55 @@ export const startOverviewCooldown = (
     storage.setItem(OVERVIEW_COOLDOWN_KEY, String(now));
   } catch {
     // Storage may be unavailable in privacy mode; the current session still runs.
+  }
+};
+
+const readHubCooldowns = (storage: StorageLike): Record<string, number> => {
+  try {
+    const raw = storage.getItem(OVERVIEW_HUB_COOLDOWN_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([key, value]) =>
+          key.trim() !== "" &&
+          typeof value === "number" &&
+          Number.isFinite(value) &&
+          value >= 0,
+      ),
+    );
+  } catch {
+    return {};
+  }
+};
+
+export const getOverviewHubCooldownRemaining = (
+  storage: StorageLike,
+  hubKey: string,
+  now: number,
+): number => {
+  if (!hubKey.trim() || !Number.isFinite(now)) return 0;
+  const startedAt = readHubCooldowns(storage)[hubKey];
+  if (startedAt === undefined || startedAt > now) return 0;
+  return Math.max(0, OVERVIEW_HUB_COOLDOWN_MS - (now - startedAt));
+};
+
+export const startOverviewHubCooldown = (
+  storage: StorageLike,
+  hubKey: string,
+  now: number,
+): void => {
+  if (!hubKey.trim() || !Number.isFinite(now)) return;
+  try {
+    storage.setItem(
+      OVERVIEW_HUB_COOLDOWN_KEY,
+      JSON.stringify({ ...readHubCooldowns(storage), [hubKey]: now }),
+    );
+  } catch {
+    // Storage may be unavailable; the in-memory request still proceeds.
   }
 };
 

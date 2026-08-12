@@ -4,10 +4,12 @@ import {
   beginHubRefresh,
   createInitialHubRows,
   finishHubRefresh,
+  getOverviewHubCooldownRemaining,
   getOverviewCooldownRemaining,
   mergeHubBranchResult,
   runWithConcurrency,
   startOverviewCooldown,
+  startOverviewHubCooldown,
   summarizeOverview,
   validateOverviewConfig,
 } from "../src/utils/internalHubOverview.ts";
@@ -144,6 +146,43 @@ test("storage failures do not break cooldown checks or startup", () => {
   };
   assert.equal(getOverviewCooldownRemaining(storage, 5_000), 0);
   assert.doesNotThrow(() => startOverviewCooldown(storage, 5_000));
+});
+
+test("persists an independent 15-second cooldown per Hub", () => {
+  const storage = createStorage();
+  startOverviewHubCooldown(storage, "1069", 10_000);
+  startOverviewHubCooldown(storage, "1070", 12_000);
+
+  assert.equal(getOverviewHubCooldownRemaining(storage, "1069", 10_000), 15_000);
+  assert.equal(getOverviewHubCooldownRemaining(storage, "1069", 20_000), 5_000);
+  assert.equal(getOverviewHubCooldownRemaining(storage, "1070", 20_000), 7_000);
+  assert.equal(getOverviewHubCooldownRemaining(storage, "1069", 25_000), 0);
+});
+
+test("ignores malformed, future, and blank per-Hub cooldown entries", () => {
+  const malformed = createStorage({
+    "internal-hub-overview:hub-last-start-v1": "not-json",
+  });
+  const future = createStorage({
+    "internal-hub-overview:hub-last-start-v1": JSON.stringify({ "1069": 99_999 }),
+  });
+  const blankKey = createStorage({
+    "internal-hub-overview:hub-last-start-v1": JSON.stringify({ "": 5_000 }),
+  });
+
+  assert.equal(getOverviewHubCooldownRemaining(malformed, "1069", 5_000), 0);
+  assert.equal(getOverviewHubCooldownRemaining(future, "1069", 5_000), 0);
+  assert.equal(getOverviewHubCooldownRemaining(blankKey, "", 5_000), 0);
+});
+
+test("per-Hub cooldown storage failures are safe", () => {
+  const storage = {
+    getItem: () => { throw new Error("blocked"); },
+    setItem: () => { throw new Error("blocked"); },
+  };
+
+  assert.equal(getOverviewHubCooldownRemaining(storage, "1069", 5_000), 0);
+  assert.doesNotThrow(() => startOverviewHubCooldown(storage, "1069", 5_000));
 });
 
 test("runs no more than three Hub workers concurrently and preserves order", async () => {
