@@ -22,11 +22,12 @@ export const parsePackedOrdersForSoc = (
     data?: { list?: unknown };
   } | null;
 
-  if (typeof root?.retcode === "number" && root.retcode !== 0) {
+  if (root?.retcode !== 0) {
+    const serverMessage = root?.message;
     const message =
-      typeof root.message === "string" && root.message.trim()
-        ? root.message
-        : `Packed API trả về retcode ${root.retcode}.`;
+      typeof serverMessage === "string" && serverMessage.trim()
+        ? serverMessage
+        : "Dữ liệu packed không hợp lệ: retcode không thành công.";
     throw new Error(message);
   }
 

@@ -204,6 +204,22 @@ test("rejects packed responses with a non-zero application retcode", () => {
   );
 });
 
+test("rejects packed responses with a missing retcode", () => {
+  assert.throws(
+    () => parsePackedOrdersForSoc({ data: { list: [] } }, "Pleiku SOC"),
+    /retcode|dữ liệu/i,
+  );
+});
+
+test("rejects string packed retcodes even when the list is present", () => {
+  for (const retcode of ["0", "1"]) {
+    assert.throws(
+      () => parsePackedOrdersForSoc({ retcode, data: { list: [] } }, "Pleiku SOC"),
+      /retcode|dữ liệu/i,
+    );
+  }
+});
+
 test("rejects packed responses with a missing or malformed list", () => {
   assert.throws(
     () => parsePackedOrdersForSoc({ retcode: 0, data: {} }, "Pleiku SOC"),
