@@ -291,7 +291,9 @@ export const getOverviewHubCooldownRemaining = (
   now: number,
 ): number => {
   if (!hubKey.trim() || !Number.isFinite(now)) return 0;
-  const startedAt = readHubCooldowns(storage)[hubKey];
+  const cooldowns = readHubCooldowns(storage);
+  if (!Object.prototype.hasOwnProperty.call(cooldowns, hubKey)) return 0;
+  const startedAt = cooldowns[hubKey];
   if (startedAt === undefined || startedAt > now) return 0;
   return Math.max(0, OVERVIEW_HUB_COOLDOWN_MS - (now - startedAt));
 };

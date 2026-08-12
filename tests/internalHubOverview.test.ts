@@ -169,10 +169,14 @@ test("ignores malformed, future, and blank per-Hub cooldown entries", () => {
   const blankKey = createStorage({
     "internal-hub-overview:hub-last-start-v1": JSON.stringify({ "": 5_000 }),
   });
+  const inheritedKey = createStorage({
+    "internal-hub-overview:hub-last-start-v1": JSON.stringify({ "1069": 5_000 }),
+  });
 
   assert.equal(getOverviewHubCooldownRemaining(malformed, "1069", 5_000), 0);
   assert.equal(getOverviewHubCooldownRemaining(future, "1069", 5_000), 0);
   assert.equal(getOverviewHubCooldownRemaining(blankKey, "", 5_000), 0);
+  assert.equal(getOverviewHubCooldownRemaining(inheritedKey, "toString", 5_000), 0);
 });
 
 test("per-Hub cooldown storage failures are safe", () => {
