@@ -141,6 +141,9 @@ export function InternalHubOverviewTable({
   selectedHubName,
   onSelectHub,
 }: InternalHubOverviewTableProps) {
+  const looseTotalsAvailable = rows.some((row) => row.loose.data !== null);
+  const packedTotalsAvailable = rows.some((row) => row.packed.hasData);
+
   return (
     <div className="min-w-0 max-w-full">
       <div className="space-y-3 md:hidden">
@@ -152,15 +155,12 @@ export function InternalHubOverviewTable({
             <article
               key={row.id || row.name}
               className="app-surface min-w-0 overflow-hidden"
-              aria-labelledby={`overview-hub-${row.id || row.name}`}
+              aria-label={`Tổng quan ${row.name}`}
             >
               <header className="min-w-0 border-b border-base-200 p-4">
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <h3
-                      id={`overview-hub-${row.id || row.name}`}
-                      className="break-safe text-base font-black tracking-tight"
-                    >
+                    <h3 className="break-safe text-base font-black tracking-tight">
                       {row.name}
                     </h3>
                     <p className="mt-1 break-safe text-xs text-base-content/60">
@@ -235,15 +235,36 @@ export function InternalHubOverviewTable({
             </span>
           </div>
           <dl className="mt-3 grid min-w-0 grid-cols-3 gap-2">
-            <MobileMetric label="Xá lẻ" value={numberFormatter.format(totals.looseTotal)} />
-            <MobileMetric label="DG xá lẻ" value={numberFormatter.format(totals.looseDg)} />
-            <MobileMetric label="GTC xá lẻ" value={numberFormatter.format(totals.looseGtc)} />
+            <MobileMetric
+              label="Xá lẻ"
+              value={formatMetric(totals.looseTotal, looseTotalsAvailable)}
+            />
+            <MobileMetric
+              label="DG xá lẻ"
+              value={formatMetric(totals.looseDg, looseTotalsAvailable)}
+            />
+            <MobileMetric
+              label="GTC xá lẻ"
+              value={formatMetric(totals.looseGtc, looseTotalsAvailable)}
+            />
           </dl>
           <dl className="mt-2 grid min-w-0 grid-cols-4 gap-2">
-            <MobileMetric label="TO" value={numberFormatter.format(totals.packedTo)} />
-            <MobileMetric label="Kiện" value={numberFormatter.format(totals.packedQuantity)} />
-            <MobileMetric label="Bao DG" value={numberFormatter.format(totals.packedDg)} />
-            <MobileMetric label="Bao GTC" value={numberFormatter.format(totals.packedGtc)} />
+            <MobileMetric
+              label="TO"
+              value={formatMetric(totals.packedTo, packedTotalsAvailable)}
+            />
+            <MobileMetric
+              label="Kiện"
+              value={formatMetric(totals.packedQuantity, packedTotalsAvailable)}
+            />
+            <MobileMetric
+              label="Bao DG"
+              value={formatMetric(totals.packedDg, packedTotalsAvailable)}
+            />
+            <MobileMetric
+              label="Bao GTC"
+              value={formatMetric(totals.packedGtc, packedTotalsAvailable)}
+            />
           </dl>
         </footer>
       </div>
@@ -305,13 +326,13 @@ export function InternalHubOverviewTable({
                     Hoàn tất {totals.completedHubs}/{totals.totalHubs} Hub
                   </span>
                 </th>
-                <td className="text-right">{numberFormatter.format(totals.looseTotal)}</td>
-                <td className="text-right">{numberFormatter.format(totals.looseDg)}</td>
-                <td className="text-right">{numberFormatter.format(totals.looseGtc)}</td>
-                <td className="text-right">{numberFormatter.format(totals.packedTo)}</td>
-                <td className="text-right">{numberFormatter.format(totals.packedQuantity)}</td>
-                <td className="text-right">{numberFormatter.format(totals.packedDg)}</td>
-                <td className="text-right">{numberFormatter.format(totals.packedGtc)}</td>
+                <td className="text-right">{formatMetric(totals.looseTotal, looseTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.looseDg, looseTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.looseGtc, looseTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.packedTo, packedTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.packedQuantity, packedTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.packedDg, packedTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.packedGtc, packedTotalsAvailable)}</td>
                 <td>—</td>
                 <td>{formatUpdatedAt(totals.latestUpdatedAt)}</td>
                 <td>—</td>
