@@ -13,6 +13,7 @@ import {
 } from "../src/utils/internalHubOverview.ts";
 import {
   createPackedOrdersSearchPath,
+  fetchHubOverviewBranches,
   parsePackedOrdersForSoc,
 } from "../src/utils/internalHubOverviewApi.ts";
 
@@ -182,6 +183,7 @@ test("builds the exact seven-day packed-order search URL", () => {
 
 test("keeps only packed orders currently at the configured SOC", () => {
   const response = {
+    retcode: 0,
     data: {
       list: [
         { to_number: "A", current_station_name: "Pleiku SOC" },
@@ -193,4 +195,43 @@ test("keeps only packed orders currently at the configured SOC", () => {
     parsePackedOrdersForSoc(response, "Pleiku SOC").map((item) => item.to_number),
     ["A"],
   );
+});
+
+test("rejects packed responses with a non-zero application retcode", () => {
+  assert.throws(
+    () => parsePackedOrdersForSoc({ retcode: 1, message: "Session expired", data: { list: [] } }, "Pleiku SOC"),
+    /Session expired|retcode/i,
+  );
+});
+
+test("rejects packed responses with a missing or malformed list", () => {
+  assert.throws(
+    () => parsePackedOrdersForSoc({ retcode: 0, data: {} }, "Pleiku SOC"),
+    /list|dữ liệu/i,
+  );
+  assert.throws(
+    () => parsePackedOrdersForSoc({ retcode: 0, data: { list: {} } }, "Pleiku SOC"),
+    /list|dữ liệu/i,
+  );
+});
+
+test("maps packed parse errors independently and preserves a fulfilled loose branch", async () => {
+  const result = await fetchHubOverviewBranches(
+    "Pleiku SOC",
+    "1030",
+    { name: "44-GLI An Khe Hub", id: "1069" },
+    1_000_000,
+    {
+      fetchPackedOrders: async () => ({
+        data: { retcode: 1, message: "Packed application error", data: { list: [] } },
+      }),
+      fetchLooseOrders: async () => ({ total: 7, dgCount: 2, highValueCount: 1 }),
+    },
+  );
+
+  assert.deepEqual(result.packed, { ok: false, error: "Packed application error" });
+  assert.deepEqual(result.loose, {
+    ok: true,
+    data: { total: 7, dgCount: 2, highValueCount: 1 },
+  });
 });
