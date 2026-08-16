@@ -4,6 +4,7 @@ import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
 import { LooseOrderSummary } from "../components/LooseOrderSummary";
 import { PageHeader } from "../components/PageHeader";
+import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
@@ -107,20 +108,16 @@ export const CheckSotNoiTinhPage = () => {
         description={`Tra cứu danh sách Transfer Order (TO) xuất kho từ ${soc || "SOC"} đi các Hub nội tỉnh`}
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
-            <select
+            <SearchableSelect
               value={hub}
-              onChange={(e) => setHub(e.target.value)}
-              className="select select-bordered min-h-11 w-full min-w-0 rounded-xl font-semibold focus:select-primary sm:w-60"
-            >
-              <option value="" disabled>
-                -- Chọn Hub nội tỉnh --
-              </option>
-              {hubs.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+              options={hubs}
+              onChange={setHub}
+              placeholder="-- Chọn Hub nội tỉnh --"
+              searchPlaceholder="Tìm Hub..."
+              emptyText="Không tìm thấy Hub"
+              ariaLabel="Chọn Hub nội tỉnh"
+              className="w-full min-w-0 sm:w-60"
+            />
 
             <button
               onClick={checkSotNoiTinh}
