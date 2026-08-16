@@ -9,7 +9,6 @@ import {
   Package,
   Menu,
   QrCode,
-  TabletSmartphone,
   LayoutDashboard,
 } from "lucide-react";
 import ToggleTheme from "../components/ToggleTheme";
@@ -67,11 +66,6 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       path: "/lay-ma-to",
       label: "Lấy mã TO",
       icon: QrCode,
-    },
-    {
-      path: "/ban-giao-pda",
-      label: "Bàn giao PDA",
-      icon: TabletSmartphone,
     },
   ];
 
