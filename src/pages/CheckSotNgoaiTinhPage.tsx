@@ -11,6 +11,7 @@ import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
 import { LooseOrderSummary } from "../components/LooseOrderSummary";
 import { PageHeader } from "../components/PageHeader";
+import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
@@ -133,20 +134,16 @@ export const CheckSotNgoaiTinhPage = () => {
         description={`Tra cứu danh sách Transfer Order (TO) đã đóng từ ${currentSoc || "SOC"} đi các SOC ngoại tỉnh khác`}
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
-            <select
+            <SearchableSelect
               value={soc}
-              onChange={(e) => setSoc(e.target.value)}
-              className="select select-bordered min-h-11 w-full min-w-0 rounded-xl font-semibold focus:select-primary sm:w-60"
-            >
-              <option value="" disabled>
-                -- Chọn SOC đích --
-              </option>
-              {socs.map((s, index) => (
-                <option key={index} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={socs}
+              onChange={setSoc}
+              placeholder="-- Chọn SOC đích --"
+              searchPlaceholder="Tìm SOC..."
+              emptyText="Không tìm thấy SOC"
+              ariaLabel="Chọn SOC đích"
+              className="w-full min-w-0 sm:w-60"
+            />
 
             <button
               onClick={checkSotNgoaiTinh}
