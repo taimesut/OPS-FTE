@@ -10,23 +10,12 @@ button { font: inherit; }
 .target span { position: absolute; left: 7%; right: 7%; top: 50%; height: 2px; background: #fb7185; box-shadow: 0 0 14px #fb7185; animation: scan 1.6s ease-in-out infinite alternate; }
 @keyframes scan { from { transform: translateY(-70px); } to { transform: translateY(70px); } }
 #status { position: absolute; left: 16px; right: 16px; top: max(18px, env(safe-area-inset-top)); margin: 0 auto; width: fit-content; max-width: calc(100% - 110px); padding: 10px 14px; border-radius: 999px; background: rgb(2 6 23 / .78); color: #f8fafc; font-size: 14px; font-weight: 700; text-align: center; }
-.pda-hud { position: absolute; z-index: 3; left: 12px; top: max(12px, env(safe-area-inset-top)); display: flex; min-height: 46px; align-items: center; gap: 8px; border: 1px solid rgb(255 255 255 / .16); border-radius: 16px; background: rgb(2 6 23 / .82); padding: 8px 12px; color: #f8fafc; backdrop-filter: blur(12px); }
-.pda-hud strong { color: #7dd3fc; font-size: 13px; }
-.pda-hud span { border-left: 1px solid rgb(255 255 255 / .18); padding-left: 8px; color: #cbd5e1; font-size: 12px; font-weight: 700; }
-.pda-workflow #status { top: calc(max(12px, env(safe-area-inset-top)) + 58px); max-width: calc(100% - 32px); }
-.pda-panel { position: absolute; z-index: 3; left: 12px; right: 12px; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 76px); margin: 0 auto; max-width: 440px; border: 1px solid rgb(255 255 255 / .18); border-radius: 22px; background: rgb(2 6 23 / .86); padding: 16px; color: #f8fafc; text-align: center; backdrop-filter: blur(14px); box-shadow: 0 18px 48px rgb(0 0 0 / .34); }
-.pda-panel p { margin: 0; color: #cbd5e1; font-size: 13px; font-weight: 700; line-height: 1.45; }
-.pda-panel strong { display: block; margin-top: 5px; overflow-wrap: anywhere; color: #fbbf24; font-size: clamp(24px, 8vw, 36px); line-height: 1.15; }
-.pda-panel button { width: 100%; min-height: 56px; margin-top: 14px; border: 0; border-radius: 16px; background: #f53d2d; color: white; font-weight: 900; }
-.pda-panel #pda-fallback { background: #f8fafc; color: #0f172a; }
-.capture-flash { position: absolute; z-index: 10; inset: 0; background: white; pointer-events: none; animation: capture-flash .18s ease-out forwards; }
-@keyframes capture-flash { from { opacity: .9; } to { opacity: 0; } }
 .icon-button, .controls button { border: 1px solid rgb(255 255 255 / .18); background: rgb(15 23 42 / .86); color: white; }
 .close { position: absolute; z-index: 4; top: max(14px, env(safe-area-inset-top)); right: 14px; width: 46px; height: 46px; border-radius: 50%; font-size: 30px; line-height: 1; }
 .controls { position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px; border-radius: 20px; background: rgb(2 6 23 / .72); backdrop-filter: blur(12px); }
 .controls button { min-height: 42px; padding: 0 14px; border-radius: 14px; font-weight: 800; }
 .controls button:disabled { opacity: .35; }
-.controls button:focus-visible, .close:focus-visible, .pda-panel button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+.controls button:focus-visible, .close:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
 #zoom-label { min-width: 42px; text-align: center; color: #7dd3fc; }
 
 @media (max-width: 420px) {
@@ -34,11 +23,8 @@ button { font: inherit; }
   .controls { gap: 6px; padding: 8px; }
   .controls button { min-width: 42px; padding: 0 10px; }
   #switch { flex: 1; }
-  .pda-hud { right: 70px; }
-  .pda-panel { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 70px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .target span { animation: none; }
-  .capture-flash { animation: none; opacity: 0; }
 }
