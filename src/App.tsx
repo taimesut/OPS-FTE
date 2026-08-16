@@ -8,7 +8,6 @@ import { HomePage } from "./pages/HomePage";
 import { LayMaTOPage } from "./pages/LayMaTOPage";
 import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
 import { ToastContainer } from "./components/Toast";
-import { BanGiaoPdaPage } from "./pages/BanGiaoPdaPage";
 
 export const App = () => {
   return (
@@ -30,7 +29,6 @@ export const App = () => {
           <Route path="/cai-dat" element={<SettingsPage />} />
           <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
           <Route path="/lay-ma-to" element={<LayMaTOPage />} />
-          <Route path="/ban-giao-pda" element={<BanGiaoPdaPage />} />
           {/* Route bắt lỗi 404 */}
           <Route path="*" element={<HomePage />} />
         </Routes>
