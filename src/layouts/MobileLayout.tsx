@@ -10,6 +10,7 @@ import {
   Menu,
   QrCode,
   LayoutDashboard,
+  ChartNoAxesColumnIncreasing,
 } from "lucide-react";
 import ToggleTheme from "../components/ToggleTheme";
 import { getSoc } from "../utils/config";
@@ -46,6 +47,11 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
       path: "/check-sot/noi-tinh/overview",
       label: "Overview nội tỉnh",
       icon: LayoutDashboard,
+    },
+    {
+      path: "/check-sot/noi-tinh/volume",
+      label: "Volume nội tỉnh",
+      icon: ChartNoAxesColumnIncreasing,
     },
     {
       path: "/check-sot/noi-tinh",
