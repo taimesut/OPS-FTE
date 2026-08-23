@@ -44,7 +44,7 @@ export const DEFAULT_STATION_CONFIG: AppConfig = {
     "BN B Mega SOC", "HCM Mega SOC", "HN SOC", "BMT SOC", "Kon Tum SOC",
     "Vinh SOC", "Cam Xuyen SOC", "Tuy Phuoc SOC", "Tuy Hoa SOC",
     "Quang Ngai SOC", "Dien Khanh SOC", "Dong Hoi SOC", "Phan Rang SOC",
-    "Duc Trong SOC", "Gia Nghia SOC",
+    "Duc Trong SOC", "Gia Nghia SOC", "SW SOC"
   ],
   soc_ids: {
     "DN Mega SOC": "3983",
@@ -66,18 +66,19 @@ export const DEFAULT_STATION_CONFIG: AppConfig = {
     "Phan Rang SOC": "1579",
     "Duc Trong SOC": "1041",
     "Gia Nghia SOC": "1467",
+    "SW SOC": "139"
   },
   group_socs: {
     "DN Mega SOC": [
       "DN Mega SOC", "Vinh SOC", "Cam Xuyen SOC", "Tuy Phuoc SOC",
       "Tuy Hoa SOC", "Quang Ngai SOC", "Dien Khanh SOC", "Dong Hoi SOC",
     ],
-    "BD A Mega SOC": ["BD A Mega SOC", "Phan Rang SOC", "Duc Trong SOC"],
+    "BD A Mega SOC": ["BD A Mega SOC", "Phan Rang SOC", "Duc Trong SOC", "SW SOC"],
     "BMT SOC": ["BMT SOC", "Gia Nghia SOC"],
   },
   raw_group_socs_text:
     "DN Mega SOC @Vinh SOC @Cam Xuyen SOC @Tuy Phuoc SOC @Tuy Hoa SOC @Quang Ngai SOC @Dien Khanh SOC @Dong Hoi SOC\n" +
-    "BD A Mega SOC @Phan Rang SOC @Duc Trong SOC\n" +
+    "BD A Mega SOC @Phan Rang SOC @Duc Trong SOC @SW SOC\n" +
     "BMT SOC @Gia Nghia SOC",
   ggsheet_log_url: "",
 };
