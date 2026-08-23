@@ -74,11 +74,9 @@ export const DEFAULT_STATION_CONFIG: AppConfig = {
       "Tuy Hoa SOC", "Quang Ngai SOC", "Dien Khanh SOC", "Dong Hoi SOC",
     ],
     "BD A Mega SOC": ["BD A Mega SOC", "Phan Rang SOC", "Duc Trong SOC", "SW SOC"],
-    "BMT SOC": ["BMT SOC", "Gia Nghia SOC"],
   },
   raw_group_socs_text:
     "DN Mega SOC @Vinh SOC @Cam Xuyen SOC @Tuy Phuoc SOC @Tuy Hoa SOC @Quang Ngai SOC @Dien Khanh SOC @Dong Hoi SOC\n" +
-    "BD A Mega SOC @Phan Rang SOC @Duc Trong SOC @SW SOC\n" +
-    "BMT SOC @Gia Nghia SOC",
+    "BD A Mega SOC @Phan Rang SOC @Duc Trong SOC @SW SOC\n",
   ggsheet_log_url: "",
 };
