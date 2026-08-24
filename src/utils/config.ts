@@ -1,11 +1,15 @@
 export interface AppConfig {
   soc: string;
   soc_id?: string;
+  soc_code?: string;
+  number_prefix?: string;
   cookies: string;
   hubs: string[];
   hub_ids?: Record<string, string>;
+  hub_codes?: Record<string, string>;
   socs: string[];
   soc_ids?: Record<string, string>;
+  soc_codes?: Record<string, string>;
   group_socs: Record<string, string[]>;
   raw_group_socs_text?: string;
   proxy_url?: string;

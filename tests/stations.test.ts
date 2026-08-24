@@ -1,72 +1,193 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { AppConfig } from "../src/utils/config.ts";
+import type { StationCatalogSoc } from "../src/utils/stationCatalog.ts";
 import {
-  createStationIdMap,
-  formatStationEntry,
-  parseStationLine,
-  parseStationLines,
-  validateUniqueStations,
-} from "../src/utils/stations.ts";
-import { DEFAULT_STATION_CONFIG } from "../src/config/defaultStationConfig.ts";
+  buildStationConfig,
+  findConfiguredSocId,
+  getExternalSocs,
+  reconcileGroupSocs,
+  validateGroupSocs,
+} from "../src/utils/stationConfiguration.ts";
 
-test("parses and formats Name | ID station entries", () => {
-  assert.deepEqual(parseStationLine("Hub Alpha | 2001"), {
-    name: "Hub Alpha",
-    id: "2001",
+const emptyConfig: AppConfig = {
+  soc: "",
+  cookies: "",
+  hubs: [],
+  socs: [],
+  group_socs: {},
+};
+
+const catalog: StationCatalogSoc[] = [
+  {
+    stationName: "BD A Mega SOC",
+    stationCode: "63SOCBD1",
+    id: "2490",
+    numberPrefix: "63",
+  },
+  {
+    stationName: "HN SOC",
+    stationCode: "20SOCHN",
+    id: "6",
+    numberPrefix: "20",
+  },
+  {
+    stationName: "DN Mega SOC",
+    stationCode: "36SOCDNG",
+    id: "3983",
+    numberPrefix: "36",
+  },
+];
+
+test("matches stored SOC by id, then code, then name", () => {
+  assert.equal(
+    findConfiguredSocId(
+      {
+        soc_id: "6",
+        soc_code: "63SOCBD1",
+        soc: "BD A Mega SOC",
+      },
+      catalog,
+    ),
+    "6",
+  );
+  assert.equal(
+    findConfiguredSocId({ soc_code: " 63socbd1 " }, catalog),
+    "2490",
+  );
+  assert.equal(
+    findConfiguredSocId({ soc: " bd a mega soc " }, catalog),
+    "2490",
+  );
+  assert.equal(findConfiguredSocId({ soc: "Missing SOC" }, catalog), "");
+});
+
+test("excludes the current SOC and reconciles valid legacy groups", () => {
+  const external = getExternalSocs(catalog, "2490");
+  assert.deepEqual(
+    external.map(({ id }) => id),
+    ["6", "3983"],
+  );
+  assert.deepEqual(
+    reconcileGroupSocs(
+      {
+        "HN SOC": [
+          "DN Mega SOC",
+          "HN SOC",
+          "HN SOC",
+          "Missing SOC",
+          "BD A Mega SOC",
+          123,
+        ],
+        "BD A Mega SOC": ["BD A Mega SOC", "HN SOC"],
+      },
+      external,
+    ),
+    { "HN SOC": ["HN SOC", "DN Mega SOC"] },
+  );
+  assert.deepEqual(reconcileGroupSocs(null, external), {});
+});
+
+test("validates new groups strictly and normalizes representative order", () => {
+  const external = getExternalSocs(catalog, "2490");
+  assert.throws(
+    () =>
+      validateGroupSocs(
+        { "HN SOC": ["HN SOC", "Missing SOC"] },
+        external,
+      ),
+    /Missing SOC.*không thuộc danh sách SOC ngoại tỉnh/,
+  );
+  assert.throws(
+    () => validateGroupSocs({ "Missing SOC": ["HN SOC"] }, external),
+    /Missing SOC.*không thuộc danh sách SOC ngoại tỉnh/,
+  );
+  assert.deepEqual(
+    validateGroupSocs(
+      { "HN SOC": ["DN Mega SOC", "HN SOC", "HN SOC"] },
+      external,
+    ),
+    { "HN SOC": ["HN SOC", "DN Mega SOC"] },
+  );
+});
+
+test("builds local config entirely from the selected catalog row", () => {
+  const result = buildStationConfig({
+    previousConfig: {
+      ...emptyConfig,
+      proxy_url: "https://proxy.example",
+      scanner_url: "https://scan.example",
+      raw_group_socs_text: "legacy text",
+    },
+    catalog,
+    currentSocId: "2490",
+    hubs: [
+      { stationName: "Hub A", stationCode: "63A01", id: "3954" },
+      { stationName: "Hub B", stationCode: "63A02", id: "5409" },
+    ],
+    groupSocs: { "HN SOC": ["DN Mega SOC", "HN SOC"] },
+    cookies: " cookie=value ",
+    logUrl: " https://log.example ",
   });
-  assert.deepEqual(parseStationLines("Hub Alpha | 2001\nHub Beta | 2002", "Hub"), [
-    { name: "Hub Alpha", id: "2001" },
-    { name: "Hub Beta", id: "2002" },
-  ]);
-  assert.equal(formatStationEntry("Hub Alpha", "2001"), "Hub Alpha | 2001");
+
+  assert.equal(result.soc, "BD A Mega SOC");
+  assert.equal(result.soc_id, "2490");
+  assert.equal(result.soc_code, "63SOCBD1");
+  assert.equal(result.number_prefix, "63");
+  assert.deepEqual(result.hubs, ["Hub A", "Hub B"]);
+  assert.deepEqual(result.hub_ids, { "Hub A": "3954", "Hub B": "5409" });
+  assert.deepEqual(result.hub_codes, {
+    "Hub A": "63A01",
+    "Hub B": "63A02",
+  });
+  assert.deepEqual(result.socs, ["HN SOC", "DN Mega SOC"]);
+  assert.deepEqual(result.soc_ids, { "HN SOC": "6", "DN Mega SOC": "3983" });
+  assert.deepEqual(result.soc_codes, {
+    "HN SOC": "20SOCHN",
+    "DN Mega SOC": "36SOCDNG",
+  });
+  assert.deepEqual(result.group_socs, {
+    "HN SOC": ["HN SOC", "DN Mega SOC"],
+  });
+  assert.equal(result.cookies, "cookie=value");
+  assert.equal(result.ggsheet_log_url, "https://log.example");
+  assert.equal(result.proxy_url, "https://proxy.example");
+  assert.equal(result.scanner_url, "https://scan.example");
+  assert.equal(result.raw_group_socs_text, undefined);
 });
 
-test("rejects incomplete station lines", () => {
-  assert.throws(() => parseStationLine("Hub Alpha"), /Tên \| ID/);
-  assert.throws(() => parseStationLine("Hub Alpha | "), /thiếu ID/);
-});
+test("refuses to build with a missing SOC, malformed hubs, or invalid groups", () => {
+  const baseInput = {
+    previousConfig: emptyConfig,
+    catalog,
+    currentSocId: "2490",
+    hubs: [{ stationName: "Hub A", stationCode: "63A01", id: "3954" }],
+    groupSocs: {},
+    cookies: "",
+    logUrl: "",
+  };
 
-test("rejects duplicate names and IDs", () => {
   assert.throws(
-    () => validateUniqueStations([
-      { name: "Hub Alpha", id: "2001" },
-      { name: "hub alpha", id: "2002" },
-    ]),
-    /Tên trạm bị trùng/,
+    () => buildStationConfig({ ...baseInput, currentSocId: "missing" }),
+    /không còn tồn tại/,
   );
   assert.throws(
-    () => validateUniqueStations([
-      { name: "Hub Alpha", id: "2001" },
-      { name: "Hub Beta", id: "2001" },
-    ]),
-    /ID 2001/,
+    () =>
+      buildStationConfig({
+        ...baseInput,
+        hubs: [
+          ...baseInput.hubs,
+          { stationName: "Hub B", stationCode: "63A01", id: "5409" },
+        ],
+      }),
+    /Hub.*bị trùng/,
   );
-});
-
-test("creates a station name-to-ID lookup", () => {
-  assert.deepEqual(createStationIdMap([
-    { name: "Hub Alpha", id: "2001" },
-    { name: "Hub Beta", id: "2002" },
-  ]), { "Hub Alpha": "2001", "Hub Beta": "2002" });
-});
-
-test("default sample is sanitized and every station/group member has an ID", () => {
-  assert.equal(DEFAULT_STATION_CONFIG.cookies, "");
-  assert.equal(DEFAULT_STATION_CONFIG.ggsheet_log_url, "");
-  const entries = [
-    { name: DEFAULT_STATION_CONFIG.soc, id: DEFAULT_STATION_CONFIG.soc_id || "" },
-    ...DEFAULT_STATION_CONFIG.hubs.map((name) => ({
-      name,
-      id: DEFAULT_STATION_CONFIG.hub_ids?.[name] || "",
-    })),
-    ...DEFAULT_STATION_CONFIG.socs.map((name) => ({
-      name,
-      id: DEFAULT_STATION_CONFIG.soc_ids?.[name] || "",
-    })),
-  ];
-  assert.doesNotThrow(() => validateUniqueStations(entries));
-  assert.ok(entries.every(({ id }) => id));
-  const configuredSocs = new Set(DEFAULT_STATION_CONFIG.socs);
-  assert.ok(Object.values(DEFAULT_STATION_CONFIG.group_socs).flat()
-    .every((name) => configuredSocs.has(name)));
+  assert.throws(
+    () =>
+      buildStationConfig({
+        ...baseInput,
+        groupSocs: { "HN SOC": ["HN SOC", "Missing SOC"] },
+      }),
+    /Missing SOC.*không thuộc danh sách SOC ngoại tỉnh/,
+  );
 });
