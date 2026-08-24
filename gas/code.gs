@@ -1,6 +1,29 @@
 var ACCESS_SHEET_NAME = "account";
 var ACCESS_EMAIL_COLUMN = 1;
 var ACCESS_FIRST_DATA_ROW = 2;
+var VERSION_SHEET_NAME = "VERSION";
+
+function getAppVersionInfo() {
+  var emptyVersionInfo = { version: "", updateContent: "" };
+
+  try {
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = spreadsheet.getSheetByName(VERSION_SHEET_NAME);
+    if (!sheet) {
+      return emptyVersionInfo;
+    }
+
+    var values = sheet.getRange(2, 1, 1, 2).getDisplayValues();
+    var row = values && values[0] ? values[0] : [];
+    return {
+      version: String(row[0] || "").trim(),
+      updateContent: String(row[1] || "").trim()
+    };
+  } catch (error) {
+    console.error("Version info read failed");
+    return emptyVersionInfo;
+  }
+}
 
 function normalizeEmail_(value) {
   return String(value || "").trim().toLowerCase();
