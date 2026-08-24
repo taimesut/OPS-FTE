@@ -1,4 +1,27 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Building,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  Database,
+  Download,
+  FileSpreadsheet,
+  Globe2,
+  Key,
+  MapPin,
+  RefreshCw,
+  Save,
+  ScanLine,
+  Settings,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { MobileActionBar } from "../components/MobileActionBar";
+import { PageHeader } from "../components/PageHeader";
+import { SocGroupEditor } from "../components/SocGroupEditor";
+import { StationSelect } from "../components/StationSelect";
+import { showToast } from "../components/Toast";
 import {
   clearCookies,
   getConfigs,
@@ -7,110 +30,219 @@ import {
   type AppConfig,
 } from "../utils/config";
 import {
-  createStationIdMap,
-  formatStationEntry,
-  parseStationLines,
-  validateUniqueStations,
-} from "../utils/stations";
-import { showToast } from "../components/Toast";
-import { MobileActionBar } from "../components/MobileActionBar";
-import { PageHeader } from "../components/PageHeader";
-import { DEFAULT_STATION_CONFIG } from "../config/defaultStationConfig";
+  buildStationConfig,
+  findConfiguredSocId,
+  getExternalSocs,
+  reconcileGroupSocs,
+  type ConfiguredSocReference,
+} from "../utils/stationConfiguration";
 import {
-  Settings,
-  Key,
-  Building,
-  MapPin,
-  Globe,
-  Share2,
-  Save,
-  Download,
-  Upload,
-  RefreshCw,
-  Sparkles,
-  CheckCircle2,
-  FileSpreadsheet,
-  ScanLine,
-  Trash2,
-} from "lucide-react";
+  loadStationCatalog,
+  loadStationHubs,
+  type StationCatalogHub,
+  type StationCatalogSoc,
+} from "../utils/stationCatalog";
+
+type LoadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready" }
+  | { status: "error"; message: string };
+
+const EMPTY_CONFIG: AppConfig = {
+  soc: "",
+  cookies: "",
+  hubs: [],
+  socs: [],
+  group_socs: {},
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message.trim()
+    ? error.message
+    : "Không thể tải dữ liệu LIST SOC.";
+
+const areGroupsEqual = (
+  first: Record<string, string[]>,
+  second: Record<string, string[]>,
+): boolean => JSON.stringify(first) === JSON.stringify(second);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readImportedReference = (
+  imported: Record<string, unknown>,
+): ConfiguredSocReference => ({
+  soc: typeof imported.soc === "string" ? imported.soc : undefined,
+  soc_id: typeof imported.soc_id === "string" ? imported.soc_id : undefined,
+  soc_code:
+    typeof imported.soc_code === "string" ? imported.soc_code : undefined,
+});
 
 export const SettingsPage = () => {
   const [initialConfig] = useState(() => getConfigs());
-  const initialGroupSocsText = initialConfig.raw_group_socs_text
-    || Object.values(initialConfig.group_socs || {}).map((list) => list.join(" @ ")).join("\n");
-  const [socText, setSocText] = useState(
-    formatStationEntry(initialConfig.soc || "", initialConfig.soc_id),
-  );
+  const savedConfigRef = useRef(initialConfig);
+  const hubRequestRef = useRef(0);
+
   const [cookies, setCookies] = useState(initialConfig.cookies || "");
   const [hasSavedCookies, setHasSavedCookies] = useState(
     Boolean(initialConfig.cookies),
   );
-  const [hubsText, setHubsText] = useState(
-    (initialConfig.hubs || [])
-      .map((name) => formatStationEntry(name, initialConfig.hub_ids?.[name]))
-      .join("\n"),
-  );
-  const [socsText, setSocsText] = useState(
-    (initialConfig.socs || [])
-      .map((name) => formatStationEntry(name, initialConfig.soc_ids?.[name]))
-      .join("\n"),
-  );
-  const [groupSocsText, setGroupSocsText] = useState(initialGroupSocsText);
   const [logUrl, setLogUrl] = useState(initialConfig.ggsheet_log_url || "");
+  const [catalog, setCatalog] = useState<StationCatalogSoc[]>([]);
+  const [catalogState, setCatalogState] = useState<LoadState>({
+    status: "loading",
+  });
+  const [catalogRetryToken, setCatalogRetryToken] = useState(0);
+  const [selectedSocId, setSelectedSocId] = useState("");
+  const [hubs, setHubs] = useState<StationCatalogHub[]>([]);
+  const [hubState, setHubState] = useState<LoadState>({ status: "idle" });
+  const [hubRetryToken, setHubRetryToken] = useState(0);
+  const [groupSocs, setGroupSocs] = useState<Record<string, string[]>>({});
+  const [groupAdjustmentMessage, setGroupAdjustmentMessage] = useState("");
+
+  const selectedSoc = useMemo(
+    () => catalog.find(({ id }) => id === selectedSocId),
+    [catalog, selectedSocId],
+  );
+  const externalSocs = useMemo(
+    () =>
+      selectedSocId ? getExternalSocs(catalog, selectedSocId) : [],
+    [catalog, selectedSocId],
+  );
+  const canSave =
+    catalogState.status === "ready" &&
+    hubState.status === "ready" &&
+    Boolean(selectedSoc);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadStationCatalog().then(
+      (nextCatalog) => {
+        if (cancelled) return;
+
+        const savedConfig = savedConfigRef.current;
+        const matchedSocId = findConfiguredSocId(savedConfig, nextCatalog);
+        const nextExternalSocs = matchedSocId
+          ? getExternalSocs(nextCatalog, matchedSocId)
+          : [];
+        const nextGroups = reconcileGroupSocs(
+          savedConfig.group_socs,
+          nextExternalSocs,
+        );
+
+        setCatalog(nextCatalog);
+        setCatalogState({ status: "ready" });
+        setSelectedSocId(matchedSocId);
+        setHubs([]);
+        setHubState(
+          matchedSocId ? { status: "loading" } : { status: "idle" },
+        );
+        setGroupSocs(nextGroups);
+
+        if (
+          Object.keys(savedConfig.group_socs || {}).length > 0 &&
+          !areGroupsEqual(savedConfig.group_socs || {}, nextGroups)
+        ) {
+          setGroupAdjustmentMessage(
+            "Một số nhóm cũ đã được loại vì không còn phù hợp với LIST SOC.",
+          );
+        } else {
+          setGroupAdjustmentMessage("");
+        }
+      },
+      (error) => {
+        if (cancelled) return;
+        hubRequestRef.current += 1;
+        setCatalog([]);
+        setCatalogState({ status: "error", message: getErrorMessage(error) });
+        setSelectedSocId("");
+        setHubs([]);
+        setHubState({ status: "idle" });
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogRetryToken]);
+
+  useEffect(() => {
+    if (!selectedSocId || catalogState.status !== "ready") return;
+
+    const requestId = ++hubRequestRef.current;
+    loadStationHubs(selectedSocId).then(
+      (nextHubs) => {
+        if (requestId !== hubRequestRef.current) return;
+        setHubs(nextHubs);
+        setHubState({ status: "ready" });
+      },
+      (error) => {
+        if (requestId !== hubRequestRef.current) return;
+        setHubs([]);
+        setHubState({ status: "error", message: getErrorMessage(error) });
+      },
+    );
+  }, [catalogState.status, hubRetryToken, selectedSocId]);
+
+  const handleSocChange = (socId: string) => {
+    hubRequestRef.current += 1;
+    setSelectedSocId(socId);
+    setHubs([]);
+    setHubState(socId ? { status: "loading" } : { status: "idle" });
+
+    const nextExternalSocs = socId ? getExternalSocs(catalog, socId) : [];
+    const nextGroups = reconcileGroupSocs(groupSocs, nextExternalSocs);
+    if (!areGroupsEqual(groupSocs, nextGroups)) {
+      setGroupAdjustmentMessage(
+        "SOC vừa chọn đã được loại khỏi các nhóm đại diện hoặc thành viên. Hãy kiểm tra lại trước khi lưu.",
+      );
+    }
+    setGroupSocs(nextGroups);
+  };
+
+  const handleRetryCatalog = () => {
+    hubRequestRef.current += 1;
+    setCatalog([]);
+    setCatalogState({ status: "loading" });
+    setSelectedSocId("");
+    setHubs([]);
+    setHubState({ status: "idle" });
+    setCatalogRetryToken((current) => current + 1);
+  };
+
+  const handleRetryHubs = () => {
+    if (!selectedSocId) return;
+    hubRequestRef.current += 1;
+    setHubs([]);
+    setHubState({ status: "loading" });
+    setHubRetryToken((current) => current + 1);
+  };
 
   const handleSave = () => {
+    if (!canSave) {
+      showToast("Hãy tải xong LIST SOC và Hub nội tỉnh trước khi lưu.", "error");
+      return;
+    }
+
     try {
-      const sourceEntries = parseStationLines(socText, "SOC nguồn");
-      if (sourceEntries.length !== 1) {
-        throw new Error("SOC nguồn phải có đúng một dòng theo định dạng Tên | ID.");
-      }
-      const hubEntries = parseStationLines(hubsText, "Hub nội tỉnh");
-      const socEntries = parseStationLines(socsText, "SOC ngoại tỉnh");
-      validateUniqueStations([...sourceEntries, ...hubEntries, ...socEntries]);
-      const source = sourceEntries[0];
-
-    const group_socs: Record<string, string[]> = {};
-    const groupLines = groupSocsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    groupLines.forEach((line) => {
-      const parts = line.split("@").map((s) => s.trim()).filter(Boolean);
-      if (parts.length > 0) {
-        group_socs[parts[0]] = parts;
-      }
-    });
-
-      const configuredSocNames = new Set(socEntries.map(({ name }) => name));
-      const missingGroupSoc = Object.values(group_socs)
-        .flat()
-        .find((name) => !configuredSocNames.has(name));
-      if (missingGroupSoc) {
-        throw new Error(`SOC "${missingGroupSoc}" trong nhóm chưa có dòng Tên | ID ở danh sách SOC ngoại tỉnh.`);
-      }
-
-      const previousConfig = getConfigs();
-      const newConfig: AppConfig = {
-      ...previousConfig,
-      soc: source.name,
-      soc_id: source.id,
-      cookies: cookies.trim(),
-      hubs: hubEntries.map(({ name }) => name),
-      hub_ids: createStationIdMap(hubEntries),
-      socs: socEntries.map(({ name }) => name),
-      soc_ids: createStationIdMap(socEntries),
-      group_socs,
-      raw_group_socs_text: groupSocsText,
-      ggsheet_log_url: logUrl.trim(),
-      scanner_url: getConfigs().scanner_url,
-      };
-
-      saveConfigs(newConfig);
-      setHasSavedCookies(Boolean(newConfig.cookies));
-      showToast("Đã lưu cấu hình Tên và ID trạm thành công!", "success");
+      const nextConfig = buildStationConfig({
+        previousConfig: getConfigs(),
+        catalog,
+        currentSocId: selectedSocId,
+        hubs,
+        groupSocs,
+        cookies,
+        logUrl,
+      });
+      saveConfigs(nextConfig);
+      savedConfigRef.current = nextConfig;
+      setHasSavedCookies(Boolean(nextConfig.cookies));
+      setGroupAdjustmentMessage("");
+      showToast("Đã lưu cấu hình SOC và Hub từ LIST SOC.", "success");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Cấu hình trạm không hợp lệ.", "error");
+      showToast(getErrorMessage(error), "error");
     }
   };
 
@@ -120,63 +252,70 @@ export const SettingsPage = () => {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `station-config-${Date.now()}.json`;
-    a.click();
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `station-config-${Date.now()}.json`;
+    anchor.click();
     URL.revokeObjectURL(url);
-    showToast("Đã xuất tệp JSON cấu hình!", "info");
+    showToast("Đã xuất tệp JSON cấu hình.", "info");
   };
 
-  const handleLoadSample = () => {
-    const hasFormData = [socText, cookies, hubsText, socsText, groupSocsText, logUrl]
-      .some((value) => value.trim());
-    if (hasFormData && !confirm("Tải mẫu sẽ thay thế dữ liệu đang hiển thị trên form. Tiếp tục?")) {
+  const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (catalogState.status !== "ready") {
+      showToast("Cần tải LIST SOC thành công trước khi nhập cấu hình.", "error");
       return;
     }
 
-    setSocText(formatStationEntry(DEFAULT_STATION_CONFIG.soc, DEFAULT_STATION_CONFIG.soc_id));
-    setCookies("");
-    setHubsText(DEFAULT_STATION_CONFIG.hubs.map((name) =>
-      formatStationEntry(name, DEFAULT_STATION_CONFIG.hub_ids?.[name])).join("\n"));
-    setSocsText(DEFAULT_STATION_CONFIG.socs.map((name) =>
-      formatStationEntry(name, DEFAULT_STATION_CONFIG.soc_ids?.[name])).join("\n"));
-    setGroupSocsText(DEFAULT_STATION_CONFIG.raw_group_socs_text || "");
-    setLogUrl("");
-    showToast("Đã điền mẫu Hub/SOC và ID. Hãy nhập Cookie rồi bấm Lưu Cài Đặt.", "info");
-  };
-
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (readerEvent) => {
       try {
-        const imported = JSON.parse(event.target?.result as string);
-        if (typeof imported === "object" && imported !== null) {
-          saveConfigs(imported);
-          setSocText(formatStationEntry(imported.soc || "", imported.soc_id));
-          setCookies(imported.cookies || "");
-          setHasSavedCookies(Boolean(imported.cookies));
-          setHubsText((imported.hubs || []).map((name: string) =>
-            formatStationEntry(name, imported.hub_ids?.[name])).join("\n"));
-          setSocsText((imported.socs || []).map((name: string) =>
-            formatStationEntry(name, imported.soc_ids?.[name])).join("\n"));
-          setLogUrl(imported.ggsheet_log_url || "");
-          if (imported.raw_group_socs_text) {
-            setGroupSocsText(imported.raw_group_socs_text);
-          } else if (imported.group_socs) {
-            const lines = Object.values(
-              imported.group_socs as Record<string, string[]>
-            ).map((list) => list.join(" @ "));
-            setGroupSocsText(lines.join("\n"));
-          }
-          showToast("Đã nhập cấu hình JSON thành công!", "success");
+        const imported = JSON.parse(String(readerEvent.target?.result || ""));
+        if (!isRecord(imported)) throw new Error("Tệp JSON không hợp lệ.");
+
+        const importedSocId = findConfiguredSocId(
+          readImportedReference(imported),
+          catalog,
+        );
+        if (!importedSocId) {
+          throw new Error("SOC trong tệp nhập không còn tồn tại trong LIST SOC.");
         }
-      } catch {
-        showToast("Tệp JSON không hợp lệ!", "error");
+
+        const importedExternalSocs = getExternalSocs(catalog, importedSocId);
+        const nextGroups = reconcileGroupSocs(
+          imported.group_socs,
+          importedExternalSocs,
+        );
+        const importedCookies =
+          typeof imported.cookies === "string" ? imported.cookies : "";
+        const importedLogUrl =
+          typeof imported.ggsheet_log_url === "string"
+            ? imported.ggsheet_log_url
+            : "";
+
+        hubRequestRef.current += 1;
+        setSelectedSocId(importedSocId);
+        setHubs([]);
+        setHubState({ status: "loading" });
+        setHubRetryToken((current) => current + 1);
+        setGroupSocs(nextGroups);
+        setCookies(importedCookies);
+        setLogUrl(importedLogUrl);
+        setGroupAdjustmentMessage(
+          "Cấu hình nhập đã được đối chiếu với LIST SOC. Hub nội tỉnh đang được tải lại từ sheet.",
+        );
+        showToast(
+          "Đã nạp cấu hình vào biểu mẫu. Hãy kiểm tra rồi bấm Lưu Cài Đặt.",
+          "info",
+        );
+      } catch (error) {
+        showToast(getErrorMessage(error), "error");
       }
+    };
+    reader.onerror = () => {
+      showToast("Không thể đọc tệp JSON đã chọn.", "error");
     };
     reader.readAsText(file);
   };
@@ -186,7 +325,8 @@ export const SettingsPage = () => {
     if (!confirm("Bạn có chắc chắn muốn xóa Cookie SPX đã lưu?")) return;
 
     try {
-      clearCookies();
+      const nextConfig = clearCookies();
+      savedConfigRef.current = nextConfig;
       setCookies("");
       setHasSavedCookies(false);
       showToast(
@@ -199,17 +339,20 @@ export const SettingsPage = () => {
   };
 
   const handleReset = () => {
-    if (confirm("Bạn có chắc chắn muốn xóa tất cả cài đặt hiện tại?")) {
-      localStorage.removeItem("configs");
-      setSocText("");
-      setCookies("");
-      setHasSavedCookies(false);
-      setHubsText("");
-      setSocsText("");
-      setGroupSocsText("");
-      setLogUrl("");
-      showToast("Đã dọn dẹp cài đặt!", "info");
-    }
+    if (!confirm("Bạn có chắc chắn muốn xóa tất cả cài đặt hiện tại?")) return;
+
+    localStorage.removeItem("configs");
+    savedConfigRef.current = { ...EMPTY_CONFIG };
+    hubRequestRef.current += 1;
+    setSelectedSocId("");
+    setHubs([]);
+    setHubState({ status: "idle" });
+    setCookies("");
+    setHasSavedCookies(false);
+    setGroupSocs({});
+    setGroupAdjustmentMessage("");
+    setLogUrl("");
+    showToast("Đã xóa toàn bộ cấu hình local.", "info");
   };
 
   return (
@@ -217,196 +360,333 @@ export const SettingsPage = () => {
       <PageHeader
         icon={Settings}
         title="Cài Đặt Cấu Hình"
-        description="Nhập Cookie SPX, Mã SOC nguồn, danh sách Hub, SOCs và Webhook nhận Log Sự Vụ"
+        description="Chọn SOC từ LIST SOC, quản lý Cookie và các kết nối vận hành"
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
-          <button
-            type="button"
-            onClick={handleLoadSample}
-            className="btn min-h-11 w-full btn-ghost gap-1.5 rounded-xl bg-primary/10 font-bold text-primary hover:bg-primary/20 sm:w-auto"
-          >
-            <Sparkles className="w-4 h-4" /> Tải mẫu
-          </button>
-          <button
-            onClick={handleExportJSON}
-            className="btn min-h-11 w-full btn-outline gap-1.5 rounded-xl sm:w-auto"
-          >
-            <Download className="w-4 h-4" /> Xuất JSON
-          </button>
-          <label className="btn min-h-11 w-full cursor-pointer btn-outline gap-1.5 rounded-xl sm:w-auto">
-            <Upload className="w-4 h-4" /> Nhập JSON
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportJSON}
-              className="hidden"
-            />
-          </label>
+            <button
+              type="button"
+              onClick={handleExportJSON}
+              className="btn btn-outline min-h-11 w-full touch-manipulation gap-1.5 rounded-xl active:opacity-70 sm:w-auto"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Xuất JSON
+            </button>
+            <label
+              aria-disabled={catalogState.status !== "ready"}
+              className={`btn btn-outline min-h-11 w-full gap-1.5 rounded-xl sm:w-auto ${
+                catalogState.status === "ready"
+                  ? "cursor-pointer touch-manipulation active:opacity-70"
+                  : "btn-disabled cursor-not-allowed opacity-50"
+              }`}
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Nhập JSON
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={handleImportJSON}
+                disabled={catalogState.status !== "ready"}
+                className="hidden"
+              />
+            </label>
           </div>
         }
       />
 
-      {/* Form Fields Section */}
-      <div className="space-y-6">
-        {/* 1. Mã SOC hiện tại */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-primary">
-            <Building className="w-4 h-4" />
-            1. SOC nguồn (Tên | ID)
-          </label>
-          <input
-            type="text"
-            value={socText}
-            onChange={(e) => setSocText(e.target.value)}
-            placeholder="Ví dụ: SOC nguồn | 1001"
-            className="input input-bordered w-full focus:input-primary rounded-xl font-bold text-base"
-          />
-          <span className="text-xs text-base-content/60">
-            Tên dùng để lọc TO; ID dùng làm current_station_ids khi kiểm tra hàng xá lẻ.
-          </span>
-        </div>
+      <div className="space-y-5">
+        <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="current-soc-heading">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Building className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h2 id="current-soc-heading" className="font-bold text-base-content">
+                SOC hiện tại
+              </h2>
+              <p className="mt-0.5 text-sm leading-relaxed text-base-content/65">
+                Danh sách được đọc trực tiếp từ sheet LIST SOC.
+              </p>
+            </div>
+          </div>
 
-        {/* 2. Cookie Shopee Express */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex flex-col items-start gap-2 text-sm font-bold text-secondary sm:flex-row sm:items-center sm:justify-between">
-            <span className="flex min-w-0 items-start gap-2">
-              <Key className="w-4 h-4" />
-              <span className="break-safe">2. Cookie Shopee Express (SPX Cookie)</span>
-            </span>
+          {catalogState.status === "loading" ? (
+            <div className="space-y-2" aria-live="polite" aria-label="Đang tải LIST SOC">
+              <div className="h-11 animate-pulse rounded-xl bg-base-200" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-base-200" />
+            </div>
+          ) : null}
+
+          {catalogState.status === "error" ? (
+            <div role="alert" className="rounded-2xl border border-error/25 bg-error/10 p-4 text-error">
+              <div className="flex items-start gap-3">
+                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold">Không tải được LIST SOC</p>
+                  <p className="mt-1 break-words text-sm leading-relaxed">{catalogState.message}</p>
+                  <button
+                    type="button"
+                    onClick={handleRetryCatalog}
+                    className="btn btn-error btn-outline mt-3 min-h-11 touch-manipulation gap-2 rounded-xl active:opacity-70"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Thử lại
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {catalogState.status === "ready" ? (
+            <div className="space-y-3">
+              <StationSelect
+                value={selectedSocId}
+                options={catalog}
+                onChange={handleSocChange}
+                placeholder="Chọn SOC hiện tại"
+                ariaLabel="Chọn SOC hiện tại"
+              />
+              {!selectedSocId ? (
+                <p className="text-sm leading-relaxed text-base-content/60">
+                  Chọn một SOC để hệ thống tải Hub nội tỉnh từ cột E.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {hubState.status === "loading" ? (
+            <div className="rounded-2xl border border-info/20 bg-info/10 p-4" aria-live="polite">
+              <p className="font-bold text-info">Đang tải Hub nội tỉnh...</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="h-14 animate-pulse rounded-xl bg-info/10" />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {hubState.status === "error" ? (
+            <div role="alert" className="rounded-2xl border border-error/25 bg-error/10 p-4 text-error">
+              <div className="flex items-start gap-3">
+                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold">Không tải được Hub nội tỉnh</p>
+                  <p className="mt-1 break-words text-sm leading-relaxed">{hubState.message}</p>
+                  <button
+                    type="button"
+                    onClick={handleRetryHubs}
+                    className="btn btn-error btn-outline mt-3 min-h-11 touch-manipulation gap-2 rounded-xl active:opacity-70"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Thử lại
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedSoc && hubState.status === "ready" ? (
+            <div className="rounded-2xl border border-success/25 bg-success/5 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-success">
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                Dữ liệu SOC đã sẵn sàng
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs font-semibold text-base-content/55">Tên SOC</dt>
+                  <dd className="mt-1 break-words text-sm font-bold">{selectedSoc.stationName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-base-content/55">Mã SOC</dt>
+                  <dd className="mt-1 break-words font-mono text-sm font-bold">{selectedSoc.stationCode}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-base-content/55">ID / Prefix</dt>
+                  <dd className="mt-1 font-mono text-sm font-bold">
+                    {selectedSoc.id} / {selectedSoc.numberPrefix || "Chưa có"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-base-content/55">Hub nội tỉnh</dt>
+                  <dd className="mt-1 text-sm font-bold tabular-nums">{hubs.length} Hub</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="cookie-heading">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 id="cookie-heading" className="flex items-center gap-2 font-bold text-secondary">
+              <Key className="h-4 w-4" aria-hidden="true" />
+              Cookie Shopee Express
+            </h2>
             {cookies ? (
               <span className="badge badge-success badge-sm gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Đã nhập
+                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                Đã nhập
               </span>
             ) : (
               <span className="badge badge-warning badge-sm">Chưa có</span>
             )}
-          </label>
+          </div>
           <textarea
             value={cookies}
-            onChange={(e) => setCookies(e.target.value)}
+            onChange={(event) => setCookies(event.target.value)}
             rows={4}
-            placeholder="Dán chuỗi cookie (SPC_EC=..., SPC_SI=...) thu thập từ trang spx.shopee.vn"
-            className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-mono text-xs leading-relaxed"
-          ></textarea>
-          <span className="text-xs text-base-content/60">
-            Cookie giúp xác thực các yêu cầu tra cứu dữ liệu đơn hàng tới Shopee Express.
-          </span>
+            aria-label="Cookie Shopee Express"
+            placeholder="Dán chuỗi Cookie SPX"
+            className="textarea textarea-bordered w-full rounded-xl font-mono text-base leading-relaxed focus:textarea-primary sm:text-xs"
+          />
+          <p className="text-xs leading-relaxed text-base-content/60">
+            Cookie chỉ được lưu trong localStorage của trình duyệt này.
+          </p>
           <div className="flex justify-end border-t border-base-200 pt-3">
             <button
               type="button"
               onClick={handleClearCookies}
               disabled={!cookies.trim() && !hasSavedCookies}
-              className="btn btn-outline min-h-11 touch-manipulation gap-2 rounded-xl border-error/30 text-error hover:bg-error/10 disabled:cursor-not-allowed"
+              className="btn btn-outline min-h-11 touch-manipulation gap-2 rounded-xl border-error/30 text-error active:opacity-70 disabled:cursor-not-allowed"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Xóa Cookie
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* 3. Link Google Sheet Log Sự Vụ */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-success">
-            <FileSpreadsheet className="w-4 h-4" />
-            3. Link Google Sheet / GAS Web App URL nhận Log Sự Vụ
-          </label>
+        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="log-heading">
+          <h2 id="log-heading" className="flex items-center gap-2 font-bold text-success">
+            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+            Google Sheet Log Sự Vụ
+          </h2>
           <input
-            type="text"
+            type="url"
             value={logUrl}
-            onChange={(e) => setLogUrl(e.target.value)}
-            placeholder="Ví dụ: https://script.google.com/macros/s/AKfycb.../exec"
-            className="input input-bordered w-full focus:input-primary rounded-xl font-mono text-xs"
+            onChange={(event) => setLogUrl(event.target.value)}
+            aria-label="URL nhận Log Sự Vụ"
+            placeholder="https://script.google.com/macros/s/.../exec"
+            className="input input-bordered w-full rounded-xl font-mono text-base focus:input-primary sm:text-xs"
           />
-          <span className="text-xs text-base-content/60">
-            Khi bấm "Gửi Log Sự Vụ", dữ liệu 2 cột (LH TRIP và Đơn sự vụ) sẽ được gửi POST về Webhook này.
-          </span>
-        </div>
+          <p className="text-xs leading-relaxed text-base-content/60">
+            Webhook nhận dữ liệu khi gửi Log Sự Vụ.
+          </p>
+        </section>
 
-        {/* 4. Scanner live */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-info">
-            <ScanLine className="w-4 h-4" />
-            4. Scanner QR trực tiếp
-          </label>
-          <div className="flex flex-col gap-2 rounded-xl border border-info/20 bg-info/5 p-4">
-            <span className="break-safe font-mono text-sm font-bold text-info">{SCANNER_URL}</span>
-            <span className="text-xs text-base-content/60">
-              Link quét QR đã được cố định để mở camera live. Bạn vẫn có thể dùng nút chụp ảnh nếu trình duyệt không cấp quyền camera.
-            </span>
+        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="scanner-heading">
+          <h2 id="scanner-heading" className="flex items-center gap-2 font-bold text-info">
+            <ScanLine className="h-4 w-4" aria-hidden="true" />
+            Scanner QR trực tiếp
+          </h2>
+          <div className="rounded-2xl border border-info/20 bg-info/5 p-4">
+            <p className="break-words font-mono text-sm font-bold text-info">{SCANNER_URL}</p>
+            <p className="mt-1 text-xs leading-relaxed text-base-content/60">
+              Đường dẫn scanner được cố định trong ứng dụng.
+            </p>
           </div>
-        </div>
+        </section>
 
-        {/* 5. Hubs nội tỉnh */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-accent">
-            <MapPin className="w-4 h-4" />
-            5. Hubs nội tỉnh — mỗi dòng Tên | ID
-          </label>
-          <textarea
-            value={hubsText}
-            onChange={(e) => setHubsText(e.target.value)}
-            rows={4}
-            placeholder={`Hub Alpha | 2001\nHub Beta | 2002`}
-            className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-medium text-sm leading-relaxed"
-          ></textarea>
-          <span className="text-xs text-base-content/60">
-            Tên hiển thị trong danh sách; ID được gửi tới API hàng xá lẻ.
-          </span>
-        </div>
+        {selectedSoc && hubState.status === "ready" ? (
+          <details className="app-surface group p-4 sm:p-5">
+            <summary className="flex min-h-11 cursor-pointer list-none touch-manipulation items-center justify-between gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary">
+              <span className="flex items-center gap-2 font-bold">
+                <Database className="h-4 w-4 text-primary" aria-hidden="true" />
+                Dữ liệu đã nạp
+              </span>
+              <span className="flex items-center gap-2 text-xs font-semibold text-base-content/60">
+                {hubs.length} Hub / {externalSocs.length} SOC ngoại tỉnh
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </span>
+            </summary>
+            <div className="mt-4 grid gap-5 border-t border-base-200 pt-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-accent">
+                  <MapPin className="h-4 w-4" aria-hidden="true" />
+                  Hub nội tỉnh
+                </h3>
+                {hubs.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                    {hubs.map((hub) => (
+                      <div key={hub.id} className="rounded-xl bg-base-200/70 px-3 py-2.5">
+                        <p className="break-words text-sm font-semibold">{hub.stationName}</p>
+                        <p className="mt-0.5 break-words font-mono text-xs text-base-content/55">
+                          {hub.stationCode} / ID {hub.id}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-base-300 p-4 text-sm text-base-content/60">
+                    SOC này chưa có Hub nội tỉnh trong cột E.
+                  </p>
+                )}
+              </div>
 
-        {/* 5. SOCs ngoại tỉnh */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-warning">
-            <Globe className="w-4 h-4" />
-            6. SOCs ngoại tỉnh — mỗi dòng Tên | ID
-          </label>
-          <textarea
-            value={socsText}
-            onChange={(e) => setSocsText(e.target.value)}
-            rows={4}
-            placeholder={`HN SOC | 2001\nHCM SOC | 2002\nDN Mega SOC | 2003`}
-            className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-medium text-sm leading-relaxed"
-          ></textarea>
-          <span className="text-xs text-base-content/60">
-            Tên hiển thị và dùng cho receiver; ID dùng cho API hàng xá lẻ.
-          </span>
-        </div>
+              <div className="space-y-2">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-warning">
+                  <Globe2 className="h-4 w-4" aria-hidden="true" />
+                  SOC ngoại tỉnh
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                  {externalSocs.map((soc) => (
+                    <div key={soc.id} className="rounded-xl bg-base-200/70 px-3 py-2.5">
+                      <p className="break-words text-sm font-semibold">{soc.stationName}</p>
+                      <p className="mt-0.5 break-words font-mono text-xs text-base-content/55">
+                        {soc.stationCode} / ID {soc.id}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </details>
+        ) : null}
 
-        {/* 6. Nhóm SOCs ngoại tỉnh */}
-        <div className="app-surface space-y-2 p-4 sm:p-5">
-          <label className="flex items-center gap-2 text-sm font-bold text-info">
-            <Share2 className="w-4 h-4" />
-            7. Cấu hình Nhóm SOC Ngoại Tỉnh (Ký tự @ phân cách)
-          </label>
-          <textarea
-            value={groupSocsText}
-            onChange={(e) => setGroupSocsText(e.target.value)}
-            rows={4}
-            placeholder={`DN Mega SOC @ Vinh SOC @ Cam Xuyen SOC`}
-            className="textarea textarea-bordered w-full focus:textarea-primary rounded-xl font-medium text-sm leading-relaxed"
-          ></textarea>
-          <span className="text-xs text-base-content/60">
-            Khi chọn SOC đầu tiên, hệ thống sẽ gom tất cả các SOC phụ sau ký tự <code className="bg-base-200 px-1 py-0.5 rounded font-mono text-primary">@</code> để tìm kiếm.
-          </span>
-        </div>
+        {catalogState.status === "ready" && selectedSoc ? (
+          <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="group-heading">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info/10 text-info">
+                <Globe2 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 id="group-heading" className="font-bold">Group SOC ngoại tỉnh</h2>
+                <p className="mt-0.5 text-sm leading-relaxed text-base-content/65">
+                  Chỉ tạo nhóm khi một SOC đại diện cần tra cứu thêm SOC thành viên.
+                </p>
+              </div>
+            </div>
+
+            {groupAdjustmentMessage ? (
+              <div role="alert" className="flex items-start gap-2 rounded-2xl border border-warning/30 bg-warning/10 p-3 text-sm font-semibold text-warning-content">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="break-words">{groupAdjustmentMessage}</span>
+              </div>
+            ) : null}
+
+            <SocGroupEditor
+              options={externalSocs}
+              groups={groupSocs}
+              onChange={setGroupSocs}
+            />
+          </section>
+        ) : null}
       </div>
 
-      {/* Sticky Bottom Save Bar for Mobile */}
       <MobileActionBar className="md:mt-2">
         <button
           type="button"
           onClick={handleReset}
-          className="btn min-h-11 self-start btn-ghost text-error gap-1 rounded-xl"
+          className="btn btn-ghost min-h-11 self-start touch-manipulation gap-1 rounded-xl text-error active:opacity-70"
         >
-          <RefreshCw className="w-4 h-4 text-error" /> Xóa toàn bộ
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Xóa toàn bộ
         </button>
 
         <button
           type="button"
           onClick={handleSave}
-          className="btn min-h-11 w-full gap-2 rounded-xl px-4 text-base font-bold shadow-md sm:w-auto sm:px-8"
+          disabled={!canSave}
+          className="btn btn-primary min-h-11 w-full touch-manipulation gap-2 rounded-xl px-4 text-base font-bold shadow-md active:opacity-80 disabled:cursor-not-allowed sm:w-auto sm:px-8"
         >
-          <Save className="w-5 h-5" />
+          <Save className="h-5 w-5" aria-hidden="true" />
           Lưu Cài Đặt
         </button>
       </MobileActionBar>

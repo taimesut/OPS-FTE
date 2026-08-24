@@ -84,3 +84,23 @@ test("station configuration uses searchable selectors and accessible group actio
   assert.match(groupEditor, /min-h-11/);
   assert.match(groupEditor, /touch-manipulation/);
 });
+
+test("Settings loads LIST SOC data and removes manual station inputs", async () => {
+  const source = await readFile(
+    new URL("../src/pages/SettingsPage.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /loadStationCatalog/);
+  assert.match(source, /loadStationHubs/);
+  assert.match(source, /StationSelect/);
+  assert.match(source, /SocGroupEditor/);
+  assert.match(source, /Thử lại/);
+  assert.match(source, /Dữ liệu đã nạp/);
+  assert.match(source, /Đang tải Hub/);
+  assert.match(source, /role="alert"/);
+  assert.doesNotMatch(source, /DEFAULT_STATION_CONFIG/);
+  assert.doesNotMatch(source, /Tên \| ID/);
+  assert.doesNotMatch(source, /Tải mẫu/);
+  assert.doesNotMatch(source, /saveConfigs\(imported\)/);
+});
