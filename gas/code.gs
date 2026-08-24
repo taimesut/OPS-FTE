@@ -2,6 +2,157 @@ var ACCESS_SHEET_NAME = "account";
 var ACCESS_EMAIL_COLUMN = 1;
 var ACCESS_FIRST_DATA_ROW = 2;
 var VERSION_SHEET_NAME = "VERSION";
+var STATION_CATALOG_SHEET_NAME = "LIST SOC";
+var STATION_CATALOG_FIRST_DATA_ROW = 2;
+
+function stationKey_(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getStationCatalogSource_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(STATION_CATALOG_SHEET_NAME);
+  if (!sheet) {
+    throw new Error('Không tìm thấy sheet "LIST SOC".');
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < STATION_CATALOG_FIRST_DATA_ROW) {
+    throw new Error('Sheet "LIST SOC" chưa có dữ liệu SOC.');
+  }
+
+  var values = sheet
+    .getRange(
+      STATION_CATALOG_FIRST_DATA_ROW,
+      1,
+      lastRow - STATION_CATALOG_FIRST_DATA_ROW + 1,
+      4
+    )
+    .getDisplayValues();
+  var rows = [];
+  var names = Object.create(null);
+  var codes = Object.create(null);
+  var ids = Object.create(null);
+
+  values.forEach(function (valuesRow, index) {
+    var sheetRow = index + STATION_CATALOG_FIRST_DATA_ROW;
+    var row = {
+      stationName: String(valuesRow[0] || "").trim(),
+      stationCode: String(valuesRow[1] || "").trim(),
+      id: String(valuesRow[2] || "").trim(),
+      numberPrefix: String(valuesRow[3] || "").trim(),
+      sheetRow: sheetRow
+    };
+
+    if (!row.stationName && !row.stationCode && !row.id && !row.numberPrefix) {
+      return;
+    }
+    if (!row.stationName || !row.stationCode || !row.id) {
+      throw new Error(
+        "LIST SOC hàng " + sheetRow +
+        " thiếu station_name, station_code hoặc id."
+      );
+    }
+
+    var nameKey = stationKey_(row.stationName);
+    var codeKey = stationKey_(row.stationCode);
+    if (names[nameKey]) {
+      throw new Error("station_name bị trùng tại hàng " + sheetRow + ".");
+    }
+    if (codes[codeKey]) {
+      throw new Error("station_code bị trùng tại hàng " + sheetRow + ".");
+    }
+    if (ids[row.id]) {
+      throw new Error("id SOC bị trùng tại hàng " + sheetRow + ".");
+    }
+
+    names[nameKey] = true;
+    codes[codeKey] = true;
+    ids[row.id] = true;
+    rows.push(row);
+  });
+
+  if (!rows.length) {
+    throw new Error('Sheet "LIST SOC" chưa có dữ liệu SOC.');
+  }
+
+  return { sheet: sheet, rows: rows };
+}
+
+function parseStationHubs_(value, sheetRow) {
+  var names = Object.create(null);
+  var codes = Object.create(null);
+  var ids = Object.create(null);
+
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .split(/\r?\n/)
+    .map(function (line) {
+      return line.trim();
+    })
+    .filter(function (line) {
+      return line !== "";
+    })
+    .map(function (line, index) {
+      var parts = line.split("|").map(function (part) {
+        return part.trim();
+      });
+      if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+        throw new Error(
+          "LIST SOC hàng " + sheetRow + ", dòng Hub " + (index + 1) +
+          " phải có dạng Tên | Mã | ID."
+        );
+      }
+
+      var nameKey = stationKey_(parts[0]);
+      var codeKey = stationKey_(parts[1]);
+      if (names[nameKey] || codes[codeKey] || ids[parts[2]]) {
+        throw new Error(
+          "LIST SOC hàng " + sheetRow + ", dòng Hub " + (index + 1) +
+          " bị trùng tên, mã hoặc ID."
+        );
+      }
+
+      names[nameKey] = true;
+      codes[codeKey] = true;
+      ids[parts[2]] = true;
+      return {
+        stationName: parts[0],
+        stationCode: parts[1],
+        id: parts[2]
+      };
+    });
+}
+
+function getStationCatalog() {
+  var source = getStationCatalogSource_();
+  return source.rows.map(function (row) {
+    return {
+      stationName: row.stationName,
+      stationCode: row.stationCode,
+      id: row.id,
+      numberPrefix: row.numberPrefix
+    };
+  });
+}
+
+function getStationHubs(socId) {
+  var source = getStationCatalogSource_();
+  var normalizedId = String(socId || "").trim();
+  var matches = source.rows.filter(function (row) {
+    return row.id === normalizedId;
+  });
+
+  if (matches.length !== 1) {
+    throw new Error(
+      'SOC ID "' + normalizedId + '" không tồn tại duy nhất trong LIST SOC.'
+    );
+  }
+
+  var selected = matches[0];
+  var hubText = source.sheet.getRange(selected.sheetRow, 5).getDisplayValue();
+  return parseStationHubs_(hubText, selected.sheetRow);
+}
 
 function getAppVersionInfo() {
   var emptyVersionInfo = { version: "", updateContent: "" };

@@ -9,7 +9,7 @@
     "build:launcher": "vite build --config vite.launcher.config.ts",
     "build:scanner": "vite build --config vite.scanner.config.ts",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts tests/launcher.test.ts tests/gasAccessControl.test.ts tests/appVersionGas.test.ts tests/appVersion.test.ts tests/config.test.ts tests/transferOrderLookup.test.ts tests/transferOrderTable.test.ts tests/packedOrderMetrics.test.ts tests/internalHubOverview.test.ts tests/internalHubVolume.test.ts",
+    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts tests/launcher.test.ts tests/gasAccessControl.test.ts tests/appVersionGas.test.ts tests/stationCatalogGas.test.ts tests/appVersion.test.ts tests/config.test.ts tests/transferOrderLookup.test.ts tests/transferOrderTable.test.ts tests/packedOrderMetrics.test.ts tests/internalHubOverview.test.ts tests/internalHubVolume.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
