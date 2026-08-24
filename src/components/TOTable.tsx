@@ -99,28 +99,39 @@ const TransferOrderCompactRow = ({
   const showRoute = visibleColumns.includes("route");
   const showQuantity = visibleColumns.includes("quantity");
   const showWeight = visibleColumns.includes("weight");
-  const metadataColumns: TransferOrderColumnKey[] = [
-    "sender",
-    "route",
-    "quantity",
-    "weight",
-    "operator",
-    "pack_name",
-    "status",
-    "complete_time",
-  ];
-  const showMetadata = metadataColumns.some((column) =>
-    visibleColumns.includes(column),
-  );
+  const showPrimaryMetadata =
+    showSender || showRoute || showQuantity || showWeight;
+  const secondaryMetadata = [
+    visibleColumns.includes("complete_time")
+      ? formatTransferTime(item.complete_time)
+      : "",
+    visibleColumns.includes("operator")
+      ? `Đóng: ${item.operator || "---"}`
+      : "",
+    visibleColumns.includes("pack_name")
+      ? `Bao: ${item.pack_name || "Mặc định"}`
+      : "",
+    visibleColumns.includes("status")
+      ? item.status || "Đã đóng gói"
+      : "",
+  ].filter(Boolean);
+  const showSecondaryMetadata = secondaryMetadata.length > 0;
+  const showMetadata = showPrimaryMetadata || showSecondaryMetadata;
   const showHeader = showToNumber || showClassification || showAction;
   const classification = classifyPackedOrder(item);
   const sender = item.sender || "Chưa rõ điểm gửi";
   const receiver = item.receiver || "Chưa rõ điểm đến";
+  const route =
+    showSender && showRoute
+      ? `${sender} → ${receiver}`
+      : showSender
+        ? sender
+        : receiver;
 
   if (!showHeader && !showMetadata) return null;
 
   return (
-    <article className="border-b border-base-200 px-3 py-3 last:border-b-0">
+    <article className="border-b border-base-200 px-3 py-1.5 last:border-b-0">
       {showHeader ? (
         <div className="flex min-w-0 items-center gap-2">
           {showToNumber ? (
@@ -136,7 +147,7 @@ const TransferOrderCompactRow = ({
           {showAction ? (
             <button
               type="button"
-              className="btn btn-square btn-sm min-h-11 min-w-11 shrink-0 rounded-xl btn-primary"
+              className="btn btn-square btn-sm min-h-11 min-w-11 shrink-0 touch-manipulation rounded-xl btn-primary"
               onClick={onViewQR}
               aria-label={`Xem QR của ${item.to_number}`}
             >
@@ -146,32 +157,31 @@ const TransferOrderCompactRow = ({
         </div>
       ) : null}
 
-      {showMetadata ? (
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/65">
+      {showPrimaryMetadata ? (
+        <div
+          className={`${showHeader ? "mt-1" : ""} flex min-w-0 items-center gap-2 text-xs text-base-content/65`}
+        >
           {showSender || showRoute ? (
-            <span className="break-safe font-semibold text-base-content/80">
-              {showSender && showRoute
-                ? `${sender} → ${receiver}`
-                : showSender
-                  ? sender
-                  : receiver}
+            <span
+              className="min-w-0 flex-1 truncate font-semibold text-base-content/80"
+              title={route}
+            >
+              {route}
             </span>
-          ) : null}
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
           {showQuantity ? <span>{item.quantity} kiện</span> : null}
           {showWeight ? <span>{(item.weight / 1000).toFixed(2)} kg</span> : null}
-          {visibleColumns.includes("complete_time") ? (
-            <span>{formatTransferTime(item.complete_time)}</span>
-          ) : null}
-          {visibleColumns.includes("operator") ? (
-            <span>Đóng: {item.operator || "---"}</span>
-          ) : null}
-          {visibleColumns.includes("pack_name") ? (
-            <span>Bao: {item.pack_name || "Mặc định"}</span>
-          ) : null}
-          {visibleColumns.includes("status") ? (
-            <span>{item.status || "Đã đóng gói"}</span>
-          ) : null}
         </div>
+      ) : null}
+      {showSecondaryMetadata ? (
+        <p
+          className={`${showHeader || showPrimaryMetadata ? "mt-0.5" : ""} truncate text-[11px] leading-4 text-base-content/55`}
+          title={secondaryMetadata.join(" · ")}
+        >
+          {secondaryMetadata.join(" · ")}
+        </p>
       ) : null}
     </article>
   );
@@ -329,6 +339,7 @@ export const TOTable = ({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
             <input
               type="text"
+              aria-label="Tìm kiếm Transfer Order"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -343,15 +354,18 @@ export const TOTable = ({
             {/* Button Tùy chọn cột */}
             <div className="relative" ref={dropdownRef}>
               <button
+                type="button"
                 onClick={() => setShowColumnConfig(!showColumnConfig)}
-                className="btn btn-sm min-h-11 w-full min-w-0 btn-outline gap-2 rounded-xl border-base-300 hover:border-primary sm:w-auto"
+                className="btn btn-sm min-h-11 w-full min-w-0 touch-manipulation btn-outline gap-2 rounded-xl border-base-300 hover:border-primary sm:w-auto"
+                aria-label="Tùy chọn cột hiển thị"
+                aria-expanded={showColumnConfig}
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 <span className="hidden sm:inline">Tùy chọn cột</span>
               </button>
 
               {showColumnConfig && (
-                <div className="absolute right-0 top-full z-30 mt-2 w-[min(14rem,calc(100vw-2rem))] rounded-2xl border border-base-200 bg-base-100 p-3 shadow-2xl animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 top-full z-30 mt-2 w-[min(14rem,calc(100vw-2rem))] rounded-2xl border border-base-200 bg-base-100 p-3 shadow-2xl animate-in fade-in zoom-in-95 motion-reduce:animate-none">
                   <div className="mb-2 border-b border-base-200 pb-2 text-xs font-bold text-base-content/50 uppercase tracking-wider">
                     Hiển thị cột
                   </div>
@@ -359,7 +373,7 @@ export const TOTable = ({
                     {TABLE_COLUMNS.map((col) => (
                       <label
                         key={col.key}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-lg p-1.5 hover:bg-base-200 transition-colors"
+                        className="flex min-h-11 cursor-pointer touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-base-200"
                       >
                         <input
                           type="checkbox"
@@ -381,6 +395,7 @@ export const TOTable = ({
                 Dòng:
               </span>
               <select
+                aria-label="Số dòng hiển thị"
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
@@ -544,22 +559,27 @@ export const TOTable = ({
 
             <div className="join w-full sm:w-auto">
               <button
+                type="button"
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="join-item btn btn-xs min-h-10 flex-1 btn-outline rounded-l-xl sm:flex-none"
+                className="join-item btn btn-xs min-h-11 flex-1 touch-manipulation btn-outline rounded-l-xl sm:flex-none"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Trước
               </button>
-              <button className="join-item btn btn-xs min-h-10 flex-1 btn-disabled opacity-100 bg-base-200 font-bold px-3 sm:flex-none">
+              <span
+                aria-current="page"
+                className="join-item btn btn-xs min-h-11 flex-1 btn-disabled bg-base-200 px-3 font-bold opacity-100 sm:flex-none"
+              >
                 Trang {currentPage} / {totalPages || 1}
-              </button>
+              </span>
               <button
+                type="button"
                 onClick={() =>
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
-                className="join-item btn btn-xs min-h-10 flex-1 btn-outline rounded-r-xl sm:flex-none"
+                className="join-item btn btn-xs min-h-11 flex-1 touch-manipulation btn-outline rounded-r-xl sm:flex-none"
               >
                 Sau
                 <ArrowRight className="w-3 h-3" />
