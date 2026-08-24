@@ -70,6 +70,7 @@ const EMPTY_PACKED_METRICS: PackedOrderMetrics = {
   totalQuantity: 0,
   dgBagCount: 0,
   gtcBagCount: 0,
+  dgAndGtcBagCount: 0,
 };
 
 export const createInitialHubRows = (
