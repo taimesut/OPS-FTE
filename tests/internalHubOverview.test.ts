@@ -60,6 +60,7 @@ test("validates SOC, cookie, Hub list and every Hub ID before requests", () => {
 const packedOrders = [
   { to_number: "TO-A", quantity: 5, dg_type: [1], high_value: 1 },
   { to_number: "TO-B", quantity: 3, dg_type: [2], high_value: 2 },
+  { to_number: "TO-C", quantity: 4, dg_type: [3], high_value: 1 },
 ] as never[];
 
 test("merges branches independently and totals only successful data", () => {
@@ -72,9 +73,10 @@ test("merges branches independently and totals only successful data", () => {
   row = finishHubRefresh(row, 1_000);
 
   assert.deepEqual(row.packed.metrics, {
-    totalQuantity: 8,
+    totalQuantity: 12,
     dgBagCount: 1,
     gtcBagCount: 1,
+    dgAndGtcBagCount: 1,
   });
   assert.equal(row.status, "success");
   assert.deepEqual(summarizeOverview([row]), {
@@ -83,10 +85,11 @@ test("merges branches independently and totals only successful data", () => {
     looseTotal: 7,
     looseDg: 2,
     looseGtc: 1,
-    packedTo: 2,
-    packedQuantity: 8,
+    packedTo: 3,
+    packedQuantity: 12,
     packedDg: 1,
     packedGtc: 1,
+    packedDgAndGtc: 1,
     latestUpdatedAt: 1_000,
   });
 });
@@ -98,7 +101,7 @@ test("keeps previous successful data when a refresh branch fails", () => {
   row = beginHubRefresh(row);
   row = mergeHubBranchResult(row, "packed", { ok: false, error: "Packed timeout" });
   row = finishHubRefresh(row, 2_000);
-  assert.equal(row.packed.orders.length, 2);
+  assert.equal(row.packed.orders.length, 3);
   assert.equal(row.packed.error, "Packed timeout");
   assert.equal(row.packed.stale, true);
   assert.equal(row.updatedAt, 1_000);
@@ -111,7 +114,7 @@ test("keeps successful sibling data and refresh timestamp when the other branch 
   row = mergeHubBranchResult(row, "loose", { ok: false, error: "Loose timeout" });
   row = mergeHubBranchResult(row, "packed", { ok: true, data: packedOrders });
   row = finishHubRefresh(row, 2_000);
-  assert.equal(row.packed.orders.length, 2);
+  assert.equal(row.packed.orders.length, 3);
   assert.equal(row.updatedAt, 2_000);
   assert.equal(row.status, "error");
 });

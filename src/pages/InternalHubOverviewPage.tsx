@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Settings,
   ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { InternalHubOverviewTable } from "../components/InternalHubOverviewTable";
 import { PageHeader } from "../components/PageHeader";
@@ -560,7 +561,7 @@ export const InternalHubOverviewPage = () => {
       />
 
       <section aria-label="Chỉ số tổng quan" className="space-y-2">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
           <SummaryCard
             icon={CheckCircle2}
             label="Hub hoàn tất"
@@ -599,15 +600,26 @@ export const InternalHubOverviewPage = () => {
             icon={ShieldAlert}
             label="Bao DG"
             value={hasPackedData ? numberFormatter.format(totals.packedDg) : "—"}
-            description="Bao có hàng nguy hiểm"
+            description="Bao chỉ có hàng nguy hiểm"
             tone="bg-warning/10 text-warning"
           />
           <SummaryCard
             icon={Gem}
             label="Bao GTC"
             value={hasPackedData ? numberFormatter.format(totals.packedGtc) : "—"}
-            description="Bao có hàng giá trị cao"
+            description="Bao chỉ có hàng giá trị cao"
             tone="bg-error/10 text-error"
+          />
+          <SummaryCard
+            icon={ShieldCheck}
+            label="Bao DG & GTC"
+            value={
+              hasPackedData
+                ? numberFormatter.format(totals.packedDgAndGtc)
+                : "—"
+            }
+            description="Bao đồng thời DG và giá trị cao"
+            tone="bg-secondary/10 text-secondary"
           />
         </div>
         <p className="break-safe text-xs font-medium text-base-content/60">

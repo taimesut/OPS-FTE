@@ -63,6 +63,7 @@ export interface OverviewTotals {
   packedQuantity: number;
   packedDg: number;
   packedGtc: number;
+  packedDgAndGtc: number;
   latestUpdatedAt: number | null;
 }
 
@@ -218,6 +219,7 @@ export const summarizeOverview = (
         totals.packedQuantity += row.packed.metrics.totalQuantity;
         totals.packedDg += row.packed.metrics.dgBagCount;
         totals.packedGtc += row.packed.metrics.gtcBagCount;
+        totals.packedDgAndGtc += row.packed.metrics.dgAndGtcBagCount;
       }
       return totals;
     },
@@ -231,6 +233,7 @@ export const summarizeOverview = (
       packedQuantity: 0,
       packedDg: 0,
       packedGtc: 0,
+      packedDgAndGtc: 0,
       latestUpdatedAt: null,
     },
   );

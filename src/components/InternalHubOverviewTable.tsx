@@ -267,7 +267,7 @@ export function InternalHubOverviewTable({
                           )}
                         </strong>
                         <span className="mt-1 block break-safe text-[11px] leading-tight text-base-content/60">
-                          DG {formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)} · GTC {formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)}
+                          DG {formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)} · GTC {formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)} · Cả hai {formatMetric(row.packed.metrics.dgAndGtcBagCount, row.packed.hasData)}
                         </span>
                       </td>
                       <td className="px-1.5 py-2 text-right align-top font-black">
@@ -313,7 +313,7 @@ export function InternalHubOverviewTable({
                     {formatTransferOrderCount(totals.packedTo, packedTotalsAvailable)}
                   </strong>
                   <span className="block break-safe text-[11px] font-semibold leading-tight text-base-content/60">
-                    DG {formatMetric(totals.packedDg, packedTotalsAvailable)} · GTC {formatMetric(totals.packedGtc, packedTotalsAvailable)}
+                    DG {formatMetric(totals.packedDg, packedTotalsAvailable)} · GTC {formatMetric(totals.packedGtc, packedTotalsAvailable)} · Cả hai {formatMetric(totals.packedDgAndGtc, packedTotalsAvailable)}
                   </span>
                 </td>
                 <td className="px-1.5 py-2 text-right align-top">
@@ -333,12 +333,12 @@ export function InternalHubOverviewTable({
 
       <div className="app-surface hidden max-w-full overflow-hidden md:block">
         <div className="max-w-full overflow-x-auto">
-          <table className="table table-sm min-w-[64rem] tabular-nums">
+          <table className="table table-sm min-w-[70rem] tabular-nums">
             <thead className="border-b border-base-200 bg-base-200/50 text-base-content">
               <tr>
                 <th scope="col" rowSpan={2}>Hub</th>
                 <th scope="colgroup" colSpan={3} className="text-center">Hàng xá lẻ</th>
-                <th scope="colgroup" colSpan={4} className="text-center">Hàng đã đóng bao</th>
+                <th scope="colgroup" colSpan={5} className="text-center">Hàng đã đóng bao</th>
                 <th scope="col" rowSpan={2}>Trạng thái</th>
                 <th scope="col" rowSpan={2}>Cập nhật</th>
                 <th scope="col" rowSpan={2}>Chi tiết</th>
@@ -351,6 +351,7 @@ export function InternalHubOverviewTable({
                 <th scope="col" className="text-right">Kiện</th>
                 <th scope="col" className="text-right">DG</th>
                 <th scope="col" className="text-right">GTC</th>
+                <th scope="col" className="text-right">DG & GTC</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-base-200">
@@ -372,6 +373,7 @@ export function InternalHubOverviewTable({
                     <td className="text-right">{formatMetric(row.packed.metrics.totalQuantity, row.packed.hasData)}</td>
                     <td className="text-right">{formatMetric(row.packed.metrics.dgBagCount, row.packed.hasData)}</td>
                     <td className="text-right">{formatMetric(row.packed.metrics.gtcBagCount, row.packed.hasData)}</td>
+                    <td className="text-right">{formatMetric(row.packed.metrics.dgAndGtcBagCount, row.packed.hasData)}</td>
                     <td><StatusBadge status={row.status} /></td>
                     <td className="whitespace-nowrap text-xs text-base-content/70">{formatUpdatedAt(row.updatedAt)}</td>
                     <td>
@@ -409,6 +411,7 @@ export function InternalHubOverviewTable({
                 <td className="text-right">{formatMetric(totals.packedQuantity, packedTotalsAvailable)}</td>
                 <td className="text-right">{formatMetric(totals.packedDg, packedTotalsAvailable)}</td>
                 <td className="text-right">{formatMetric(totals.packedGtc, packedTotalsAvailable)}</td>
+                <td className="text-right">{formatMetric(totals.packedDgAndGtc, packedTotalsAvailable)}</td>
                 <td>—</td>
                 <td>{formatUpdatedAt(totals.latestUpdatedAt)}</td>
                 <td>—</td>
