@@ -63,3 +63,24 @@ test("Settings exposes separate cookie and full reset actions", async () => {
   assert.match(source, /Xóa toàn bộ/);
   assert.match(source, /Các cấu hình khác được giữ nguyên/);
 });
+
+test("station configuration uses searchable selectors and accessible group actions", async () => {
+  const [stationSelect, groupEditor] = await Promise.all([
+    readFile(
+      new URL("../src/components/StationSelect.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../src/components/SocGroupEditor.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(stationSelect, /SearchableSelect/);
+  assert.match(stationSelect, /stationCode/);
+  assert.match(groupEditor, /SOC đại diện/);
+  assert.match(groupEditor, /SOC thành viên/);
+  assert.match(groupEditor, /aria-label={`Xóa \${name} khỏi nhóm`}/);
+  assert.match(groupEditor, /min-h-11/);
+  assert.match(groupEditor, /touch-manipulation/);
+});
