@@ -29,6 +29,12 @@ export const saveConfigs = (configs: AppConfig) => {
   localStorage.setItem("configs", JSON.stringify(configs));
 };
 
+export const clearCookies = (): AppConfig => {
+  const nextConfig = { ...getConfigs(), cookies: "" };
+  saveConfigs(nextConfig);
+  return nextConfig;
+};
+
 export const getProxyUrl = (): string => {
   const configs = getConfigs();
   return configs.proxy_url || "";

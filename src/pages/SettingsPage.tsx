@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { getConfigs, saveConfigs, SCANNER_URL, type AppConfig } from "../utils/config";
+import {
+  clearCookies,
+  getConfigs,
+  saveConfigs,
+  SCANNER_URL,
+  type AppConfig,
+} from "../utils/config";
 import {
   createStationIdMap,
   formatStationEntry,
@@ -25,6 +31,7 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   ScanLine,
+  Trash2,
 } from "lucide-react";
 
 export const SettingsPage = () => {
@@ -35,6 +42,9 @@ export const SettingsPage = () => {
     formatStationEntry(initialConfig.soc || "", initialConfig.soc_id),
   );
   const [cookies, setCookies] = useState(initialConfig.cookies || "");
+  const [hasSavedCookies, setHasSavedCookies] = useState(
+    Boolean(initialConfig.cookies),
+  );
   const [hubsText, setHubsText] = useState(
     (initialConfig.hubs || [])
       .map((name) => formatStationEntry(name, initialConfig.hub_ids?.[name]))
@@ -97,6 +107,7 @@ export const SettingsPage = () => {
       };
 
       saveConfigs(newConfig);
+      setHasSavedCookies(Boolean(newConfig.cookies));
       showToast("Đã lưu cấu hình Tên và ID trạm thành công!", "success");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Cấu hình trạm không hợp lệ.", "error");
@@ -147,6 +158,7 @@ export const SettingsPage = () => {
           saveConfigs(imported);
           setSocText(formatStationEntry(imported.soc || "", imported.soc_id));
           setCookies(imported.cookies || "");
+          setHasSavedCookies(Boolean(imported.cookies));
           setHubsText((imported.hubs || []).map((name: string) =>
             formatStationEntry(name, imported.hub_ids?.[name])).join("\n"));
           setSocsText((imported.socs || []).map((name: string) =>
@@ -169,11 +181,29 @@ export const SettingsPage = () => {
     reader.readAsText(file);
   };
 
+  const handleClearCookies = () => {
+    if (!cookies.trim() && !hasSavedCookies) return;
+    if (!confirm("Bạn có chắc chắn muốn xóa Cookie SPX đã lưu?")) return;
+
+    try {
+      clearCookies();
+      setCookies("");
+      setHasSavedCookies(false);
+      showToast(
+        "Đã xóa Cookie SPX. Các cấu hình khác được giữ nguyên.",
+        "success",
+      );
+    } catch {
+      showToast("Không thể xóa Cookie SPX. Vui lòng thử lại.", "error");
+    }
+  };
+
   const handleReset = () => {
     if (confirm("Bạn có chắc chắn muốn xóa tất cả cài đặt hiện tại?")) {
       localStorage.removeItem("configs");
       setSocText("");
       setCookies("");
+      setHasSavedCookies(false);
       setHubsText("");
       setSocsText("");
       setGroupSocsText("");
@@ -261,6 +291,17 @@ export const SettingsPage = () => {
           <span className="text-xs text-base-content/60">
             Cookie giúp xác thực các yêu cầu tra cứu dữ liệu đơn hàng tới Shopee Express.
           </span>
+          <div className="flex justify-end border-t border-base-200 pt-3">
+            <button
+              type="button"
+              onClick={handleClearCookies}
+              disabled={!cookies.trim() && !hasSavedCookies}
+              className="btn btn-outline min-h-11 touch-manipulation gap-2 rounded-xl border-error/30 text-error hover:bg-error/10 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Xóa Cookie
+            </button>
+          </div>
         </div>
 
         {/* 3. Link Google Sheet Log Sự Vụ */}
@@ -357,7 +398,7 @@ export const SettingsPage = () => {
           onClick={handleReset}
           className="btn min-h-11 self-start btn-ghost text-error gap-1 rounded-xl"
         >
-          <RefreshCw className="w-4 h-4 text-error" /> Xóa
+          <RefreshCw className="w-4 h-4 text-error" /> Xóa toàn bộ
         </button>
 
         <button
