@@ -1,4 +1,9 @@
-import { Mail, Phone } from "lucide-react";
+import { useEffect, useState } from "react";
+import { History, Mail, MessagesSquare, Phone } from "lucide-react";
+import {
+  loadAppVersionInfo,
+  type AppVersionInfo,
+} from "../utils/appVersion";
 
 // Exact Official Zalo Brand SVG Icon provided by User
 const ZaloIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -51,48 +56,112 @@ const ZaloIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 );
 
 export const HomePage = () => {
+  const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null);
+  const [versionLoading, setVersionLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void loadAppVersionInfo().then((info) => {
+      if (!active) return;
+      setVersionInfo(info);
+      setVersionLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="app-page flex min-h-[calc(100dvh-3.5rem)] items-center justify-center">
-        <div className="app-surface w-full max-w-md space-y-5 p-4 text-center sm:p-6">
-          {/* Header */}
-          <div className="space-y-1">
-            <h1 className="text-3xl font-black tracking-tight text-primary">
-              HIHI HAHA
-            </h1>
-          </div>
-
-          {/* Contact Action Buttons */}
-          <div className="space-y-2.5 pt-1">
-            <a
-              href="https://zalo.me/0987654321"
-              target="_blank"
-              rel="noreferrer"
-              className="btn btn-primary min-h-12 w-full gap-2 rounded-2xl font-bold shadow-md text-sm"
-            >
-              <ZaloIcon className="w-6 h-6 shrink-0" />
-              <span>Zalo: 0987 654 321</span>
-            </a>
-
-            <a
-              href="tel:0328805839"
-              className="btn btn-outline min-h-11 w-full gap-2 rounded-2xl font-bold text-xs border-base-300"
-            >
-              <Phone className="w-4 h-4 text-emerald-500" />
-              <span>Hotline: 0987 654 321</span>
-            </a>
-          </div>
-
-          {/* Email Footer */}
-          <div className="border-t border-base-200 pt-3">
-            <a
-              href="mailto:nguyenthanhtaiabcxyz@gmail.com"
-              className="flex items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
-            >
-              <Mail className="w-3.5 h-3.5 text-primary" />
-              <span>0987.654.321@spxexpress.com</span>
-            </a>
-          </div>
+      <div className="app-surface w-full max-w-md space-y-5 p-4 text-center sm:p-6">
+        {/* Header */}
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tight text-primary">
+            HIHI HAHA
+          </h1>
         </div>
+
+        {/* Contact Action Buttons */}
+        <div className="space-y-2.5 pt-1">
+          <a
+            href="https://zalo.me/0987654321"
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-primary min-h-12 w-full touch-manipulation gap-2 rounded-2xl text-sm font-bold shadow-md"
+          >
+            <ZaloIcon className="h-6 w-6 shrink-0" />
+            <span>Zalo: 0987 654 321</span>
+          </a>
+
+          <a
+            href="https://link.seatalk.io/profile/open?seatalk_id=1386905313"
+            target="_blank"
+            rel="noreferrer"
+            className="btn min-h-11 w-full touch-manipulation gap-2 rounded-2xl border-info/30 bg-info/10 text-sm font-bold text-info hover:bg-info/20"
+          >
+            <MessagesSquare className="h-5 w-5" aria-hidden="true" />
+            <span>Liên hệ qua SeaTalk</span>
+          </a>
+
+          <a
+            href="tel:0328805839"
+            className="btn btn-outline min-h-11 w-full touch-manipulation gap-2 rounded-2xl border-base-300 text-xs font-bold"
+          >
+            <Phone className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+            <span>Hotline: 0987 654 321</span>
+          </a>
+        </div>
+
+        <section
+          className="rounded-2xl border border-base-200 bg-base-200/35 p-3 text-left"
+          aria-live="polite"
+          aria-label="Thông tin phiên bản"
+        >
+          {versionLoading ? (
+            <p className="flex items-center gap-2 text-xs text-base-content/60">
+              <span
+                className="loading loading-spinner loading-xs motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              Đang tải thông tin phiên bản...
+            </p>
+          ) : versionInfo ? (
+            <div className="space-y-2">
+              {versionInfo.version ? (
+                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                  <History className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Phiên bản {versionInfo.version}</span>
+                </div>
+              ) : null}
+              {versionInfo.updateContent ? (
+                <div>
+                  <p className="text-xs font-bold text-base-content/75">
+                    Nội dung cập nhật
+                  </p>
+                  <p className="break-safe mt-1 whitespace-pre-wrap text-xs leading-relaxed text-base-content/65">
+                    {versionInfo.updateContent}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-base-content/60">
+              Chưa có thông tin phiên bản
+            </p>
+          )}
+        </section>
+
+        {/* Email Footer */}
+        <div className="border-t border-base-200 pt-3">
+          <a
+            href="mailto:nguyenthanhtaiabcxyz@gmail.com"
+            className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
+          >
+            <Mail className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span>0987.654.321@spxexpress.com</span>
+          </a>
+        </div>
+      </div>
     </div>
   );
 };

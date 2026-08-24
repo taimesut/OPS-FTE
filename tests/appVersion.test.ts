@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   loadAppVersionInfo,
@@ -54,4 +55,20 @@ test("loads VERSION data through the Apps Script runner", async () => {
 test("falls back when Apps Script is unavailable or fails", async () => {
   assert.equal(await loadAppVersionInfo(null), null);
   assert.equal(await loadAppVersionInfo(createRunner(new Error("failed"))), null);
+});
+
+test("HomePage renders SeaTalk and VERSION states", async () => {
+  const source = await readFile(
+    new URL("../src/pages/HomePage.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /https:\/\/link\.seatalk\.io\/profile\/open\?seatalk_id=1386905313/,
+  );
+  assert.match(source, /loadAppVersionInfo/);
+  assert.match(source, /Đang tải thông tin phiên bản/);
+  assert.match(source, /Chưa có thông tin phiên bản/);
+  assert.match(source, /whitespace-pre-wrap/);
 });
