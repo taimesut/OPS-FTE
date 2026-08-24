@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo, useEffect, useRef } from "react";
 import QRCodeModal from "./QRCodeModal";
 import {
@@ -10,9 +9,17 @@ import {
   PackageCheck,
 } from "lucide-react";
 import {
-  isDgType,
+  classifyPackedOrder,
   summarizePackedOrders,
+  type PackedOrderClassification,
 } from "../utils/packedOrderMetrics";
+import {
+  matchesTransferOrderSearch,
+  parseTransferOrderColumns,
+  serializeTransferOrderColumns,
+  TRANSFER_ORDER_COLUMNS,
+  type TransferOrderColumnKey,
+} from "../utils/transferOrderTable";
 
 export interface TransferOrder {
   to_number: string;
@@ -29,19 +36,7 @@ export interface TransferOrder {
   current_station_name: string;
 }
 
-export const TABLE_COLUMNS = [
-  { key: "to_number", label: "Mã TO" },
-  { key: "operator", label: "Người đóng" },
-  { key: "high_value", label: "GTC" },
-  { key: "dg_type", label: "DG" },
-  { key: "route", label: "Điểm đến (Des)" },
-  { key: "pack_name", label: "Tên bao" },
-  { key: "quantity", label: "Số kiện" },
-  { key: "weight", label: "Khối lượng" },
-  { key: "status", label: "Trạng thái" },
-  { key: "complete_time", label: "Thời gian HT" },
-  { key: "action", label: "Thao tác" },
-];
+export const TABLE_COLUMNS = TRANSFER_ORDER_COLUMNS;
 
 interface TOTableProps {
   orders: TransferOrder[];
@@ -60,210 +55,124 @@ const formatTransferTime = (time: number) => {
   });
 };
 
-interface TransferOrderCardProps {
+const CLASSIFICATION_META: Record<
+  PackedOrderClassification,
+  { label: string; className: string }
+> = {
+  normal: { label: "NORMAL", className: "badge-ghost" },
+  dg: { label: "DG", className: "badge-warning" },
+  gtc: { label: "GTC", className: "badge-error text-error-content" },
+  dg_and_gtc: {
+    label: "DG & GTC",
+    className: "border-secondary bg-secondary/15 text-secondary",
+  },
+};
+
+const ClassificationBadge = ({
+  classification,
+}: {
+  classification: PackedOrderClassification;
+}) => {
+  const meta = CLASSIFICATION_META[classification];
+  return (
+    <span className={`badge badge-sm whitespace-nowrap font-bold ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+};
+
+interface TransferOrderCompactRowProps {
   item: TransferOrder;
-  visibleColumns: string[];
+  visibleColumns: TransferOrderColumnKey[];
   onViewQR: () => void;
 }
 
-const TransferOrderCard = ({
+const TransferOrderCompactRow = ({
   item,
   visibleColumns,
   onViewQR,
-}: TransferOrderCardProps) => {
+}: TransferOrderCompactRowProps) => {
   const showToNumber = visibleColumns.includes("to_number");
   const showAction = visibleColumns.includes("action");
-  const showHeader = showToNumber || showAction;
+  const showClassification = visibleColumns.includes("classification");
+  const showSender = visibleColumns.includes("sender");
   const showRoute = visibleColumns.includes("route");
   const showQuantity = visibleColumns.includes("quantity");
   const showWeight = visibleColumns.includes("weight");
-  const showPrimaryMetrics = showQuantity || showWeight;
-  const showHighValue = visibleColumns.includes("high_value");
-  const showDgType = visibleColumns.includes("dg_type");
-  const showFlags = showHighValue || showDgType;
-  const showDetails = [
+  const metadataColumns: TransferOrderColumnKey[] = [
+    "sender",
+    "route",
+    "quantity",
+    "weight",
     "operator",
     "pack_name",
     "status",
     "complete_time",
-  ].some((column) => visibleColumns.includes(column));
-  const showBody = showRoute || showPrimaryMetrics || showFlags || showDetails;
-  const showDetailSeparator = showRoute || showPrimaryMetrics || showFlags;
-  const isDg = isDgType(item.dg_type);
+  ];
+  const showMetadata = metadataColumns.some((column) =>
+    visibleColumns.includes(column),
+  );
+  const showHeader = showToNumber || showClassification || showAction;
+  const classification = classifyPackedOrder(item);
+  const sender = item.sender || "Chưa rõ điểm gửi";
+  const receiver = item.receiver || "Chưa rõ điểm đến";
 
-  if (!showHeader && !showBody) return null;
+  if (!showHeader && !showMetadata) return null;
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-base-300/70 bg-base-100 shadow-sm">
-      {showHeader && (
-        <header
-          className={`flex items-start justify-between gap-3 bg-base-200/30 p-4 ${
-            showBody ? "border-b border-base-200" : ""
-          }`}
-        >
-          {showToNumber && (
-            <div className="min-w-0">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-                Mã TO
-              </span>
-              <p className="break-safe font-mono text-base font-black text-primary">
-                {item.to_number}
-              </p>
-            </div>
+    <article className="border-b border-base-200 px-3 py-3 last:border-b-0">
+      {showHeader ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {showToNumber ? (
+            <p className="min-w-0 flex-1 truncate font-mono text-sm font-black text-primary">
+              {item.to_number}
+            </p>
+          ) : (
+            <span className="min-w-0 flex-1" />
           )}
-          {showAction && (
+          {showClassification ? (
+            <ClassificationBadge classification={classification} />
+          ) : null}
+          {showAction ? (
             <button
               type="button"
-              className="btn btn-sm ml-auto min-h-11 shrink-0 gap-1.5 rounded-xl btn-primary"
+              className="btn btn-square btn-sm min-h-11 min-w-11 shrink-0 rounded-xl btn-primary"
               onClick={onViewQR}
+              aria-label={`Xem QR của ${item.to_number}`}
             >
-              <QrCode className="h-4 w-4" />
-              QR
+              <QrCode className="h-4 w-4" aria-hidden="true" />
             </button>
-          )}
-        </header>
-      )}
-
-      {showBody && (
-        <div className="space-y-3 p-4">
-        {showRoute && (
-          <dl className="rounded-xl border border-primary/15 bg-primary/5 p-3">
-            <div className="min-w-0">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-primary/70">
-                Điểm đến
-              </dt>
-              <dd className="break-safe mt-0.5 font-semibold text-base-content">
-                {item.receiver || "---"}
-              </dd>
-            </div>
-          </dl>
-        )}
-
-        {showPrimaryMetrics && (
-          <dl
-            className={`grid gap-2 ${
-              showQuantity && showWeight ? "grid-cols-2" : "grid-cols-1"
-            }`}
-          >
-            {showQuantity && (
-              <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
-                  Số kiện
-                </dt>
-                <dd className="mt-0.5 font-black tabular-nums">
-                  {item.quantity}
-                </dd>
-              </div>
-            )}
-            {showWeight && (
-              <div className="min-w-0 rounded-xl bg-base-200/50 p-3">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
-                  Khối lượng
-                </dt>
-                <dd className="mt-0.5 font-semibold tabular-nums">
-                  {(item.weight / 1000).toFixed(2)} kg
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
-
-        {showFlags && (
-          <dl
-            className={`grid gap-2 ${
-              showHighValue && showDgType ? "grid-cols-2" : "grid-cols-1"
-            }`}
-          >
-            {showHighValue && (
-              <div className="min-w-0 rounded-xl border border-base-200 p-3">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
-                  GTC
-                </dt>
-                <dd className="mt-1">
-                  <span
-                    className={`badge badge-sm font-semibold ${
-                      item.high_value === 1
-                        ? "badge-error text-error-content"
-                        : "badge-ghost opacity-70"
-                    }`}
-                  >
-                    {item.high_value === 1 ? "GTC (Y)" : "N"}
-                  </span>
-                </dd>
-              </div>
-            )}
-            {showDgType && (
-              <div className="min-w-0 rounded-xl border border-base-200 p-3">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/55">
-                  DG
-                </dt>
-                <dd className="mt-1">
-                  <span
-                    className={`badge badge-sm font-semibold ${
-                      isDg ? "badge-warning" : "badge-ghost opacity-70"
-                    }`}
-                  >
-                    {isDg ? "DG" : "NON DG"}
-                  </span>
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
-
-        {showDetails && (
-          <dl
-            className={`grid grid-cols-2 gap-x-3 gap-y-3 text-sm ${
-              showDetailSeparator ? "border-t border-base-200 pt-3" : ""
-            }`}
-          >
-            {visibleColumns.includes("operator") && (
-              <div className="min-w-0">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-                  Người đóng
-                </dt>
-                <dd className="break-safe font-medium">
-                  {item.operator || "---"}
-                </dd>
-              </div>
-            )}
-            {visibleColumns.includes("pack_name") && (
-              <div className="min-w-0">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-                  Tên bao
-                </dt>
-                <dd className="break-safe font-medium">
-                  {item.pack_name || "Mặc định"}
-                </dd>
-              </div>
-            )}
-            {visibleColumns.includes("status") && (
-              <div className="min-w-0">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-                  Trạng thái
-                </dt>
-                <dd className="mt-1">
-                  <span className="badge badge-success badge-sm gap-1 border-0 bg-success/15 font-bold text-success">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                    {item.status || "Đã đóng gói"}
-                  </span>
-                </dd>
-              </div>
-            )}
-            {visibleColumns.includes("complete_time") && (
-              <div className="min-w-0">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-base-content/50">
-                  Thời gian HT
-                </dt>
-                <dd className="text-base-content/70">
-                  {formatTransferTime(item.complete_time)}
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
+          ) : null}
         </div>
-      )}
+      ) : null}
+
+      {showMetadata ? (
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/65">
+          {showSender || showRoute ? (
+            <span className="break-safe font-semibold text-base-content/80">
+              {showSender && showRoute
+                ? `${sender} → ${receiver}`
+                : showSender
+                  ? sender
+                  : receiver}
+            </span>
+          ) : null}
+          {showQuantity ? <span>{item.quantity} kiện</span> : null}
+          {showWeight ? <span>{(item.weight / 1000).toFixed(2)} kg</span> : null}
+          {visibleColumns.includes("complete_time") ? (
+            <span>{formatTransferTime(item.complete_time)}</span>
+          ) : null}
+          {visibleColumns.includes("operator") ? (
+            <span>Đóng: {item.operator || "---"}</span>
+          ) : null}
+          {visibleColumns.includes("pack_name") ? (
+            <span>Bao: {item.pack_name || "Mặc định"}</span>
+          ) : null}
+          {visibleColumns.includes("status") ? (
+            <span>{item.status || "Đã đóng gói"}</span>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 };
@@ -283,12 +192,13 @@ export const TOTable = ({
   const [showQR, setShowQR] = useState(false);
 
   // Cấu hình cột hiển thị
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+  const [visibleColumns, setVisibleColumns] = useState<
+    TransferOrderColumnKey[]
+  >(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : TABLE_COLUMNS.map((col) => col.key);
+      return parseTransferOrderColumns(localStorage.getItem(storageKey));
     } catch {
-      return TABLE_COLUMNS.map((col) => col.key);
+      return parseTransferOrderColumns(null);
     }
   });
 
@@ -296,7 +206,14 @@ export const TOTable = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(visibleColumns));
+    try {
+      localStorage.setItem(
+        storageKey,
+        serializeTransferOrderColumns(visibleColumns),
+      );
+    } catch {
+      // Column preferences are optional when storage is unavailable.
+    }
   }, [visibleColumns, storageKey]);
 
   useEffect(() => {
@@ -313,17 +230,10 @@ export const TOTable = ({
   }, []);
 
   // Lọc theo từ khóa tìm kiếm nhanh
-  const filteredOrders = useMemo(() => {
-    if (!searchQuery.trim()) return orders;
-    const query = searchQuery.toLowerCase().trim();
-    return orders.filter(
-      (item) =>
-        item.to_number.toLowerCase().includes(query) ||
-        (item.operator && item.operator.toLowerCase().includes(query)) ||
-        (item.receiver && item.receiver.toLowerCase().includes(query)) ||
-        (item.pack_name && item.pack_name.toLowerCase().includes(query)),
-    );
-  }, [orders, searchQuery]);
+  const filteredOrders = useMemo(
+    () => orders.filter((item) => matchesTransferOrderSearch(item, searchQuery)),
+    [orders, searchQuery],
+  );
 
   const packedMetrics = useMemo(
     () => summarizePackedOrders(filteredOrders),
@@ -337,7 +247,7 @@ export const TOTable = ({
     return filteredOrders.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredOrders, currentPage, itemsPerPage]);
 
-  const toggleColumn = (colKey: string) => {
+  const toggleColumn = (colKey: TransferOrderColumnKey) => {
     setVisibleColumns((prev) =>
       prev.includes(colKey)
         ? prev.filter((k) => k !== colKey)
@@ -348,7 +258,7 @@ export const TOTable = ({
   return (
     <div className="space-y-4">
       {/* Dynamic Stats Banner */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
         <div className="stat min-w-0 rounded-xl border border-base-200 bg-base-100 p-3 shadow-xs sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số TO
@@ -381,7 +291,7 @@ export const TOTable = ({
             {packedMetrics.dgBagCount}
           </div>
           <div className="break-safe text-xs leading-relaxed opacity-70">
-            Bao có hàng nguy hiểm
+            Bao chỉ có hàng nguy hiểm
           </div>
         </div>
 
@@ -393,7 +303,19 @@ export const TOTable = ({
             {packedMetrics.gtcBagCount}
           </div>
           <div className="break-safe text-xs leading-relaxed opacity-70">
-            Bao có hàng giá trị cao
+            Bao chỉ có hàng giá trị cao
+          </div>
+        </div>
+
+        <div className="stat col-span-2 min-w-0 rounded-xl border border-secondary/25 bg-secondary/5 p-3 shadow-xs sm:col-span-1 sm:rounded-2xl sm:p-4">
+          <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
+            Số bao DG & GTC
+          </div>
+          <div className="stat-value mt-1 text-2xl font-black text-secondary md:text-3xl">
+            {packedMetrics.dgAndGtcBagCount}
+          </div>
+          <div className="break-safe text-xs leading-relaxed opacity-70">
+            Bao đồng thời DG và giá trị cao
           </div>
         </div>
       </div>
@@ -412,7 +334,7 @@ export const TOTable = ({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Tìm kiếm mã TO, người đóng, điểm đến..."
+              placeholder="Tìm mã TO, Sender, người đóng, điểm đến..."
               className="input input-sm input-bordered min-h-11 w-full min-w-0 rounded-xl pl-9 focus:input-primary"
             />
           </div>
@@ -478,9 +400,9 @@ export const TOTable = ({
         {/* Data Table */}
         {filteredOrders.length > 0 ? (
           <>
-          <div className="space-y-3 p-3 md:hidden">
+          <div className="md:hidden">
             {currentOrders.map((item) => (
-              <TransferOrderCard
+              <TransferOrderCompactRow
                 key={item.to_number}
                 item={item}
                 visibleColumns={visibleColumns}
@@ -521,32 +443,16 @@ export const TOTable = ({
                     {visibleColumns.includes("operator") && (
                       <td className="text-sm">{item.operator || "---"}</td>
                     )}
-                    {visibleColumns.includes("high_value") && (
+                    {visibleColumns.includes("classification") && (
                       <td>
-                        <span
-                          className={`badge badge-sm font-semibold ${
-                            item.high_value === 1
-                              ? "badge-error text-error-content"
-                              : "badge-ghost opacity-70"
-                          }`}
-                        >
-                          {item.high_value === 1 ? "GTC (Y)" : "N"}
-                        </span>
+                        <ClassificationBadge
+                          classification={classifyPackedOrder(item)}
+                        />
                       </td>
                     )}
-                    {visibleColumns.includes("dg_type") && (
-                      <td>
-                        <span
-                          className={`badge badge-sm font-semibold ${
-                            !isDgType(item.dg_type)
-                              ? "badge-ghost opacity-70"
-                              : "badge-warning"
-                          }`}
-                        >
-                          {!isDgType(item.dg_type)
-                            ? "NON DG"
-                            : "DG"}
-                        </span>
+                    {visibleColumns.includes("sender") && (
+                      <td className="font-semibold text-sm">
+                        {item.sender || "---"}
                       </td>
                     )}
                     {visibleColumns.includes("route") && (
