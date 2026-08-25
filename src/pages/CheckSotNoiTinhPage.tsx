@@ -7,8 +7,25 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
+import {
+  CotCutoffControl,
+  type CotProgress,
+} from "../components/CotCutoffControl";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
+import {
+  createCotWindow,
+  formatLocalDateTimeInput,
+  isValidCotLocalDateTime,
+  parseCotCutoffPreferences,
+  serializeCotCutoffPreferences,
+  type CotCutoffPreferences,
+  type CotWindow,
+} from "../utils/cotCutoff";
+import { filterTransferOrdersByCot } from "../utils/transferOrderCot";
+import { fetchLatestTransferOrderCotTimestamp } from "../utils/transferOrderCotApi";
 import { Search, MapPin, PackageCheck } from "lucide-react";
+
+const COT_STORAGE_KEY = "check-sot-noi-tinh-cot";
 
 export const CheckSotNoiTinhPage = () => {
   const [hubs, setHubs] = useState<string[]>([]);
@@ -16,6 +33,17 @@ export const CheckSotNoiTinhPage = () => {
   const [hub, setHub] = useState("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
+  const [cotPreferences, setCotPreferences] =
+    useState<CotCutoffPreferences>(() => {
+      try {
+        return parseCotCutoffPreferences(
+          localStorage.getItem(COT_STORAGE_KEY),
+        );
+      } catch {
+        return { enabled: false, localDateTime: "" };
+      }
+    });
+  const [cotProgress, setCotProgress] = useState<CotProgress | null>(null);
   const looseOrders = useLooseOrderCheck();
 
   useEffect(() => {
@@ -23,6 +51,27 @@ export const CheckSotNoiTinhPage = () => {
     setHubs(getHubs());
     setSoc(getSoc());
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        COT_STORAGE_KEY,
+        serializeCotCutoffPreferences(cotPreferences),
+      );
+    } catch {
+      // Optional browser storage must not prevent searches.
+    }
+  }, [cotPreferences]);
+
+  const handleCotEnabledChange = (enabled: boolean) => {
+    setCotPreferences((current) => ({
+      enabled,
+      localDateTime:
+        enabled && !isValidCotLocalDateTime(current.localDateTime)
+          ? formatLocalDateTimeInput()
+          : current.localDateTime,
+    }));
+  };
 
   const checkSotNoiTinh = async () => {
     const currentSoc = getSoc();
@@ -56,6 +105,23 @@ export const CheckSotNoiTinhPage = () => {
       return;
     }
 
+    let cotWindow: CotWindow | undefined;
+    if (cotPreferences.enabled) {
+      try {
+        cotWindow = createCotWindow(cotPreferences.localDateTime);
+      } catch (error) {
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Thời gian COT không hợp lệ.",
+          "warning",
+        );
+        return;
+      }
+    }
+
+    const activeCot = cotWindow;
+
     setLoading(true);
 
     try {
@@ -67,32 +133,62 @@ export const CheckSotNoiTinhPage = () => {
         )}&status=2&ctime=${sevenDaysAgo},${now}`;
 
         const response = await apiClient.get(url);
-        const list = (response.data?.data?.list || []).filter(
+        const stationOrders = (response.data?.data?.list || []).filter(
           (item: { current_station_name: string }) =>
             item.current_station_name === currentSoc,
-        );
-        setOrders(list);
-        if (list.length === 0) {
+        ) as TransferOrder[];
+
+        let resultOrders = stationOrders;
+        if (activeCot) {
+          setCotProgress({ processed: 0, total: stationOrders.length });
+          try {
+            resultOrders = await filterTransferOrdersByCot(
+              stationOrders,
+              activeCot.cotTimestamp,
+              fetchLatestTransferOrderCotTimestamp,
+              (processed, total) => setCotProgress({ processed, total }),
+            );
+          } finally {
+            setCotProgress(null);
+          }
+        }
+
+        setOrders(resultOrders);
+        if (activeCot) {
+          showToast(
+            `Giữ lại ${resultOrders.length}/${stationOrders.length} TO trước COT`,
+            resultOrders.length > 0 ? "success" : "info",
+          );
+        } else if (resultOrders.length === 0) {
           showToast(
             `Không có TO nào bị sót từ ${currentSoc} tới Hub ${hub}`,
             "info",
           );
         } else {
           showToast(
-            `Tìm thấy ${list.length} TO sót tới Hub ${hub}`,
+            `Tìm thấy ${resultOrders.length} TO sót tới Hub ${hub}`,
             "success",
           );
         }
       };
 
-      const results = await Promise.allSettled([
+      const [packedResult] = await Promise.allSettled([
         checkPackedOrders(),
-        looseOrders.run(currentSocId, [destinationId]),
+        looseOrders.run(
+          currentSocId,
+          [destinationId],
+          activeCot?.currentStationReceivedTime,
+        ),
       ]);
 
-      for (const result of results) {
-        if (result.status === "rejected") {
-          console.error("[Check sót nội tỉnh]", result.reason);
+      if (packedResult.status === "rejected") {
+        console.error("[Check sót nội tỉnh]", packedResult.reason);
+        const message =
+          packedResult.reason instanceof Error
+            ? packedResult.reason.message
+            : "";
+        if (message.includes("Không thể kiểm tra COT cho")) {
+          showToast(message, "error");
         }
       }
     } finally {
@@ -112,6 +208,7 @@ export const CheckSotNoiTinhPage = () => {
               value={hub}
               options={hubs}
               onChange={setHub}
+              disabled={loading}
               placeholder="-- Chọn Hub nội tỉnh --"
               searchPlaceholder="Tìm Hub..."
               emptyText="Không tìm thấy Hub"
@@ -134,6 +231,17 @@ export const CheckSotNoiTinhPage = () => {
               )}
             </button>
           </div>
+        }
+      />
+
+      <CotCutoffControl
+        enabled={cotPreferences.enabled}
+        localDateTime={cotPreferences.localDateTime}
+        disabled={loading}
+        progress={cotProgress}
+        onEnabledChange={handleCotEnabledChange}
+        onDateTimeChange={(localDateTime) =>
+          setCotPreferences((current) => ({ ...current, localDateTime }))
         }
       />
 
