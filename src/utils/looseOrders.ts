@@ -1,20 +1,37 @@
 export const LOOSE_ORDER_SEARCH_PATH =
   "/api/fleet_order/order/tracking_list/search";
 
+const normalizeReceivedTimeRange = (value?: string): string | undefined => {
+  if (value === undefined) return undefined;
+  const match = /^(\d+),(\d+)$/.exec(value.trim());
+  if (!match) throw new Error("Khoảng thời gian nhận hàng không hợp lệ.");
+  const from = Number(match[1]);
+  const to = Number(match[2]);
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to) {
+    throw new Error("Khoảng thời gian nhận hàng không hợp lệ.");
+  }
+  return `${from},${to}`;
+};
+
 export const createLooseOrderPayload = (
   currentStationId: string,
   nextStationIds: string[],
+  currentStationReceivedTime?: string,
 ) => {
   const currentId = currentStationId.trim();
   const destinationIds = [...new Set(nextStationIds.map((id) => id.trim()).filter(Boolean))];
   if (!currentId) throw new Error("SOC nguồn chưa có ID.");
   if (destinationIds.length === 0) throw new Error("Tuyến đích chưa có ID.");
+  const receivedTime = normalizeReceivedTimeRange(currentStationReceivedTime);
   return {
     count: 1000,
     current_station_ids: currentId,
     next_station_ids: destinationIds.join(","),
     order_status: "8",
     page_no: 1,
+    ...(receivedTime
+      ? { current_station_received_time: receivedTime }
+      : {}),
   } as const;
 };
 

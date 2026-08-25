@@ -25,6 +25,35 @@ test("rejects a loose-order route with missing IDs", () => {
   assert.throws(() => createLooseOrderPayload("5001", []), /đích.*ID/i);
 });
 
+test("adds the selected station-received range only when supplied", () => {
+  assert.deepEqual(
+    createLooseOrderPayload("5001", ["6001"], "1785000000,1787677199"),
+    {
+      count: 1000,
+      current_station_ids: "5001",
+      next_station_ids: "6001",
+      order_status: "8",
+      page_no: 1,
+      current_station_received_time: "1785000000,1787677199",
+    },
+  );
+  assert.equal(
+    "current_station_received_time" in createLooseOrderPayload("5001", ["6001"]),
+    false,
+  );
+});
+
+test("rejects malformed or reversed station-received ranges", () => {
+  assert.throws(
+    () => createLooseOrderPayload("5001", ["6001"], "bad-range"),
+    /thời gian nhận/i,
+  );
+  assert.throws(
+    () => createLooseOrderPayload("5001", ["6001"], "200,100"),
+    /thời gian nhận/i,
+  );
+});
+
 test("uses API total and counts DG and high-value flags independently", () => {
   assert.deepEqual(
     summarizeLooseOrderResponse({

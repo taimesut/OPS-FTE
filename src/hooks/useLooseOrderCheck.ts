@@ -14,18 +14,29 @@ const FALLBACK_ERROR =
 export const useLooseOrderCheck = () => {
   const [state, setState] = useState<LooseOrderCheckState>({ status: "idle" });
 
-  const run = useCallback(async (currentStationId: string, nextStationIds: string[]) => {
-    setState({ status: "loading" });
+  const run = useCallback(
+    async (
+      currentStationId: string,
+      nextStationIds: string[],
+      currentStationReceivedTime?: string,
+    ) => {
+      setState({ status: "loading" });
 
-    try {
-      const summary = await fetchLooseOrderSummary(currentStationId, nextStationIds);
-      setState({ status: "success", summary });
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message ? error.message : FALLBACK_ERROR;
-      setState({ status: "error", message });
-    }
-  }, []);
+      try {
+        const summary = await fetchLooseOrderSummary(
+          currentStationId,
+          nextStationIds,
+          currentStationReceivedTime,
+        );
+        setState({ status: "success", summary });
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message ? error.message : FALLBACK_ERROR;
+        setState({ status: "error", message });
+      }
+    },
+    [],
+  );
 
   return { state, run };
 };

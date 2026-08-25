@@ -9,10 +9,15 @@ import {
 export const fetchLooseOrderSummary = async (
   currentStationId: string,
   nextStationIds: string[],
+  currentStationReceivedTime?: string,
 ): Promise<LooseOrderSummary> => {
   const response = await apiClient.post(
     LOOSE_ORDER_SEARCH_PATH,
-    createLooseOrderPayload(currentStationId, nextStationIds),
+    createLooseOrderPayload(
+      currentStationId,
+      nextStationIds,
+      currentStationReceivedTime,
+    ),
     { suppressErrorToast: true },
   );
 
