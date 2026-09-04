@@ -32,16 +32,14 @@ test("creates one idle row per configured Hub", () => {
   );
 });
 
-test("validates SOC, cookie, Hub list and every Hub ID before requests", () => {
-  assert.match(validateOverviewConfig({ soc: "", socId: "1", cookies: "x", hubs: [] }) ?? "", /SOC/i);
-  assert.match(validateOverviewConfig({ soc: "SOC", socId: "", cookies: "x", hubs: [] }) ?? "", /ID/i);
-  assert.match(validateOverviewConfig({ soc: "SOC", socId: "1", cookies: "", hubs: [] }) ?? "", /Cookie/i);
-  assert.match(validateOverviewConfig({ soc: "SOC", socId: "1", cookies: "x", hubs: [] }) ?? "", /Hub/i);
+test("validates SOC, Hub list and every Hub ID before requests", () => {
+  assert.match(validateOverviewConfig({ soc: "", socId: "1", hubs: [] }) ?? "", /SOC/i);
+  assert.match(validateOverviewConfig({ soc: "SOC", socId: "", hubs: [] }) ?? "", /ID/i);
+  assert.match(validateOverviewConfig({ soc: "SOC", socId: "1", hubs: [] }) ?? "", /Hub/i);
   assert.match(
     validateOverviewConfig({
       soc: "SOC",
       socId: "1",
-      cookies: "x",
       hubs: [{ name: "Hub A", id: "" }, { name: "Hub B", id: "2" }],
     }) ?? "",
     /Hub A/,
@@ -50,7 +48,6 @@ test("validates SOC, cookie, Hub list and every Hub ID before requests", () => {
     validateOverviewConfig({
       soc: "SOC",
       socId: "1",
-      cookies: "x",
       hubs: [{ name: "Hub A", id: "2" }],
     }),
     null,
