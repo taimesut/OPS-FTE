@@ -16,11 +16,20 @@ declare module "axios" {
   }
 }
 
+const isUserscriptRuntime = (): boolean => {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+  return (
+    window.location.hostname === "spx.shopee.vn" &&
+    Boolean(document.getElementById("ops-fte-userscript-host"))
+  );
+};
+
 const apiClient = axios.create({
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 // Custom adapter cho Google Apps Script Server-side UrlFetchApp
@@ -88,18 +97,25 @@ apiClient.interceptors.request.use(
     const cookies = getCookies();
     const customProxy = getProxyUrl();
     const isGAS = Boolean((window as any).google?.script?.run);
+    const userscript = isUserscriptRuntime();
 
-    if (cookies && config.headers) {
+    // Web/GAS cũ vẫn có thể dùng cookie được cấu hình thủ công.
+    // Userscript không đọc/ghi cookie: request cùng origin để trình duyệt tự gửi session hiện tại.
+    if (cookies && config.headers && !userscript) {
       config.headers["x-shopee-cookie"] = cookies;
     }
 
-    // Nếu chạy trên Google Apps Script Web App:
     if (isGAS && !customProxy) {
       config.adapter = gasAdapter;
       return config;
     }
 
-    // Môi trường thông thường:
+    // Trong userscript đang chạy trực tiếp tại spx.shopee.vn, giữ URL tương đối.
+    // Điều này tránh CORS/proxy và sử dụng chính phiên đăng nhập của tab hiện tại.
+    if (userscript) {
+      return config;
+    }
+
     let targetBase = customProxy ? customProxy.trim() : "";
     if (
       !targetBase &&
@@ -122,15 +138,11 @@ apiClient.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
 apiClient.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error) => {
     safeLogApiError(createApiErrorRecord(error));
     const errorConfig = error?.config ?? error?.response?.config;
@@ -148,7 +160,12 @@ apiClient.interceptors.response.use(
 
       switch (error.response.status) {
         case 401:
-          showToast("Cookie SPX đã hết hạn hoặc không hợp lệ. Vui lòng cập nhật trong Cài đặt!", "error");
+          showToast(
+            isUserscriptRuntime()
+              ? "Phiên đăng nhập SPX không còn hợp lệ. Vui lòng đăng nhập lại trên trang SPX."
+              : "Cookie SPX đã hết hạn hoặc không hợp lệ. Vui lòng cập nhật trong Cài đặt!",
+            "error",
+          );
           break;
         case 403:
           showToast("Bạn không có quyền truy cập tính năng này!", "warning");
@@ -163,13 +180,13 @@ apiClient.interceptors.response.use(
           showToast(`Lỗi kết nối (${error.response.status}): ${serverMsg}`, "error");
       }
     } else if (error.request) {
-      showToast("Không nhận được phản hồi từ server! Kiểm tra lại mạng hoặc Cookie SPX.", "error");
+      showToast("Không nhận được phản hồi từ server! Kiểm tra lại mạng hoặc phiên đăng nhập SPX.", "error");
     } else {
       showToast(`Lỗi khởi tạo yêu cầu: ${error.message}`, "error");
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;
