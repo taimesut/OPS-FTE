@@ -96,6 +96,12 @@ export const getSocs = (): string[] => {
   return configs.socs || [];
 };
 
+/**
+ * Compatibility shim cho các màn hình cũ chưa bỏ import getCookies().
+ * Không đọc hay trả về Cookie thật; API SPX dùng trực tiếp session của tab hiện tại.
+ */
+export const getCookies = (): string => "";
+
 export const getSoc = (): string => {
   const configs = getConfigs();
   return configs.soc || "";
