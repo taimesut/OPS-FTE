@@ -45,7 +45,14 @@ export const SearchableSelect = ({
     if (!open) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const root = rootRef.current;
+      if (!root) return;
+
+      // Events crossing a Shadow DOM boundary are retargeted to the shadow host.
+      // composedPath() preserves the real propagation path, so clicks on options
+      // are treated as inside the select instead of closing it before onClick fires.
+      const path = event.composedPath();
+      if (!path.includes(root)) {
         setOpen(false);
         setQuery("");
       }
