@@ -33,7 +33,8 @@ export interface HubVolumeSummary {
 export interface InternalHubVolumeConfigInput {
   soc: string;
   socId: string;
-  cookies: string;
+  /** @deprecated Không còn dùng để xác thực; browser session của tab SPX được dùng trực tiếp. */
+  cookies?: string;
   hubs: readonly HubVolumeDefinition[];
 }
 
@@ -101,7 +102,6 @@ export const validateInternalHubVolumeConfig = (
 ): string | null => {
   if (!input.soc.trim()) return "Chưa cấu hình SOC nguồn.";
   if (!input.socId.trim()) return "SOC nguồn chưa có ID.";
-  if (!input.cookies.trim()) return "Chưa có Cookie SPX.";
   if (input.hubs.length === 0) return "Chưa cấu hình Hub nội tỉnh.";
 
   const missingHubIds = input.hubs
