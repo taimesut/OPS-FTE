@@ -25,3 +25,6 @@ dist-ssr
 
 # Icon generation script (dev only)
 generate-icons.mjs
+
+# Generated Apps Script bundle
+gas-dist/
