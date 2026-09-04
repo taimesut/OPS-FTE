@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 const metadata = `// ==UserScript==
 // @name         OPS FTE
 // @namespace    https://github.com/taimesut/OPS-FTE
-// @version      0.1.1
+// @version      0.1.2
 // @description  OPS FTE chạy trực tiếp trong SPX bằng phiên đăng nhập hiện tại
 // @match        https://spx.shopee.vn/*
 // @match        https://*.spx.shopee.vn/*
@@ -13,8 +13,13 @@ const metadata = `// ==UserScript==
 // @grant        none
 // ==/UserScript==`;
 
+const runtimeShim = `var process = globalThis.process || { env: { NODE_ENV: "production" } };`;
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     outDir: "userscript-dist",
     emptyOutDir: true,
@@ -29,7 +34,7 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        banner: metadata,
+        banner: `${metadata}\n${runtimeShim}`,
         inlineDynamicImports: true,
       },
     },
