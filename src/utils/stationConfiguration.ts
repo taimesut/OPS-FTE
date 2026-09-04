@@ -17,8 +17,6 @@ export interface BuildStationConfigInput {
   currentSocId: string;
   hubs: readonly StationCatalogHub[];
   groupSocs: Record<string, string[]>;
-  /** @deprecated Kept only for call-site compatibility; never persisted. */
-  cookies?: string;
   logUrl: string;
 }
 
@@ -178,8 +176,6 @@ export const buildStationConfig = (
     soc_id: current.id,
     soc_code: current.stationCode,
     number_prefix: current.numberPrefix,
-    cookies: "",
-    proxy_url: undefined,
     hubs: hubs.map(({ stationName }) => stationName),
     hub_ids: Object.fromEntries(
       hubs.map(({ stationName, id }) => [stationName, id]),
