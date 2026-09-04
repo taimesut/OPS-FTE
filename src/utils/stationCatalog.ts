@@ -15,17 +15,6 @@ export interface StationCatalogHub {
   id: string;
 }
 
-export interface StationCatalogRunner {
-  withSuccessHandler(
-    handler: (value: unknown) => void,
-  ): StationCatalogRunner;
-  withFailureHandler(
-    handler: (error: unknown) => void,
-  ): StationCatalogRunner;
-  getStationCatalog(): void;
-  getStationHubs(socId: string): void;
-}
-
 type EmbeddedStation = {
   readonly stationName: string;
   readonly stationCode: string;
@@ -125,6 +114,10 @@ export const normalizeStationHubs = (
     throw new Error("Danh sách Hub nội tỉnh không hợp lệ.");
   }
 
+  const names = new Set<string>();
+  const codes = new Set<string>();
+  const ids = new Set<string>();
+
   return value.map((item, index) => {
     const label = `Hub tại vị trí ${index + 1}`;
     const record = toRecord(item, label);
@@ -132,17 +125,21 @@ export const normalizeStationHubs = (
     const stationCode = readRequiredString(record, "stationCode", label);
     const id = readRequiredString(record, "id", label);
 
+    assertUnique(names, normalizeKey(stationName), "tên", "Danh sách Hub");
+    assertUnique(codes, normalizeKey(stationCode), "mã", "Danh sách Hub");
+    assertUnique(ids, id, "ID", "Danh sách Hub");
+
     return { stationName, stationCode, id };
   });
 };
 
-const LOCAL_CATALOG: StationCatalogSoc[] = EMBEDDED_STATIONS.map(
-  ({ stationName, stationCode, id, numberPrefix }) => ({
+const LOCAL_CATALOG = normalizeStationCatalog(
+  EMBEDDED_STATIONS.map(({ stationName, stationCode, id, numberPrefix }) => ({
     stationName,
     stationCode,
     id,
     numberPrefix,
-  }),
+  })),
 );
 
 export const loadStationCatalog = (): Promise<StationCatalogSoc[]> =>
@@ -164,10 +161,12 @@ export const loadStationHubs = (
   }
 
   return Promise.resolve(
-    station.hubs.map(([stationName, stationCode, id]) => ({
-      stationName,
-      stationCode,
-      id,
-    })),
+    normalizeStationHubs(
+      station.hubs.map(([stationName, stationCode, id]) => ({
+        stationName,
+        stationCode,
+        id,
+      })),
+    ),
   );
 };
