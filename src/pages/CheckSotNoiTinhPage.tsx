@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getHubs, getSoc, getSocId, getStationId, getCookies } from "../utils/config";
+import { getHubs, getSoc, getSocId, getStationId } from "../utils/config";
 import apiClient from "../utils/apiClient";
 import { TOTable, type TransferOrder } from "../components/TOTable";
 import { LooseOrderSummary } from "../components/LooseOrderSummary";
@@ -77,7 +77,6 @@ export const CheckSotNoiTinhPage = () => {
     const currentSoc = getSoc();
     const currentSocId = getSocId();
     const destinationId = getStationId(hub);
-    const cookies = getCookies();
 
     if (!hub) {
       showToast("Vui lòng chọn Hub nội tỉnh để kiểm tra!", "warning");
@@ -86,20 +85,15 @@ export const CheckSotNoiTinhPage = () => {
 
     if (!currentSoc) {
       showToast(
-        "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
+        "Chưa cài đặt SOC của bạn! Vui lòng chọn SOC trong trang Cài Đặt.",
         "error",
       );
       return;
     }
 
     if (!currentSocId || !destinationId) {
-      showToast("SOC nguồn hoặc Hub đích chưa có ID. Vui lòng bổ sung trong Cài đặt!", "error");
-      return;
-    }
-
-    if (!cookies) {
       showToast(
-        "Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.",
+        "SOC nguồn hoặc Hub đích chưa có ID. Vui lòng kiểm tra lại Cài đặt!",
         "error",
       );
       return;
