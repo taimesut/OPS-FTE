@@ -1,46 +1,12 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   loadStationCatalog,
   loadStationHubs,
   normalizeStationCatalog,
   normalizeStationHubs,
-  type StationCatalogRunner,
 } from "../src/utils/stationCatalog.ts";
-
-type RunnerOutcome = {
-  catalog?: unknown;
-  hubs?: unknown;
-  error?: unknown;
-};
-
-const createRunner = (outcome: RunnerOutcome) => {
-  let successHandler: (value: unknown) => void = () => {};
-  let failureHandler: (error: unknown) => void = () => {};
-  let requestedSocId = "";
-
-  const runner: StationCatalogRunner = {
-    withSuccessHandler(handler) {
-      successHandler = handler;
-      return this;
-    },
-    withFailureHandler(handler) {
-      failureHandler = handler;
-      return this;
-    },
-    getStationCatalog() {
-      if (outcome.error) failureHandler(outcome.error);
-      else successHandler(outcome.catalog);
-    },
-    getStationHubs(socId) {
-      requestedSocId = socId;
-      if (outcome.error) failureHandler(outcome.error);
-      else successHandler(outcome.hubs);
-    },
-  };
-
-  return { runner, getRequestedSocId: () => requestedSocId };
-};
 
 const catalogResponse = [
   {
@@ -111,7 +77,7 @@ test("rejects malformed and duplicate catalog responses", () => {
   );
 });
 
-test("rejects malformed and duplicate hub responses but accepts no hubs", () => {
+test("rejects malformed and duplicate hubs but accepts an empty hub list", () => {
   assert.deepEqual(normalizeStationHubs([]), []);
   assert.throws(() => normalizeStationHubs({}), /không hợp lệ/);
   assert.throws(
@@ -124,23 +90,31 @@ test("rejects malformed and duplicate hub responses but accepts no hubs", () => 
   );
 });
 
-test("loads catalog and selected hubs through the Apps Script runner", async () => {
-  const catalogRunner = createRunner({ catalog: catalogResponse });
-  const hubRunner = createRunner({ hubs: hubResponse });
+test("loads SOC and Hub data from the embedded userscript catalog", async () => {
+  const catalog = await loadStationCatalog();
+  assert.ok(catalog.length > 0);
 
-  assert.deepEqual(await loadStationCatalog(catalogRunner.runner), catalogResponse);
-  assert.deepEqual(await loadStationHubs(" 2490 ", hubRunner.runner), hubResponse);
-  assert.equal(hubRunner.getRequestedSocId(), "2490");
+  const bdSoc = catalog.find(({ id }) => id === "2490");
+  assert.ok(bdSoc);
+  assert.equal(bdSoc.stationCode, "63SOCBD1");
+
+  const hubs = await loadStationHubs(" 2490 ");
+  assert.ok(hubs.length > 0);
+  assert.ok(hubs.every(({ stationCode }) => stationCode.startsWith("63")));
 });
 
-test("rejects unavailable runners, Apps Script errors, and blank SOC ids", async () => {
-  await assert.rejects(loadStationCatalog(null), /Google Apps Script/);
-  await assert.rejects(
-    loadStationCatalog(createRunner({ error: { message: "sheet missing" } }).runner),
-    /sheet missing/,
+test("embedded catalog has no Google Apps Script dependency", async () => {
+  const source = await readFile(
+    new URL("../src/utils/stationCatalog.ts", import.meta.url),
+    "utf8",
   );
-  await assert.rejects(
-    loadStationHubs("", createRunner({ hubs: [] }).runner),
-    /chọn SOC/,
-  );
+
+  assert.doesNotMatch(source, /google\.script\.run/);
+  assert.doesNotMatch(source, /StationCatalogRunner/);
+  assert.doesNotMatch(source, /Google Apps Script/);
+});
+
+test("rejects blank and unknown SOC ids when loading hubs", async () => {
+  await assert.rejects(loadStationHubs(""), /chọn SOC/);
+  await assert.rejects(loadStationHubs("missing"), /Không tìm thấy SOC/);
 });
