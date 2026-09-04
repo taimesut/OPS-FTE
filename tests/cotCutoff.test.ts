@@ -33,10 +33,10 @@ test("parses only real local datetime-local values", () => {
   assert.throws(() => parseCotLocalDateTime("not-a-date"), /COT không hợp lệ/i);
 });
 
-test("creates an inclusive Unix range one clamped calendar month back", () => {
+test("creates a one-calendar-month range inclusive through the selected minute", () => {
   const window = createCotWindow("2026-03-31T10:15");
-  const expectedFrom = Math.floor(new Date(2026, 1, 28, 10, 15).getTime() / 1000);
-  const expectedCot = Math.floor(new Date(2026, 2, 31, 10, 15).getTime() / 1000);
+  const expectedFrom = Math.floor(new Date(2026, 1, 28, 10, 15, 0).getTime() / 1000);
+  const expectedCot = Math.floor(new Date(2026, 2, 31, 10, 15, 59).getTime() / 1000);
   assert.deepEqual(window, {
     cotTimestamp: expectedCot,
     currentStationReceivedTime: `${expectedFrom},${expectedCot}`,
