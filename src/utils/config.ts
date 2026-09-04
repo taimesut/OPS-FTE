@@ -98,9 +98,10 @@ export const getSocs = (): string[] => {
 
 /**
  * Compatibility shim cho các màn hình cũ chưa bỏ import getCookies().
- * Không đọc hay trả về Cookie thật; API SPX dùng trực tiếp session của tab hiện tại.
+ * Đây chỉ là marker cho biết request dùng browser session của tab SPX hiện tại;
+ * không đọc, lưu hay trả về nội dung Cookie thật.
  */
-export const getCookies = (): string => "";
+export const getCookies = (): string => "spx-browser-session";
 
 export const getSoc = (): string => {
   const configs = getConfigs();
