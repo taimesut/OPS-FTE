@@ -18,7 +18,6 @@ import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import { TOTable } from "../components/TOTable";
 import {
-  getCookies,
   getHubs,
   getSoc,
   getSocId,
@@ -332,12 +331,10 @@ export const InternalHubOverviewPage = () => {
 
     const currentSoc = getSoc();
     const currentSocId = getSocId();
-    const cookies = getCookies();
     const currentHubs = readHubs();
     const validationError = validateOverviewConfig({
       soc: currentSoc,
       socId: currentSocId,
-      cookies,
       hubs: currentHubs,
     });
 
@@ -447,12 +444,10 @@ export const InternalHubOverviewPage = () => {
 
     const currentSoc = getSoc();
     const currentSocId = getSocId();
-    const cookies = getCookies();
     const currentHubs = readHubs();
     const validationError = validateOverviewConfig({
       soc: currentSoc,
       socId: currentSocId,
-      cookies,
       hubs: currentHubs,
     });
     if (validationError) {
@@ -545,9 +540,7 @@ export const InternalHubOverviewPage = () => {
           <button
             type="button"
             className="btn btn-primary min-h-11 w-full gap-2 rounded-xl shadow-xs sm:w-auto"
-            disabled={
-              running || targetedRunning || cooldownRemaining > 0
-            }
+            disabled={running || targetedRunning || cooldownRemaining > 0}
             onClick={handleRefresh}
           >
             {running ? (
