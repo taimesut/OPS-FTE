@@ -302,9 +302,137 @@ function doGet() {
   Hàm Proxy Server-side gọi API Shopee qua UrlFetchApp của Google Apps Script
   Giúp trình duyệt di động (iOS/Android/PDA) vượt rào CORS 100% không bị chặn
  */
-function fetchShopeeApi(endpoint, cookie, method, bodyData) {
+var API_ERROR_LOG_TEXT_LIMIT_ = 4000;
+var API_ERROR_LOG_REDACTED_ = "[REDACTED]";
+var API_ERROR_LOG_TRUNCATED_ = "[TRUNCATED]";
+
+function normalizeApiLogKey_(key) {
+  return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isSensitiveApiLogKey_(key) {
+  return [
+    "cookie", "setcookie", "authorization", "proxyauthorization",
+    "token", "accesstoken", "refreshtoken", "xshopeecookie", "apikey"
+  ].indexOf(normalizeApiLogKey_(key)) !== -1;
+}
+
+function truncateApiLogText_(value) {
+  var text = String(value == null ? "" : value);
+  if (text.length <= API_ERROR_LOG_TEXT_LIMIT_) return text;
+  return text.slice(
+    0,
+    API_ERROR_LOG_TEXT_LIMIT_ - API_ERROR_LOG_TRUNCATED_.length
+  ) + API_ERROR_LOG_TRUNCATED_;
+}
+
+function parseGasApiLogBody_(value) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return value;
+  }
+}
+
+function sanitizeGasApiLogNested_(value, ancestors, depth) {
+  if (typeof value === "string") return truncateApiLogText_(value);
+  if (value == null || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value !== "object") return "[" + typeof value + "]";
+  if (ancestors.indexOf(value) !== -1) return "[Circular]";
+  if (depth >= 8) return "[MaxDepth]";
+
+  var nextAncestors = ancestors.concat([value]);
+  if (Array.isArray(value)) {
+    return value.map(function (item) {
+      return sanitizeGasApiLogNested_(item, nextAncestors, depth + 1);
+    });
+  }
+
+  var result = {};
+  Object.keys(value).forEach(function (key) {
+    result[key] = isSensitiveApiLogKey_(key)
+      ? API_ERROR_LOG_REDACTED_
+      : sanitizeGasApiLogNested_(value[key], nextAncestors, depth + 1);
+  });
+  return result;
+}
+
+function sanitizeGasApiLogValue_(value) {
+  try {
+    var sanitized = sanitizeGasApiLogNested_(
+      parseGasApiLogBody_(value),
+      [],
+      0
+    );
+    var serialized = JSON.stringify(sanitized);
+    if (!serialized || serialized.length <= API_ERROR_LOG_TEXT_LIMIT_) {
+      return sanitized;
+    }
+    return { truncated: true, preview: truncateApiLogText_(serialized) };
+  } catch (error) {
+    return "[Unserializable]";
+  }
+}
+
+function createGasApiErrorRecord_(details) {
+  var now = Date.now();
+  var error = details.error;
+  return {
+    source: "gas",
+    timestamp: new Date(now).toISOString(),
+    requestId: String(details.requestId || "gas-untracked"),
+    method: String(details.method || "get").toUpperCase(),
+    endpoint: String(details.endpoint || "unknown"),
+    status: typeof details.status === "number" ? details.status : null,
+    durationMs: Math.max(0, now - Number(details.startedAtMs || now)),
+    payload: sanitizeGasApiLogValue_(details.payload),
+    response: sanitizeGasApiLogValue_(details.response),
+    error: {
+      name: error && error.name ? String(error.name) : "ApiError",
+      message: truncateApiLogText_(
+        error && error.message ? error.message : details.message || "SPX API error"
+      )
+    },
+    stack: truncateApiLogText_(error && error.stack ? error.stack : "")
+  };
+}
+
+function safeLogGasApiError_(details) {
+  try {
+    console.error(JSON.stringify(createGasApiErrorRecord_(details)));
+  } catch (error) {
+    try {
+      console.error(JSON.stringify({
+        source: "gas",
+        requestId: String(details.requestId || "gas-untracked"),
+        method: String(details.method || "get").toUpperCase(),
+        endpoint: String(details.endpoint || "unknown"),
+        error: "API error logging failed"
+      }));
+    } catch (ignored) {
+      // Logging must not change proxy behavior.
+    }
+  }
+}
+
+function fetchShopeeApi(endpoint, cookie, method, bodyData, requestId) {
+  var startedAtMs = Date.now();
+  var httpMethod = (method || "get").toLowerCase();
   var access = getCurrentUserAccess_();
   if (!access.allowed) {
+    safeLogGasApiError_({
+      requestId: requestId,
+      method: httpMethod,
+      endpoint: endpoint,
+      status: 403,
+      startedAtMs: startedAtMs,
+      payload: bodyData,
+      response: null,
+      message: "Access denied"
+    });
     return {
       status: 403,
       error: "Bạn không có quyền sử dụng chức năng này."
@@ -312,7 +440,6 @@ function fetchShopeeApi(endpoint, cookie, method, bodyData) {
   }
 
   var url = "https://spx.shopee.vn" + endpoint;
-  var httpMethod = (method || "get").toLowerCase();
 
   var options = {
     method: httpMethod,
@@ -341,11 +468,34 @@ function fetchShopeeApi(endpoint, cookie, method, bodyData) {
       parsedData = { raw: contentText };
     }
 
+    if (responseCode < 200 || responseCode >= 300) {
+      safeLogGasApiError_({
+        requestId: requestId,
+        method: httpMethod,
+        endpoint: endpoint,
+        status: responseCode,
+        startedAtMs: startedAtMs,
+        payload: bodyData,
+        response: parsedData,
+        message: "SPX returned HTTP " + responseCode
+      });
+    }
+
     return {
       status: responseCode,
       data: parsedData
     };
   } catch (err) {
+    safeLogGasApiError_({
+      requestId: requestId,
+      method: httpMethod,
+      endpoint: endpoint,
+      status: null,
+      startedAtMs: startedAtMs,
+      payload: bodyData,
+      response: null,
+      error: err
+    });
     return {
       status: 500,
       error: err.toString()
