@@ -13,6 +13,7 @@ test("COT control exposes an accessible switch, local date-time input, and progr
   assert.match(source, /type="datetime-local"/);
   assert.match(source, /Đang kiểm tra toàn bộ dữ liệu/);
   assert.match(source, /Đang kiểm tra COT/);
+  assert.match(source, /trạng thái 882 cuối cùng/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /min-h-11/);
 });
@@ -21,9 +22,10 @@ test("internal missing page persists COT and applies it to both branches", async
   const source = await readSource("../src/pages/CheckSotNoiTinhPage.tsx");
   assert.match(source, /check-sot-noi-tinh-cot/);
   assert.match(source, /serializeCotCutoffPreferences/);
+  assert.match(source, /enabled \? formatLocalDateTimeInput\(\)/);
   assert.match(source, /currentStationReceivedTime/);
   assert.match(source, /filterTransferOrdersByCot/);
   assert.match(source, /fetchLatestTransferOrderCotTimestamp/);
   assert.match(source, /disabled=\{loading\}/);
-  assert.match(source, /Giữ lại.*TO trước COT/);
+  assert.match(source, /trạng thái 882 cuối cùng trước COT/);
 });
