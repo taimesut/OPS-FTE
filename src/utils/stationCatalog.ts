@@ -1,3 +1,7 @@
+import { EMBEDDED_STATIONS_1 } from "../data/embeddedStationData1";
+import { EMBEDDED_STATIONS_2 } from "../data/embeddedStationData2";
+import { EMBEDDED_STATIONS_3 } from "../data/embeddedStationData3";
+
 export interface StationCatalogSoc {
   stationName: string;
   stationCode: string;
@@ -22,12 +26,19 @@ export interface StationCatalogRunner {
   getStationHubs(socId: string): void;
 }
 
-type GoogleAppsScriptGlobal = typeof globalThis & {
-  google?: { script?: { run?: StationCatalogRunner } };
+type EmbeddedStation = {
+  readonly stationName: string;
+  readonly stationCode: string;
+  readonly id: string;
+  readonly numberPrefix: string;
+  readonly hubs: readonly (readonly [string, string, string])[];
 };
 
-const getDefaultRunner = (): StationCatalogRunner | null =>
-  (globalThis as GoogleAppsScriptGlobal).google?.script?.run ?? null;
+const EMBEDDED_STATIONS: readonly EmbeddedStation[] = [
+  ...EMBEDDED_STATIONS_1,
+  ...EMBEDDED_STATIONS_2,
+  ...EMBEDDED_STATIONS_3,
+];
 
 const normalizeKey = (value: string): string =>
   value.toLocaleLowerCase("vi-VN");
@@ -45,7 +56,11 @@ const readRequiredString = (
   label: string,
 ): string => {
   if (typeof record[key] !== "string" || !record[key].trim()) {
-    throw new Error(`${label} đang thiếu ${key === "stationName" ? "tên" : key === "stationCode" ? "mã" : "ID"}.`);
+    throw new Error(
+      `${label} đang thiếu ${
+        key === "stationName" ? "tên" : key === "stationCode" ? "mã" : "ID"
+      }.`,
+    );
   }
   return record[key].trim();
 };
@@ -83,12 +98,20 @@ export const normalizeStationCatalog = (
     const stationCode = readRequiredString(record, "stationCode", label);
     const id = readRequiredString(record, "id", label);
     const numberPrefix =
-      typeof record.numberPrefix === "string"
-        ? record.numberPrefix.trim()
-        : "";
+      typeof record.numberPrefix === "string" ? record.numberPrefix.trim() : "";
 
-    assertUnique(names, normalizeKey(stationName), "station_name", "Danh mục LIST SOC");
-    assertUnique(codes, normalizeKey(stationCode), "station_code", "Danh mục LIST SOC");
+    assertUnique(
+      names,
+      normalizeKey(stationName),
+      "station_name",
+      "Danh mục LIST SOC",
+    );
+    assertUnique(
+      codes,
+      normalizeKey(stationCode),
+      "station_code",
+      "Danh mục LIST SOC",
+    );
     assertUnique(ids, id, "ID", "Danh mục LIST SOC");
 
     return { stationName, stationCode, id, numberPrefix };
@@ -102,10 +125,6 @@ export const normalizeStationHubs = (
     throw new Error("Danh sách Hub nội tỉnh không hợp lệ.");
   }
 
-  const names = new Set<string>();
-  const codes = new Set<string>();
-  const ids = new Set<string>();
-
   return value.map((item, index) => {
     const label = `Hub tại vị trí ${index + 1}`;
     const record = toRecord(item, label);
@@ -113,77 +132,42 @@ export const normalizeStationHubs = (
     const stationCode = readRequiredString(record, "stationCode", label);
     const id = readRequiredString(record, "id", label);
 
-    assertUnique(names, normalizeKey(stationName), "tên", "Danh sách Hub");
-    assertUnique(codes, normalizeKey(stationCode), "mã", "Danh sách Hub");
-    assertUnique(ids, id, "ID", "Danh sách Hub");
-
     return { stationName, stationCode, id };
   });
 };
 
-const toStationCatalogError = (error: unknown): Error => {
-  if (error instanceof Error && error.message.trim()) return error;
+const LOCAL_CATALOG: StationCatalogSoc[] = EMBEDDED_STATIONS.map(
+  ({ stationName, stationCode, id, numberPrefix }) => ({
+    stationName,
+    stationCode,
+    id,
+    numberPrefix,
+  }),
+);
 
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = String((error as { message: unknown }).message).trim();
-    if (message) return new Error(message);
-  }
-
-  return new Error("Không thể tải dữ liệu từ LIST SOC.");
-};
-
-const runCatalogCall = <T>(
-  runner: StationCatalogRunner | null,
-  invoke: (activeRunner: StationCatalogRunner) => void,
-  normalize: (value: unknown) => T,
-): Promise<T> => {
-  if (!runner) {
-    return Promise.reject(
-      new Error("Không tìm thấy Google Apps Script để tải LIST SOC."),
-    );
-  }
-
-  return new Promise((resolve, reject) => {
-    try {
-      const activeRunner = runner
-        .withSuccessHandler((value) => {
-          try {
-            resolve(normalize(value));
-          } catch (error) {
-            reject(toStationCatalogError(error));
-          }
-        })
-        .withFailureHandler((error) => {
-          reject(toStationCatalogError(error));
-        });
-      invoke(activeRunner);
-    } catch (error) {
-      reject(toStationCatalogError(error));
-    }
-  });
-};
-
-export const loadStationCatalog = (
-  runner: StationCatalogRunner | null = getDefaultRunner(),
-): Promise<StationCatalogSoc[]> =>
-  runCatalogCall(
-    runner,
-    (activeRunner) => activeRunner.getStationCatalog(),
-    normalizeStationCatalog,
-  );
+export const loadStationCatalog = (): Promise<StationCatalogSoc[]> =>
+  Promise.resolve(LOCAL_CATALOG.map((item) => ({ ...item })));
 
 export const loadStationHubs = (
   socId: string,
-  runner: StationCatalogRunner | null = getDefaultRunner(),
 ): Promise<StationCatalogHub[]> => {
   const normalizedSocId = socId.trim();
   if (!normalizedSocId) {
     return Promise.reject(new Error("Hãy chọn SOC trước khi tải Hub."));
   }
 
-  return runCatalogCall(
-    runner,
-    (activeRunner) => activeRunner.getStationHubs(normalizedSocId),
-    normalizeStationHubs,
+  const station = EMBEDDED_STATIONS.find(({ id }) => id === normalizedSocId);
+  if (!station) {
+    return Promise.reject(
+      new Error("Không tìm thấy SOC trong dữ liệu được đóng gói cùng ứng dụng."),
+    );
+  }
+
+  return Promise.resolve(
+    station.hubs.map(([stationName, stationCode, id]) => ({
+      stationName,
+      stationCode,
+      id,
+    })),
   );
 };
