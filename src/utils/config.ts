@@ -54,7 +54,7 @@ export const getConfigs = (): AppConfig => {
           : {},
     };
 
-    // Tự dọn dữ liệu legacy để Cookie/proxy cũ không còn nằm trong localStorage.
+    // Tự dọn dữ liệu cấu hình cũ để Cookie/proxy không còn nằm trong localStorage.
     if ("cookies" in parsed || "proxy_url" in parsed) {
       localStorage.setItem("configs", JSON.stringify(normalized));
     }
@@ -95,13 +95,6 @@ export const getSocs = (): string[] => {
   const configs = getConfigs();
   return configs.socs || [];
 };
-
-/**
- * Compatibility shim cho các màn hình cũ chưa bỏ import getCookies().
- * Đây chỉ là marker cho biết request dùng browser session của tab SPX hiện tại;
- * không đọc, lưu hay trả về nội dung Cookie thật.
- */
-export const getCookies = (): string => "spx-browser-session";
 
 export const getSoc = (): string => {
   const configs = getConfigs();
