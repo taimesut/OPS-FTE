@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { clearCookies } from "../src/utils/config.ts";
+import { getConfigs } from "../src/utils/config.ts";
 
-test("clearCookies preserves every non-cookie configuration value", () => {
+test("getConfigs removes legacy cookie and proxy values from local storage", () => {
   let stored = JSON.stringify({
     soc: "Pleiku SOC",
     soc_id: "1001",
@@ -33,15 +33,17 @@ test("clearCookies preserves every non-cookie configuration value", () => {
   });
 
   try {
-    const result = clearCookies();
-    const persisted = JSON.parse(stored);
-    assert.equal(result.cookies, "");
-    assert.equal(persisted.cookies, "");
-    assert.equal(persisted.soc, "Pleiku SOC");
-    assert.deepEqual(persisted.hubs, ["Hub A"]);
-    assert.equal(persisted.proxy_url, "https://proxy.example");
-    assert.equal(persisted.ggsheet_log_url, "https://log.example");
-    assert.equal(persisted.scanner_url, "https://scanner.example");
+    const result = getConfigs();
+    const persisted = JSON.parse(stored) as Record<string, unknown>;
+
+    assert.equal(result.soc, "Pleiku SOC");
+    assert.deepEqual(result.hubs, ["Hub A"]);
+    assert.equal(result.ggsheet_log_url, "https://log.example");
+    assert.equal(result.scanner_url, "https://scanner.example");
+    assert.equal("cookies" in result, false);
+    assert.equal("proxy_url" in result, false);
+    assert.equal("cookies" in persisted, false);
+    assert.equal("proxy_url" in persisted, false);
   } finally {
     if (originalDescriptor) {
       Object.defineProperty(globalThis, "localStorage", originalDescriptor);
@@ -51,18 +53,35 @@ test("clearCookies preserves every non-cookie configuration value", () => {
   }
 });
 
-test("Settings uses the active SPX browser session instead of manual cookies", async () => {
+test("Settings is configured for direct SPX session requests", async () => {
   const source = await readFile(
     new URL("../src/pages/SettingsPage.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /Không cần nhập Cookie/);
-  assert.match(source, /phiên đăng nhập SPX/i);
+  assert.match(source, /phiên đăng nhập của tab hiện tại/i);
   assert.match(source, /Xóa toàn bộ/);
+  assert.doesNotMatch(source, /getCookies/);
   assert.doesNotMatch(source, /clearCookies/);
-  assert.doesNotMatch(source, /Xóa Cookie/);
   assert.doesNotMatch(source, /setCookies/);
+  assert.doesNotMatch(source, /proxy_url/);
+  assert.doesNotMatch(source, /Cookie SPX/);
+});
+
+test("check flows no longer gate requests on manually supplied cookies", async () => {
+  const sources = await Promise.all(
+    [
+      "../src/pages/CheckSotNgoaiTinhPage.tsx",
+      "../src/pages/CheckSotNoiTinhPage.tsx",
+      "../src/pages/LayMaTOPage.tsx",
+    ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+  );
+
+  for (const source of sources) {
+    assert.doesNotMatch(source, /getCookies/);
+    assert.doesNotMatch(source, /Chưa có Cookie/);
+    assert.doesNotMatch(source, /x-shopee-cookie/);
+  }
 });
 
 test("station configuration uses searchable selectors and accessible group actions", async () => {
