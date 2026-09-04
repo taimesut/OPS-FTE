@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Earth,
@@ -21,73 +22,37 @@ interface MobileLayoutProps {
 
 export const MobileLayout = ({ children }: MobileLayoutProps) => {
   const location = useLocation();
+  const drawerRef = useRef<HTMLInputElement>(null);
   const currentSoc = getSoc() || "SOC";
 
   const closeDrawer = () => {
-    const checkbox = document.getElementById(
-      "mobile-sidebar-drawer"
-    ) as HTMLInputElement | null;
-    if (checkbox) checkbox.checked = false;
+    if (drawerRef.current) drawerRef.current.checked = false;
   };
 
   const toggleDrawer = () => {
-    const checkbox = document.getElementById(
-      "mobile-sidebar-drawer",
-    ) as HTMLInputElement | null;
-    if (checkbox) checkbox.checked = !checkbox.checked;
+    if (drawerRef.current) drawerRef.current.checked = !drawerRef.current.checked;
   };
 
   const navItems = [
-    {
-      path: "/",
-      label: "Trang Chủ",
-      icon: House,
-    },
-    {
-      path: "/check-sot/noi-tinh/overview",
-      label: "Overview nội tỉnh",
-      icon: LayoutDashboard,
-    },
-    {
-      path: "/check-sot/noi-tinh/volume",
-      label: "Volume nội tỉnh",
-      icon: ChartNoAxesColumnIncreasing,
-    },
-    {
-      path: "/check-sot/noi-tinh",
-      label: "Check sót nội tỉnh",
-      icon: MapPinCheckInside,
-    },
-    {
-      path: "/check-sot/ngoai-tinh",
-      label: "Check sót ngoại tỉnh",
-      icon: Earth,
-    },
-    {
-      path: "/tao-bien-ban-su-vu",
-      label: "Tạo biên bản sự vụ",
-      icon: NotebookPen,
-    },
-    {
-      path: "/lay-ma-to",
-      label: "Lấy mã TO",
-      icon: QrCode,
-    },
+    { path: "/", label: "Trang Chủ", icon: House },
+    { path: "/check-sot/noi-tinh/overview", label: "Overview nội tỉnh", icon: LayoutDashboard },
+    { path: "/check-sot/noi-tinh/volume", label: "Volume nội tỉnh", icon: ChartNoAxesColumnIncreasing },
+    { path: "/check-sot/noi-tinh", label: "Check sót nội tỉnh", icon: MapPinCheckInside },
+    { path: "/check-sot/ngoai-tinh", label: "Check sót ngoại tỉnh", icon: Earth },
+    { path: "/tao-bien-ban-su-vu", label: "Tạo biên bản sự vụ", icon: NotebookPen },
+    { path: "/lay-ma-to", label: "Lấy mã TO", icon: QrCode },
   ];
 
   return (
     <div className="drawer app-shell min-h-screen bg-base-100 font-sans relative overflow-x-clip">
-
-      {/* Drawer Toggle Checkbox */}
       <input
+        ref={drawerRef}
         id="mobile-sidebar-drawer"
         type="checkbox"
         className="drawer-toggle"
       />
 
-      {/* Main Drawer Content */}
       <div className="drawer-content flex min-h-screen min-w-0 flex-col relative z-10">
-        {/* Sticky Top Navbar */}
         <header className="navbar h-14 min-h-14 bg-base-100/90 backdrop-blur-md border-b border-base-200 sticky top-0 z-40 w-full px-2 sm:px-3 md:px-6">
           <div className="flex-none">
             <button
@@ -105,7 +70,8 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
               <Package className="w-5 h-5" />
             </span>
             <span className="truncate" title={currentSoc}>
-              <span className="text-primary font-black">SPX</span> <span className="align-middle">{currentSoc}</span>
+              <span className="text-primary font-black">SPX</span>{" "}
+              <span className="align-middle">{currentSoc}</span>
             </span>
           </div>
 
@@ -114,11 +80,11 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
           </div>
         </header>
 
-        {/* Dynamic Page View Container */}
-        <main className="app-main min-w-0 flex-1 bg-base-200/40 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-12">{children}</main>
+        <main className="app-main min-w-0 flex-1 bg-base-200/40 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-12">
+          {children}
+        </main>
       </div>
 
-      {/* Drawer Sidebar */}
       <div className="drawer-side z-50">
         <label
           htmlFor="mobile-sidebar-drawer"
@@ -128,31 +94,27 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
 
         <div className="menu bg-base-100 text-base-content min-h-full w-[min(86vw,20rem)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5 flex flex-col justify-between shadow-2xl">
           <div className="space-y-5">
-            {/* Sidebar Header */}
             <div className="pb-4 border-b border-base-200 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center text-primary-content font-bold shadow-md">
                   <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-extrabold text-base block leading-tight">
-                    Ops FTE
-                  </span>
-                  <span className="text-xs text-base-content/60 font-medium">
-                    {currentSoc}
-                  </span>
+                  <span className="font-extrabold text-base block leading-tight">Ops FTE</span>
+                  <span className="text-xs text-base-content/60 font-medium">{currentSoc}</span>
                 </div>
               </div>
 
-              <label
-                htmlFor="mobile-sidebar-drawer"
+              <button
+                type="button"
+                onClick={closeDrawer}
+                aria-label="close sidebar"
                 className="btn btn-sm btn-circle btn-ghost min-h-11 min-w-11"
               >
                 <X className="w-4 h-4" />
-              </label>
+              </button>
             </div>
 
-            {/* Navigation Links */}
             <ul className="space-y-1.5 text-sm font-semibold">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -178,7 +140,6 @@ export const MobileLayout = ({ children }: MobileLayoutProps) => {
             </ul>
           </div>
 
-          {/* Sidebar Footer */}
           <div className="border-t border-base-200 pt-4">
             <Link
               to="/cai-dat"
