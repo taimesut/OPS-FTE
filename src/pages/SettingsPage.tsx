@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   CircleAlert,
   Download,
-  Globe2,
   MapPin,
   RefreshCw,
   Save,
@@ -46,7 +45,6 @@ type LoadState =
 
 const EMPTY_CONFIG: AppConfig = {
   soc: "",
-  cookies: "",
   hubs: [],
   socs: [],
   group_socs: {},
@@ -226,19 +224,10 @@ export const SettingsPage = () => {
         currentSocId: selectedSocId,
         hubs,
         groupSocs,
-        cookies: "",
         logUrl,
       });
-      saveConfigs({
-        ...nextConfig,
-        cookies: "",
-        proxy_url: undefined,
-      });
-      savedConfigRef.current = {
-        ...nextConfig,
-        cookies: "",
-        proxy_url: undefined,
-      };
+      saveConfigs(nextConfig);
+      savedConfigRef.current = nextConfig;
       setGroupAdjustmentMessage("");
       showToast("Đã lưu cấu hình SOC và Hub.", "success");
     } catch (error) {
@@ -247,13 +236,8 @@ export const SettingsPage = () => {
   };
 
   const handleExportJSON = () => {
-    const current = getConfigs();
-    const exportConfig = {
-      ...current,
-      cookies: "",
-      proxy_url: undefined,
-    };
-    const blob = new Blob([JSON.stringify(exportConfig, null, 2)], {
+    const config = getConfigs();
+    const blob = new Blob([JSON.stringify(config, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -262,7 +246,7 @@ export const SettingsPage = () => {
     anchor.download = `ops-fte-config-${Date.now()}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    showToast("Đã xuất cấu hình JSON (không chứa Cookie SPX).", "info");
+    showToast("Đã xuất cấu hình JSON.", "info");
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -306,7 +290,7 @@ export const SettingsPage = () => {
         setGroupSocs(nextGroups);
         setLogUrl(importedLogUrl);
         setGroupAdjustmentMessage(
-          "Đã đối chiếu cấu hình nhập với dữ liệu SOC/Hub tích hợp. Cookie và proxy cũ được bỏ qua.",
+          "Đã đối chiếu cấu hình nhập với dữ liệu SOC/Hub tích hợp.",
         );
         showToast(
           "Đã nạp cấu hình. Hãy kiểm tra rồi bấm Lưu Cài Đặt.",
@@ -344,7 +328,7 @@ export const SettingsPage = () => {
       <PageHeader
         icon={Settings}
         title="Cài Đặt Cấu Hình"
-        description="Chọn SOC và cấu hình vận hành. API sử dụng trực tiếp phiên đăng nhập SPX của tab hiện tại."
+        description="Chọn SOC và cấu hình vận hành. Các API SPX được gọi trực tiếp bằng phiên đăng nhập của tab hiện tại."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
             <button
@@ -376,27 +360,6 @@ export const SettingsPage = () => {
           </div>
         }
       />
-
-      <section className="app-surface p-4 sm:p-5" aria-labelledby="spx-session-heading">
-        <div className="flex items-start gap-3">
-          <span className="app-icon-badge shrink-0 bg-success/10 text-success">
-            <Globe2 aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 id="spx-session-heading" className="font-bold">
-                Phiên SPX hiện tại
-              </h2>
-              <span className="badge badge-success badge-outline font-semibold">
-                Không cần nhập Cookie
-              </span>
-            </div>
-            <p className="mt-1 text-sm leading-relaxed text-base-content/65">
-              OPS FTE chạy ngay trên SPX và gửi request cùng origin. Trình duyệt tự sử dụng phiên đăng nhập đang mở; ứng dụng không yêu cầu dán hoặc lưu Cookie SPX.
-            </p>
-          </div>
-        </div>
-      </section>
 
       <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="current-soc-heading">
         <div className="flex items-start gap-3">
