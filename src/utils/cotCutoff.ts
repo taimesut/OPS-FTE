@@ -66,9 +66,11 @@ const subtractOneCalendarMonth = (date: Date): Date => {
 };
 
 export const createCotWindow = (localDateTime: string): CotWindow => {
-  const cot = parseCotLocalDateTime(localDateTime);
-  const from = subtractOneCalendarMonth(cot);
-  const cotTimestamp = Math.floor(cot.getTime() / 1000);
+  const selectedMinuteStart = parseCotLocalDateTime(localDateTime);
+  const from = subtractOneCalendarMonth(selectedMinuteStart);
+  // datetime-local đang chọn tới phút, nên coi toàn bộ phút được chọn là nằm trong COT.
+  const selectedMinuteEnd = new Date(selectedMinuteStart.getTime() + 59_000);
+  const cotTimestamp = Math.floor(selectedMinuteEnd.getTime() / 1000);
   const fromTimestamp = Math.floor(from.getTime() / 1000);
   return {
     cotTimestamp,
