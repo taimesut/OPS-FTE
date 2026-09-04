@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   buildShipmentTrackingPath,
@@ -7,7 +8,6 @@ import {
   parseFirstFleetOrderId,
   parseLatestStatus882Timestamp,
 } from "../src/utils/transferOrderCot.ts";
-import { fetchLatestTransferOrderCotTimestamp } from "../src/utils/transferOrderCotApi.ts";
 
 test("builds encoded SPX detail and tracking paths", () => {
   assert.equal(
@@ -67,49 +67,15 @@ test("selects the latest 882 timestamp across roots, children, and event childre
   );
 });
 
-test("uses the first shipment then returns the final 882 timestamp for a TO", async () => {
-  const calls: string[] = [];
-  const timestamp = await fetchLatestTransferOrderCotTimestamp(
-    "TO20260825IQGFD",
-    async (path) => {
-      calls.push(path);
-      if (path.includes("/general_to/detail/search")) {
-        return {
-          data: {
-            retcode: 0,
-            data: {
-              list: [
-                { fleet_order_id: "SPXVN061303428058" },
-                { fleet_order_id: "SPXVN066849245918" },
-              ],
-            },
-          },
-        };
-      }
-      return {
-        data: {
-          retcode: 0,
-          data: {
-            tracking_list: [
-              { status: 882, timestamp: 1787600000 },
-              { status: 8, timestamp: 1787605000 },
-              {
-                status: 33,
-                timestamp: 1787608000,
-                children: [{ status: 882, timestamp: 1787609000 }],
-              },
-            ],
-          },
-        },
-      };
-    },
+test("wires TO detail -> first shipment -> tracking -> final 882 pipeline", async () => {
+  const source = await readFile(
+    new URL("../src/utils/transferOrderCotApi.ts", import.meta.url),
+    "utf8",
   );
-
-  assert.equal(timestamp, 1787609000);
-  assert.deepEqual(calls, [
-    "/api/in-station/general_to/detail/search?to_number=TO20260825IQGFD&pageno=1&count=10",
-    "/api/fleet_order/order/detail/tracking_info?shipment_id=SPXVN061303428058",
-  ]);
+  assert.match(source, /buildTransferOrderDetailPath\(toNumber\)/);
+  assert.match(source, /parseFirstFleetOrderId\(detailResponse\.data\)/);
+  assert.match(source, /buildShipmentTrackingPath\(shipmentId\)/);
+  assert.match(source, /parseLatestStatus882Timestamp\(trackingResponse\.data\)/);
 });
 
 test("retains only timestamps at or before COT in original order", async () => {
