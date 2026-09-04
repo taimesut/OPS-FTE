@@ -3,7 +3,6 @@ import {
   getGroupSocsBySOC,
   getSoc,
   getSocs,
-  getCookies,
   getSocId,
   getStationIds,
 } from "../utils/config";
@@ -34,7 +33,6 @@ export const CheckSotNgoaiTinhPage = () => {
   const checkSotNgoaiTinh = async () => {
     const sender = getSoc();
     const senderId = getSocId();
-    const cookies = getCookies();
 
     if (!soc) {
       showToast("Vui lòng chọn SOC ngoại tỉnh để kiểm tra!", "warning");
@@ -43,7 +41,7 @@ export const CheckSotNgoaiTinhPage = () => {
 
     if (!sender) {
       showToast(
-        "Chưa cài đặt Mã SOC của bạn! Vui lòng vào trang Cài Đặt để nhập Mã SOC.",
+        "Chưa cài đặt SOC của bạn! Vui lòng chọn SOC trong trang Cài Đặt.",
         "error",
       );
       return;
@@ -52,13 +50,8 @@ export const CheckSotNgoaiTinhPage = () => {
     const receivers = getGroupSocsBySOC(soc);
     const receiverIds = getStationIds(receivers);
     if (!senderId || receiverIds.length !== receivers.length) {
-      showToast("SOC nguồn hoặc một SOC trong tuyến chưa có ID. Vui lòng bổ sung trong Cài đặt!", "error");
-      return;
-    }
-
-    if (!cookies) {
       showToast(
-        "Chưa có Cookie SPX! Vui lòng vào trang Cài Đặt để dán Cookie.",
+        "SOC nguồn hoặc một SOC trong tuyến chưa có ID. Vui lòng kiểm tra lại Cài đặt!",
         "error",
       );
       return;
@@ -88,7 +81,6 @@ export const CheckSotNgoaiTinhPage = () => {
           }
         }
 
-        // Loại bỏ TO trùng lặp
         const uniqueList = Array.from(
           new Map(rawList.map((item) => [item.to_number, item])).values(),
         ).filter(

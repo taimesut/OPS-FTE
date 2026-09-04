@@ -17,7 +17,8 @@ export interface BuildStationConfigInput {
   currentSocId: string;
   hubs: readonly StationCatalogHub[];
   groupSocs: Record<string, string[]>;
-  cookies: string;
+  /** @deprecated Kept only for call-site compatibility; never persisted. */
+  cookies?: string;
   logUrl: string;
 }
 
@@ -138,7 +139,9 @@ export const validateGroupSocs = (
     seenRepresentatives.add(representative);
 
     if (!Array.isArray(rawMembers)) {
-      throw new Error(`Nhóm "${representative}" không có danh sách thành viên hợp lệ.`);
+      throw new Error(
+        `Nhóm "${representative}" không có danh sách thành viên hợp lệ.`,
+      );
     }
     for (const rawMember of rawMembers) {
       const member =
@@ -162,7 +165,7 @@ export const buildStationConfig = (
   const catalog = normalizeStationCatalog([...input.catalog]);
   const current = catalog.find(({ id }) => id === input.currentSocId.trim());
   if (!current) {
-    throw new Error("SOC hiện tại không còn tồn tại trong LIST SOC.");
+    throw new Error("SOC hiện tại không còn tồn tại trong dữ liệu tích hợp.");
   }
 
   const hubs = normalizeStationHubs([...input.hubs]);
@@ -175,7 +178,8 @@ export const buildStationConfig = (
     soc_id: current.id,
     soc_code: current.stationCode,
     number_prefix: current.numberPrefix,
-    cookies: input.cookies.trim(),
+    cookies: "",
+    proxy_url: undefined,
     hubs: hubs.map(({ stationName }) => stationName),
     hub_ids: Object.fromEntries(
       hubs.map(({ stationName, id }) => [stationName, id]),

@@ -6,12 +6,11 @@ import EmbeddedQRScanner, {
 import { PageHeader } from "../components/PageHeader";
 import QRCodeModal from "../components/QRCodeModal";
 import { showToast } from "../components/Toast";
-import { getCookies } from "../utils/config";
 import type { TransferOrderLookupResult } from "../utils/transferOrderLookup";
 import { fetchTransferOrderNumber } from "../utils/transferOrderLookupApi";
 
 const LOOKUP_ERROR_MESSAGE =
-  "Không thể lấy mã TO. Vui lòng kiểm tra kết nối và thử lại.";
+  "Không thể lấy mã TO. Vui lòng kiểm tra kết nối hoặc phiên đăng nhập SPX hiện tại rồi thử lại.";
 
 export const LayMaTOPage = () => {
   const [shipmentId, setShipmentId] = useState("");
@@ -35,14 +34,6 @@ export const LayMaTOPage = () => {
 
     if (!normalizedShipmentId) {
       showToast("Vui lòng nhập mã đơn hàng.", "warning");
-      return;
-    }
-
-    if (!getCookies()) {
-      showToast(
-        "Chưa có Cookie SPX. Vui lòng cập nhật trong Cài đặt.",
-        "error",
-      );
       return;
     }
 
@@ -75,7 +66,7 @@ export const LayMaTOPage = () => {
       <PageHeader
         icon={QrCode}
         title="Lấy mã Transfer Order"
-        description="Tra cứu mã TO từ mã đơn hàng và hiển thị QR để quét nhanh."
+        description="Tra cứu mã TO trực tiếp bằng phiên đăng nhập SPX hiện tại và hiển thị QR để quét nhanh."
       />
 
       <section

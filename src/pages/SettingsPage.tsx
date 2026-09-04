@@ -2,13 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building,
   CheckCircle2,
-  ChevronDown,
   CircleAlert,
-  Database,
   Download,
-  FileSpreadsheet,
   Globe2,
-  Key,
   MapPin,
   RefreshCw,
   Save,
@@ -23,7 +19,6 @@ import { SocGroupEditor } from "../components/SocGroupEditor";
 import { StationSelect } from "../components/StationSelect";
 import { showToast } from "../components/Toast";
 import {
-  clearCookies,
   getConfigs,
   saveConfigs,
   SCANNER_URL,
@@ -60,7 +55,7 @@ const EMPTY_CONFIG: AppConfig = {
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error && error.message.trim()
     ? error.message
-    : "Không thể tải dữ liệu LIST SOC.";
+    : "Không thể đọc dữ liệu SOC/Hub được tích hợp trong ứng dụng.";
 
 const areGroupsEqual = (
   first: Record<string, string[]>,
@@ -84,10 +79,6 @@ export const SettingsPage = () => {
   const savedConfigRef = useRef(initialConfig);
   const hubRequestRef = useRef(0);
 
-  const [cookies, setCookies] = useState(initialConfig.cookies || "");
-  const [hasSavedCookies, setHasSavedCookies] = useState(
-    Boolean(initialConfig.cookies),
-  );
   const [logUrl, setLogUrl] = useState(initialConfig.ggsheet_log_url || "");
   const [catalog, setCatalog] = useState<StationCatalogSoc[]>([]);
   const [catalogState, setCatalogState] = useState<LoadState>({
@@ -146,7 +137,7 @@ export const SettingsPage = () => {
           !areGroupsEqual(savedConfig.group_socs || {}, nextGroups)
         ) {
           setGroupAdjustmentMessage(
-            "Một số nhóm cũ đã được loại vì không còn phù hợp với LIST SOC.",
+            "Một số nhóm cũ đã được loại vì không còn khớp với dữ liệu SOC hiện tại.",
           );
         } else {
           setGroupAdjustmentMessage("");
@@ -196,8 +187,10 @@ export const SettingsPage = () => {
     const nextGroups = reconcileGroupSocs(groupSocs, nextExternalSocs);
     if (!areGroupsEqual(groupSocs, nextGroups)) {
       setGroupAdjustmentMessage(
-        "SOC vừa chọn đã được loại khỏi các nhóm đại diện hoặc thành viên. Hãy kiểm tra lại trước khi lưu.",
+        "SOC vừa chọn đã được loại khỏi các nhóm không còn phù hợp. Hãy kiểm tra lại trước khi lưu.",
       );
+    } else {
+      setGroupAdjustmentMessage("");
     }
     setGroupSocs(nextGroups);
   };
@@ -222,7 +215,7 @@ export const SettingsPage = () => {
 
   const handleSave = () => {
     if (!canSave) {
-      showToast("Hãy tải xong LIST SOC và Hub nội tỉnh trước khi lưu.", "error");
+      showToast("Hãy chọn SOC và chờ dữ liệu Hub tải xong trước khi lưu.", "error");
       return;
     }
 
@@ -233,31 +226,43 @@ export const SettingsPage = () => {
         currentSocId: selectedSocId,
         hubs,
         groupSocs,
-        cookies,
+        cookies: "",
         logUrl,
       });
-      saveConfigs(nextConfig);
-      savedConfigRef.current = nextConfig;
-      setHasSavedCookies(Boolean(nextConfig.cookies));
+      saveConfigs({
+        ...nextConfig,
+        cookies: "",
+        proxy_url: undefined,
+      });
+      savedConfigRef.current = {
+        ...nextConfig,
+        cookies: "",
+        proxy_url: undefined,
+      };
       setGroupAdjustmentMessage("");
-      showToast("Đã lưu cấu hình SOC và Hub từ LIST SOC.", "success");
+      showToast("Đã lưu cấu hình SOC và Hub.", "success");
     } catch (error) {
       showToast(getErrorMessage(error), "error");
     }
   };
 
   const handleExportJSON = () => {
-    const config = getConfigs();
-    const blob = new Blob([JSON.stringify(config, null, 2)], {
+    const current = getConfigs();
+    const exportConfig = {
+      ...current,
+      cookies: "",
+      proxy_url: undefined,
+    };
+    const blob = new Blob([JSON.stringify(exportConfig, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `station-config-${Date.now()}.json`;
+    anchor.download = `ops-fte-config-${Date.now()}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    showToast("Đã xuất tệp JSON cấu hình.", "info");
+    showToast("Đã xuất cấu hình JSON (không chứa Cookie SPX).", "info");
   };
 
   const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,7 +270,7 @@ export const SettingsPage = () => {
     event.target.value = "";
     if (!file) return;
     if (catalogState.status !== "ready") {
-      showToast("Cần tải LIST SOC thành công trước khi nhập cấu hình.", "error");
+      showToast("Dữ liệu SOC chưa sẵn sàng. Vui lòng thử lại sau.", "error");
       return;
     }
 
@@ -280,7 +285,7 @@ export const SettingsPage = () => {
           catalog,
         );
         if (!importedSocId) {
-          throw new Error("SOC trong tệp nhập không còn tồn tại trong LIST SOC.");
+          throw new Error("SOC trong tệp nhập không tồn tại trong dữ liệu hiện tại.");
         }
 
         const importedExternalSocs = getExternalSocs(catalog, importedSocId);
@@ -288,8 +293,6 @@ export const SettingsPage = () => {
           imported.group_socs,
           importedExternalSocs,
         );
-        const importedCookies =
-          typeof imported.cookies === "string" ? imported.cookies : "";
         const importedLogUrl =
           typeof imported.ggsheet_log_url === "string"
             ? imported.ggsheet_log_url
@@ -301,13 +304,12 @@ export const SettingsPage = () => {
         setHubState({ status: "loading" });
         setHubRetryToken((current) => current + 1);
         setGroupSocs(nextGroups);
-        setCookies(importedCookies);
         setLogUrl(importedLogUrl);
         setGroupAdjustmentMessage(
-          "Cấu hình nhập đã được đối chiếu với LIST SOC. Hub nội tỉnh đang được tải lại từ sheet.",
+          "Đã đối chiếu cấu hình nhập với dữ liệu SOC/Hub tích hợp. Cookie và proxy cũ được bỏ qua.",
         );
         showToast(
-          "Đã nạp cấu hình vào biểu mẫu. Hãy kiểm tra rồi bấm Lưu Cài Đặt.",
+          "Đã nạp cấu hình. Hãy kiểm tra rồi bấm Lưu Cài Đặt.",
           "info",
         );
       } catch (error) {
@@ -320,26 +322,10 @@ export const SettingsPage = () => {
     reader.readAsText(file);
   };
 
-  const handleClearCookies = () => {
-    if (!cookies.trim() && !hasSavedCookies) return;
-    if (!confirm("Bạn có chắc chắn muốn xóa Cookie SPX đã lưu?")) return;
-
-    try {
-      const nextConfig = clearCookies();
-      savedConfigRef.current = nextConfig;
-      setCookies("");
-      setHasSavedCookies(false);
-      showToast(
-        "Đã xóa Cookie SPX. Các cấu hình khác được giữ nguyên.",
-        "success",
-      );
-    } catch {
-      showToast("Không thể xóa Cookie SPX. Vui lòng thử lại.", "error");
-    }
-  };
-
   const handleReset = () => {
-    if (!confirm("Bạn có chắc chắn muốn xóa tất cả cài đặt hiện tại?")) return;
+    if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ cài đặt OPS FTE hiện tại?")) {
+      return;
+    }
 
     localStorage.removeItem("configs");
     savedConfigRef.current = { ...EMPTY_CONFIG };
@@ -347,26 +333,24 @@ export const SettingsPage = () => {
     setSelectedSocId("");
     setHubs([]);
     setHubState({ status: "idle" });
-    setCookies("");
-    setHasSavedCookies(false);
     setGroupSocs({});
     setGroupAdjustmentMessage("");
     setLogUrl("");
-    showToast("Đã xóa toàn bộ cấu hình local.", "info");
+    showToast("Đã xóa toàn bộ cấu hình OPS FTE.", "info");
   };
 
   return (
-    <div className="settings-page app-page max-w-4xl space-y-5 text-base-content md:space-y-6">
+    <div className="settings-page app-page max-w-4xl space-y-5 pb-24 text-base-content md:space-y-6">
       <PageHeader
         icon={Settings}
         title="Cài Đặt Cấu Hình"
-        description="Chọn SOC từ LIST SOC, quản lý Cookie và các kết nối vận hành"
+        description="Chọn SOC và cấu hình vận hành. API sử dụng trực tiếp phiên đăng nhập SPX của tab hiện tại."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto">
             <button
               type="button"
               onClick={handleExportJSON}
-              className="btn btn-outline min-h-11 w-full touch-manipulation gap-1.5 rounded-xl active:opacity-70 sm:w-auto"
+              className="btn btn-outline min-h-11 w-full gap-1.5 rounded-xl sm:w-auto"
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               Xuất JSON
@@ -375,7 +359,7 @@ export const SettingsPage = () => {
               aria-disabled={catalogState.status !== "ready"}
               className={`btn btn-outline min-h-11 w-full gap-1.5 rounded-xl sm:w-auto ${
                 catalogState.status === "ready"
-                  ? "cursor-pointer touch-manipulation active:opacity-70"
+                  ? "cursor-pointer"
                   : "btn-disabled cursor-not-allowed opacity-50"
               }`}
             >
@@ -393,300 +377,254 @@ export const SettingsPage = () => {
         }
       />
 
-      <div className="space-y-5">
-        <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="current-soc-heading">
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-              <Building className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h2 id="current-soc-heading" className="font-bold text-base-content">
-                SOC hiện tại
+      <section className="app-surface p-4 sm:p-5" aria-labelledby="spx-session-heading">
+        <div className="flex items-start gap-3">
+          <span className="app-icon-badge shrink-0 bg-success/10 text-success">
+            <Globe2 aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="spx-session-heading" className="font-bold">
+                Phiên SPX hiện tại
               </h2>
-              <p className="mt-0.5 text-sm leading-relaxed text-base-content/65">
-                Danh sách được đọc trực tiếp từ sheet LIST SOC.
+              <span className="badge badge-success badge-outline font-semibold">
+                Không cần nhập Cookie
+              </span>
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-base-content/65">
+              OPS FTE chạy ngay trên SPX và gửi request cùng origin. Trình duyệt tự sử dụng phiên đăng nhập đang mở; ứng dụng không yêu cầu dán hoặc lưu Cookie SPX.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="current-soc-heading">
+        <div className="flex items-start gap-3">
+          <span className="app-icon-badge shrink-0 bg-primary/10 text-primary">
+            <Building aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="current-soc-heading" className="font-bold">
+              SOC hiện tại
+            </h2>
+            <p className="mt-0.5 text-sm leading-relaxed text-base-content/65">
+              Danh sách SOC và Hub được tích hợp sẵn trong userscript, không cần đọc Google Sheet khi chạy.
+            </p>
+          </div>
+        </div>
+
+        {catalogState.status === "loading" ? (
+          <div className="flex min-h-12 items-center gap-2 text-sm text-base-content/60">
+            <span className="loading loading-spinner loading-sm" />
+            Đang nạp dữ liệu SOC...
+          </div>
+        ) : catalogState.status === "error" ? (
+          <div role="alert" className="alert alert-error items-start">
+            <CircleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">Không thể nạp dữ liệu SOC</p>
+              <p className="mt-1 break-words text-sm">{catalogState.message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetryCatalog}
+              className="btn btn-sm min-h-10 gap-1.5"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Thử lại
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <StationSelect
+              value={selectedSocId}
+              options={catalog}
+              onChange={handleSocChange}
+              placeholder="Chọn SOC hiện tại"
+              ariaLabel="Chọn SOC hiện tại"
+            />
+
+            {selectedSoc ? (
+              <div className="grid gap-2 rounded-xl bg-base-200/50 p-3 text-sm sm:grid-cols-3">
+                <div>
+                  <span className="block text-xs text-base-content/50">Mã SOC</span>
+                  <strong>{selectedSoc.stationCode}</strong>
+                </div>
+                <div>
+                  <span className="block text-xs text-base-content/50">Station ID</span>
+                  <strong>{selectedSoc.id}</strong>
+                </div>
+                <div>
+                  <span className="block text-xs text-base-content/50">Prefix</span>
+                  <strong>{selectedSoc.numberPrefix || "—"}</strong>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="hub-heading">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="app-icon-badge shrink-0 bg-secondary/10 text-secondary">
+              <MapPin aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 id="hub-heading" className="font-bold">Hub nội tỉnh</h2>
+              <p className="mt-0.5 text-sm text-base-content/65">
+                Tự động xác định theo SOC đã chọn.
               </p>
             </div>
           </div>
-
-          {catalogState.status === "loading" ? (
-            <div className="space-y-2" aria-live="polite" aria-label="Đang tải LIST SOC">
-              <div className="h-11 animate-pulse rounded-xl bg-base-200" />
-              <div className="h-4 w-2/3 animate-pulse rounded bg-base-200" />
-            </div>
+          {hubState.status === "ready" ? (
+            <span className="badge badge-outline shrink-0 font-semibold">
+              {hubs.length} Hub
+            </span>
           ) : null}
+        </div>
 
-          {catalogState.status === "error" ? (
-            <div role="alert" className="rounded-2xl border border-error/25 bg-error/10 p-4 text-error">
-              <div className="flex items-start gap-3">
-                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">Không tải được LIST SOC</p>
-                  <p className="mt-1 break-words text-sm leading-relaxed">{catalogState.message}</p>
-                  <button
-                    type="button"
-                    onClick={handleRetryCatalog}
-                    className="btn btn-error btn-outline mt-3 min-h-11 touch-manipulation gap-2 rounded-xl active:opacity-70"
-                  >
-                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                    Thử lại
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {catalogState.status === "ready" ? (
-            <div className="space-y-3">
-              <StationSelect
-                value={selectedSocId}
-                options={catalog}
-                onChange={handleSocChange}
-                placeholder="Chọn SOC hiện tại"
-                ariaLabel="Chọn SOC hiện tại"
-              />
-              {!selectedSocId ? (
-                <p className="text-sm leading-relaxed text-base-content/60">
-                  Chọn một SOC để hệ thống tải Hub nội tỉnh từ cột E.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {hubState.status === "loading" ? (
-            <div className="rounded-2xl border border-info/20 bg-info/10 p-4" aria-live="polite">
-              <p className="font-bold text-info">Đang tải Hub nội tỉnh...</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[0, 1, 2, 3].map((item) => (
-                  <div key={item} className="h-14 animate-pulse rounded-xl bg-info/10" />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {hubState.status === "error" ? (
-            <div role="alert" className="rounded-2xl border border-error/25 bg-error/10 p-4 text-error">
-              <div className="flex items-start gap-3">
-                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">Không tải được Hub nội tỉnh</p>
-                  <p className="mt-1 break-words text-sm leading-relaxed">{hubState.message}</p>
-                  <button
-                    type="button"
-                    onClick={handleRetryHubs}
-                    className="btn btn-error btn-outline mt-3 min-h-11 touch-manipulation gap-2 rounded-xl active:opacity-70"
-                  >
-                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                    Thử lại
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {selectedSoc && hubState.status === "ready" ? (
-            <div className="rounded-2xl border border-success/25 bg-success/5 p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-success">
-                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                Dữ liệu SOC đã sẵn sàng
-              </div>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-                <div>
-                  <dt className="text-xs font-semibold text-base-content/55">Tên SOC</dt>
-                  <dd className="mt-1 break-words text-sm font-bold">{selectedSoc.stationName}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold text-base-content/55">Mã SOC</dt>
-                  <dd className="mt-1 break-words font-mono text-sm font-bold">{selectedSoc.stationCode}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold text-base-content/55">ID / Prefix</dt>
-                  <dd className="mt-1 font-mono text-sm font-bold">
-                    {selectedSoc.id} / {selectedSoc.numberPrefix || "Chưa có"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold text-base-content/55">Hub nội tỉnh</dt>
-                  <dd className="mt-1 text-sm font-bold tabular-nums">{hubs.length} Hub</dd>
-                </div>
-              </dl>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="cookie-heading">
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 id="cookie-heading" className="flex items-center gap-2 font-bold text-secondary">
-              <Key className="h-4 w-4" aria-hidden="true" />
-              Cookie Shopee Express
-            </h2>
-            {cookies ? (
-              <span className="badge badge-success badge-sm gap-1">
-                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                Đã nhập
-              </span>
-            ) : (
-              <span className="badge badge-warning badge-sm">Chưa có</span>
-            )}
-          </div>
-          <textarea
-            value={cookies}
-            onChange={(event) => setCookies(event.target.value)}
-            rows={4}
-            aria-label="Cookie Shopee Express"
-            placeholder="Dán chuỗi Cookie SPX"
-            className="textarea textarea-bordered w-full rounded-xl font-mono text-base leading-relaxed focus:textarea-primary sm:text-xs"
-          />
-          <p className="text-xs leading-relaxed text-base-content/60">
-            Cookie chỉ được lưu trong localStorage của trình duyệt này.
+        {!selectedSocId ? (
+          <p className="rounded-xl border border-dashed border-base-300 p-4 text-center text-sm text-base-content/55">
+            Chọn SOC để xem danh sách Hub nội tỉnh.
           </p>
-          <div className="flex justify-end border-t border-base-200 pt-3">
+        ) : hubState.status === "loading" ? (
+          <div className="flex min-h-12 items-center gap-2 text-sm text-base-content/60">
+            <span className="loading loading-spinner loading-sm" />
+            Đang tải Hub...
+          </div>
+        ) : hubState.status === "error" ? (
+          <div role="alert" className="alert alert-error items-start">
+            <CircleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">Không thể nạp Hub</p>
+              <p className="mt-1 break-words text-sm">{hubState.message}</p>
+            </div>
             <button
               type="button"
-              onClick={handleClearCookies}
-              disabled={!cookies.trim() && !hasSavedCookies}
-              className="btn btn-outline min-h-11 touch-manipulation gap-2 rounded-xl border-error/30 text-error active:opacity-70 disabled:cursor-not-allowed"
+              onClick={handleRetryHubs}
+              className="btn btn-sm min-h-10 gap-1.5"
             >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Xóa Cookie
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Thử lại
             </button>
           </div>
-        </section>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {hubs.length ? (
+              hubs.map((hub) => (
+                <span
+                  key={hub.id}
+                  className="badge badge-lg h-auto min-h-8 max-w-full whitespace-normal py-1 text-left"
+                  title={`${hub.stationCode} · ID ${hub.id}`}
+                >
+                  {hub.stationName}
+                </span>
+              ))
+            ) : (
+              <p className="text-sm text-base-content/55">
+                SOC này chưa có Hub nội tỉnh trong dữ liệu hiện tại.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
-        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="log-heading">
-          <h2 id="log-heading" className="flex items-center gap-2 font-bold text-success">
-            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-            Google Sheet Log Sự Vụ
+      <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="soc-group-heading">
+        <div>
+          <h2 id="soc-group-heading" className="font-bold">
+            Nhóm SOC ngoại tỉnh
           </h2>
+          <p className="mt-1 text-sm leading-relaxed text-base-content/65">
+            Gộp nhiều SOC vào một lựa chọn khi kiểm tra sót ngoại tỉnh.
+          </p>
+        </div>
+
+        {groupAdjustmentMessage ? (
+          <div role="alert" className="alert alert-warning text-sm">
+            <CircleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span>{groupAdjustmentMessage}</span>
+          </div>
+        ) : null}
+
+        <SocGroupEditor
+          options={externalSocs}
+          groups={groupSocs}
+          onChange={setGroupSocs}
+          disabled={!selectedSocId || catalogState.status !== "ready"}
+        />
+      </section>
+
+      <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="integration-heading">
+        <div>
+          <h2 id="integration-heading" className="font-bold">
+            Tiện ích bổ sung
+          </h2>
+          <p className="mt-1 text-sm text-base-content/65">
+            Các kết nối này không dùng để gọi API SPX.
+          </p>
+        </div>
+
+        <label className="form-control w-full">
+          <span className="label-text mb-2 font-semibold">
+            Webhook Google Sheet nhận log sự vụ
+          </span>
           <input
             type="url"
             value={logUrl}
             onChange={(event) => setLogUrl(event.target.value)}
-            aria-label="URL nhận Log Sự Vụ"
             placeholder="https://script.google.com/macros/s/.../exec"
-            className="input input-bordered w-full rounded-xl font-mono text-base focus:input-primary sm:text-xs"
+            className="input input-bordered min-h-11 w-full rounded-xl"
           />
-          <p className="text-xs leading-relaxed text-base-content/60">
-            Webhook nhận dữ liệu khi gửi Log Sự Vụ.
-          </p>
-        </section>
+          <span className="mt-1 text-xs text-base-content/55">
+            Chỉ dùng cho tính năng gửi log biên bản sự vụ.
+          </span>
+        </label>
 
-        <section className="app-surface space-y-3 p-4 sm:p-5" aria-labelledby="scanner-heading">
-          <h2 id="scanner-heading" className="flex items-center gap-2 font-bold text-info">
-            <ScanLine className="h-4 w-4" aria-hidden="true" />
-            Scanner QR trực tiếp
-          </h2>
-          <div className="rounded-2xl border border-info/20 bg-info/5 p-4">
-            <p className="break-words font-mono text-sm font-bold text-info">{SCANNER_URL}</p>
-            <p className="mt-1 text-xs leading-relaxed text-base-content/60">
-              Đường dẫn scanner được cố định trong ứng dụng.
+        <div className="rounded-xl border border-base-200 p-3">
+          <div className="flex items-start gap-3">
+            <ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-info" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="font-semibold">QR Scanner</p>
+              <p className="mt-1 break-all text-xs text-base-content/60">
+                {SCANNER_URL}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="app-surface p-4 sm:p-5" aria-labelledby="reset-heading">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="reset-heading" className="font-bold">Đặt lại cấu hình</h2>
+            <p className="mt-1 text-sm text-base-content/60">
+              Xóa SOC, nhóm, Hub đã lưu và webhook khỏi trình duyệt này.
             </p>
           </div>
-        </section>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="btn btn-outline btn-error min-h-11 gap-2 rounded-xl"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Xóa toàn bộ
+          </button>
+        </div>
+      </section>
 
-        {selectedSoc && hubState.status === "ready" ? (
-          <details className="app-surface group p-4 sm:p-5">
-            <summary className="flex min-h-11 cursor-pointer list-none touch-manipulation items-center justify-between gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary">
-              <span className="flex items-center gap-2 font-bold">
-                <Database className="h-4 w-4 text-primary" aria-hidden="true" />
-                Dữ liệu đã nạp
-              </span>
-              <span className="flex items-center gap-2 text-xs font-semibold text-base-content/60">
-                {hubs.length} Hub / {externalSocs.length} SOC ngoại tỉnh
-                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-              </span>
-            </summary>
-            <div className="mt-4 grid gap-5 border-t border-base-200 pt-4 lg:grid-cols-2">
-              <div className="space-y-2">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-accent">
-                  <MapPin className="h-4 w-4" aria-hidden="true" />
-                  Hub nội tỉnh
-                </h3>
-                {hubs.length ? (
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                    {hubs.map((hub) => (
-                      <div key={hub.id} className="rounded-xl bg-base-200/70 px-3 py-2.5">
-                        <p className="break-words text-sm font-semibold">{hub.stationName}</p>
-                        <p className="mt-0.5 break-words font-mono text-xs text-base-content/55">
-                          {hub.stationCode} / ID {hub.id}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="rounded-xl border border-dashed border-base-300 p-4 text-sm text-base-content/60">
-                    SOC này chưa có Hub nội tỉnh trong cột E.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-warning">
-                  <Globe2 className="h-4 w-4" aria-hidden="true" />
-                  SOC ngoại tỉnh
-                </h3>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                  {externalSocs.map((soc) => (
-                    <div key={soc.id} className="rounded-xl bg-base-200/70 px-3 py-2.5">
-                      <p className="break-words text-sm font-semibold">{soc.stationName}</p>
-                      <p className="mt-0.5 break-words font-mono text-xs text-base-content/55">
-                        {soc.stationCode} / ID {soc.id}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </details>
-        ) : null}
-
-        {catalogState.status === "ready" && selectedSoc ? (
-          <section className="app-surface space-y-4 p-4 sm:p-5" aria-labelledby="group-heading">
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info/10 text-info">
-                <Globe2 className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h2 id="group-heading" className="font-bold">Group SOC ngoại tỉnh</h2>
-                <p className="mt-0.5 text-sm leading-relaxed text-base-content/65">
-                  Chỉ tạo nhóm khi một SOC đại diện cần tra cứu thêm SOC thành viên.
-                </p>
-              </div>
-            </div>
-
-            {groupAdjustmentMessage ? (
-              <div role="alert" className="flex items-start gap-2 rounded-2xl border border-warning/30 bg-warning/10 p-3 text-sm font-semibold text-warning-content">
-                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="break-words">{groupAdjustmentMessage}</span>
-              </div>
-            ) : null}
-
-            <SocGroupEditor
-              options={externalSocs}
-              groups={groupSocs}
-              onChange={setGroupSocs}
-            />
-          </section>
-        ) : null}
-      </div>
-
-      <MobileActionBar className="md:mt-2">
-        <button
-          type="button"
-          onClick={handleReset}
-          className="btn btn-ghost min-h-11 self-start touch-manipulation gap-1 rounded-xl text-error active:opacity-70"
-        >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          Xóa toàn bộ
-        </button>
-
+      <MobileActionBar>
         <button
           type="button"
           onClick={handleSave}
           disabled={!canSave}
-          className="btn btn-primary min-h-11 w-full touch-manipulation gap-2 rounded-xl px-4 text-base font-bold shadow-md active:opacity-80 disabled:cursor-not-allowed sm:w-auto sm:px-8"
+          className="btn btn-primary min-h-12 w-full gap-2 rounded-xl shadow-lg sm:w-auto sm:min-w-48"
         >
-          <Save className="h-5 w-5" aria-hidden="true" />
+          {canSave ? (
+            <Save className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 opacity-50" aria-hidden="true" />
+          )}
           Lưu Cài Đặt
         </button>
       </MobileActionBar>

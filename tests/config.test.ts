@@ -51,17 +51,18 @@ test("clearCookies preserves every non-cookie configuration value", () => {
   }
 });
 
-test("Settings exposes separate cookie and full reset actions", async () => {
+test("Settings uses the active SPX browser session instead of manual cookies", async () => {
   const source = await readFile(
     new URL("../src/pages/SettingsPage.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /clearCookies/);
-  assert.match(source, /Bạn có chắc chắn muốn xóa Cookie SPX đã lưu/);
-  assert.match(source, /Xóa Cookie/);
+  assert.match(source, /Không cần nhập Cookie/);
+  assert.match(source, /phiên đăng nhập SPX/i);
   assert.match(source, /Xóa toàn bộ/);
-  assert.match(source, /Các cấu hình khác được giữ nguyên/);
+  assert.doesNotMatch(source, /clearCookies/);
+  assert.doesNotMatch(source, /Xóa Cookie/);
+  assert.doesNotMatch(source, /setCookies/);
 });
 
 test("station configuration uses searchable selectors and accessible group actions", async () => {
@@ -85,7 +86,7 @@ test("station configuration uses searchable selectors and accessible group actio
   assert.match(groupEditor, /touch-manipulation/);
 });
 
-test("Settings loads LIST SOC data and removes manual station inputs", async () => {
+test("Settings loads embedded SOC data and removes manual station inputs", async () => {
   const source = await readFile(
     new URL("../src/pages/SettingsPage.tsx", import.meta.url),
     "utf8",
@@ -95,8 +96,7 @@ test("Settings loads LIST SOC data and removes manual station inputs", async () 
   assert.match(source, /loadStationHubs/);
   assert.match(source, /StationSelect/);
   assert.match(source, /SocGroupEditor/);
-  assert.match(source, /Thử lại/);
-  assert.match(source, /Dữ liệu đã nạp/);
+  assert.match(source, /tích hợp sẵn trong userscript/);
   assert.match(source, /Đang tải Hub/);
   assert.match(source, /role="alert"/);
   assert.doesNotMatch(source, /DEFAULT_STATION_CONFIG/);

@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("apiClient attaches and propagates one request trace", async () => {
+test("apiClient attaches one request trace to direct requests", async () => {
   const source = await readFile(
     new URL("../src/utils/apiClient.ts", import.meta.url),
     "utf8",
   );
   assert.match(source, /createApiRequestTrace/);
   assert.match(source, /config\.apiTrace\s*\?\?=/);
-  assert.match(source, /config\.apiTrace\?\.requestId/);
-  assert.match(
-    source,
-    /fetchShopeeApi\([\s\S]*config\.apiTrace\?\.requestId[\s\S]*\)/,
-  );
+  assert.match(source, /withCredentials:\s*true/);
+  assert.doesNotMatch(source, /fetchShopeeApi/);
+  assert.doesNotMatch(source, /x-shopee-cookie/);
+  assert.doesNotMatch(source, /getCookies/);
+  assert.doesNotMatch(source, /getProxyUrl/);
 });
 
 test("apiClient logs before toast suppression and preserves toast branches", async () => {
@@ -29,15 +29,17 @@ test("apiClient logs before toast suppression and preserves toast branches", asy
   assert.match(source, /case 403:/);
   assert.match(source, /case 404:/);
   assert.match(source, /case 500:/);
+  assert.match(source, /Phiên đăng nhập SPX/);
   assert.doesNotMatch(source, /\[GAS Adapter Response Error\]/);
   assert.doesNotMatch(source, /\[API Response Error Object\]/);
 });
 
-test("adapter rejections expose config at the top level", async () => {
+test("apiClient keeps relative request URLs for SPX and local proxy runtimes", async () => {
   const source = await readFile(
     new URL("../src/utils/apiClient.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /reject\(\{[\s\S]*config,[\s\S]*response:/);
+  assert.doesNotMatch(source, /https:\/\/spx\.shopee\.vn/);
+  assert.doesNotMatch(source, /targetBase/);
   assert.match(source, /const errorConfig\s*=\s*error\?\.config/);
 });
