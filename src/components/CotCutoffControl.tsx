@@ -41,54 +41,62 @@ export const CotCutoffControl = ({
     className="app-surface p-4 sm:p-5"
     aria-labelledby="cot-cutoff-heading"
   >
-    <div className="grid gap-4 sm:grid-cols-[auto_minmax(14rem,20rem)_minmax(0,1fr)] sm:items-center">
-      <label className="flex min-h-11 cursor-pointer items-center gap-3 has-disabled:cursor-not-allowed has-disabled:opacity-60">
-        <input
-          type="checkbox"
-          role="switch"
-          className="toggle toggle-primary"
-          checked={enabled}
-          disabled={disabled}
-          onChange={(event) => onEnabledChange(event.target.checked)}
-        />
-        <span id="cot-cutoff-heading" className="font-black">
-          Cắt COT
-        </span>
-      </label>
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-[auto_minmax(14rem,20rem)_minmax(0,1fr)] sm:items-center">
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 has-disabled:cursor-not-allowed has-disabled:opacity-60">
+          <input
+            type="checkbox"
+            role="switch"
+            className="toggle toggle-primary"
+            checked={enabled}
+            disabled={disabled}
+            onChange={(event) => onEnabledChange(event.target.checked)}
+          />
+          <span id="cot-cutoff-heading" className="font-black">
+            Cắt COT
+          </span>
+        </label>
+
+        {enabled ? (
+          <label className="form-control w-full">
+            <span className="label-text mb-1.5 text-sm font-bold">
+              Ngày giờ COT
+            </span>
+            <input
+              type="datetime-local"
+              value={localDateTime}
+              disabled={disabled}
+              onChange={(event) => onDateTimeChange(event.target.value)}
+              className="input input-bordered min-h-11 w-full rounded-xl focus:input-primary disabled:cursor-not-allowed"
+            />
+          </label>
+        ) : null}
+
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex min-w-0 items-start gap-2 text-sm text-base-content/70"
+        >
+          <Clock3
+            className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+            aria-hidden="true"
+          />
+          <p className="min-w-0 break-words">
+            {progress
+              ? `Đang kiểm tra COT: ${progress.processed}/${progress.total} TO`
+              : enabled
+                ? `Đang áp dụng COT ${formatActiveCot(localDateTime)}`
+                : "Đang kiểm tra toàn bộ dữ liệu"}
+          </p>
+        </div>
+      </div>
 
       {enabled ? (
-        <label className="form-control w-full">
-          <span className="label-text mb-1.5 text-sm font-bold">
-            Ngày giờ COT
-          </span>
-          <input
-            type="datetime-local"
-            value={localDateTime}
-            disabled={disabled}
-            onChange={(event) => onDateTimeChange(event.target.value)}
-            className="input input-bordered min-h-11 w-full rounded-xl focus:input-primary disabled:cursor-not-allowed"
-          />
-        </label>
+        <div className="rounded-xl border border-base-200 bg-base-200/35 px-3 py-2 text-xs leading-relaxed text-base-content/65">
+          Hàng xá lẻ dùng khoảng thời gian từ đúng 1 tháng trước tới mốc COT. Với TO đã đóng bao, hệ thống lấy đơn đầu tiên trong TO, đọc hành trình và chỉ giữ TO có trạng thái 882 cuối cùng không vượt quá mốc COT.
+        </div>
       ) : null}
-
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="flex min-w-0 items-start gap-2 text-sm text-base-content/70"
-      >
-        <Clock3
-          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-          aria-hidden="true"
-        />
-        <p className="min-w-0 break-words">
-          {progress
-            ? `Đang kiểm tra COT: ${progress.processed}/${progress.total} TO`
-            : enabled
-              ? `Đang áp dụng COT ${formatActiveCot(localDateTime)}`
-              : "Đang kiểm tra toàn bộ dữ liệu"}
-        </p>
-      </div>
     </div>
   </section>
 );
