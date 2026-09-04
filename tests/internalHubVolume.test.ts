@@ -92,7 +92,6 @@ test("validates every required configuration value", () => {
     validateInternalHubVolumeConfig({
       soc: "",
       socId: "1",
-      cookies: "x",
       hubs: [],
     }) ?? "",
     /SOC/i,
@@ -101,7 +100,6 @@ test("validates every required configuration value", () => {
     validateInternalHubVolumeConfig({
       soc: "SOC",
       socId: "",
-      cookies: "x",
       hubs: [],
     }) ?? "",
     /ID/i,
@@ -110,16 +108,6 @@ test("validates every required configuration value", () => {
     validateInternalHubVolumeConfig({
       soc: "SOC",
       socId: "1",
-      cookies: "",
-      hubs: [],
-    }) ?? "",
-    /Cookie/i,
-  );
-  assert.match(
-    validateInternalHubVolumeConfig({
-      soc: "SOC",
-      socId: "1",
-      cookies: "x",
       hubs: [],
     }) ?? "",
     /Hub/i,
@@ -128,7 +116,6 @@ test("validates every required configuration value", () => {
     validateInternalHubVolumeConfig({
       soc: "SOC",
       socId: "1",
-      cookies: "x",
       hubs: [{ name: "Hub A", id: "" }],
     }) ?? "",
     /Hub A/,
@@ -137,7 +124,6 @@ test("validates every required configuration value", () => {
     validateInternalHubVolumeConfig({
       soc: "SOC",
       socId: "1",
-      cookies: "x",
       hubs: [{ name: "Hub A", id: "101" }],
     }),
     null,
