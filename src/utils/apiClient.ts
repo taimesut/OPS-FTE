@@ -2,10 +2,17 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from "axios";
 import { getCookies, getProxyUrl } from "./config";
 import { showToast } from "../components/Toast";
+import {
+  createApiErrorRecord,
+  createApiRequestTrace,
+  safeLogApiError,
+  type ApiRequestTrace,
+} from "./apiErrorLog";
 
 declare module "axios" {
   interface AxiosRequestConfig {
     suppressErrorToast?: boolean;
+    apiTrace?: ApiRequestTrace;
   }
 }
 
@@ -23,11 +30,8 @@ const gasAdapter = (config: InternalAxiosRequestConfig): Promise<AxiosResponse> 
     const cookies = getCookies();
     const endpoint = config.url || "";
 
-    console.log("[GAS Adapter Request]", { endpoint, method: config.method });
-
     google.script.run
       .withSuccessHandler((res: any) => {
-        console.log("[GAS Adapter Response Success]", res);
         if (res && res.status >= 200 && res.status < 300) {
           resolve({
             data: res.data,
@@ -45,11 +49,12 @@ const gasAdapter = (config: InternalAxiosRequestConfig): Promise<AxiosResponse> 
             JSON.stringify(res?.data) ||
             "Lỗi từ GAS Server";
 
-          console.error("[GAS Adapter Response Error]", res);
-
           reject({
+            name: "GasProxyError",
+            message: errMsg,
+            config,
             response: {
-              data: res ? res.data : null,
+              data: res ? res.data ?? { error: res.error } : null,
               status: res ? res.status : 500,
               statusText: errMsg,
               headers: {},
@@ -59,19 +64,27 @@ const gasAdapter = (config: InternalAxiosRequestConfig): Promise<AxiosResponse> 
         }
       })
       .withFailureHandler((err: any) => {
-        console.error("[GAS Adapter Execution Failure]", err);
         const errMsg = err?.message || err?.toString() || "Lỗi thực thi hàm Apps Script";
         reject({
+          name: "GasExecutionError",
           message: errMsg,
+          stack: typeof err?.stack === "string" ? err.stack : "",
           config,
         });
       })
-      .fetchShopeeApi(endpoint, cookies, config.method || "get", config.data);
+      .fetchShopeeApi(
+        endpoint,
+        cookies,
+        config.method || "get",
+        config.data,
+        config.apiTrace?.requestId,
+      );
   });
 };
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.apiTrace ??= createApiRequestTrace(config.url || "unknown");
     const cookies = getCookies();
     const customProxy = getProxyUrl();
     const isGAS = Boolean((window as any).google?.script?.run);
@@ -110,7 +123,6 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("[API Request Interceptor Error]", error);
     return Promise.reject(error);
   }
 );
@@ -120,9 +132,10 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error("[API Response Error Object]", error);
+    safeLogApiError(createApiErrorRecord(error));
+    const errorConfig = error?.config ?? error?.response?.config;
 
-    if (error.config?.suppressErrorToast) {
+    if (errorConfig?.suppressErrorToast) {
       return Promise.reject(error);
     }
 
@@ -132,12 +145,6 @@ apiClient.interceptors.response.use(
         error.response.data?.msg ||
         error.response.data?.message ||
         "";
-
-      console.error("[API Response Error Detail]", {
-        status: error.response.status,
-        data: error.response.data,
-        message: serverMsg,
-      });
 
       switch (error.response.status) {
         case 401:
