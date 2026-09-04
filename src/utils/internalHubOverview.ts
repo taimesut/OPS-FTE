@@ -49,7 +49,8 @@ export interface HubOverviewRow {
 export interface OverviewConfigInput {
   soc: string;
   socId: string;
-  cookies: string;
+  /** @deprecated Không còn dùng để xác thực; browser session của tab SPX được dùng trực tiếp. */
+  cookies?: string;
   hubs: HubDefinition[];
 }
 
@@ -97,7 +98,6 @@ export const validateOverviewConfig = (
 ): string | null => {
   if (!input.soc.trim()) return "Chưa cấu hình SOC nguồn.";
   if (!input.socId.trim()) return "SOC nguồn chưa có ID.";
-  if (!input.cookies.trim()) return "Chưa có Cookie SPX.";
   if (input.hubs.length === 0) return "Chưa cấu hình Hub nội tỉnh.";
   const missing = input.hubs
     .filter((hub) => !hub.id.trim())
