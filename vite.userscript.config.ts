@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 const metadata = `// ==UserScript==
 // @name         OPS FTE
 // @namespace    https://github.com/taimesut/OPS-FTE
-// @version      0.2.1
+// @version      0.3.0
 // @description  OPS FTE chạy trực tiếp trong SPX bằng phiên đăng nhập hiện tại
 // @match        https://spx.shopee.vn/*
 // @match        https://*.spx.shopee.vn/*
