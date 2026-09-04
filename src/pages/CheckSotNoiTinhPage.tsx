@@ -15,7 +15,6 @@ import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
 import {
   createCotWindow,
   formatLocalDateTimeInput,
-  isValidCotLocalDateTime,
   parseCotCutoffPreferences,
   serializeCotCutoffPreferences,
   type CotCutoffPreferences,
@@ -66,10 +65,8 @@ export const CheckSotNoiTinhPage = () => {
   const handleCotEnabledChange = (enabled: boolean) => {
     setCotPreferences((current) => ({
       enabled,
-      localDateTime:
-        enabled && !isValidCotLocalDateTime(current.localDateTime)
-          ? formatLocalDateTimeInput()
-          : current.localDateTime,
+      // Mỗi lần bật COT, mặc định lấy đúng thời gian hiện tại; người dùng có thể sửa lại.
+      localDateTime: enabled ? formatLocalDateTimeInput() : current.localDateTime,
     }));
   };
 
@@ -150,7 +147,7 @@ export const CheckSotNoiTinhPage = () => {
         setOrders(resultOrders);
         if (activeCot) {
           showToast(
-            `Giữ lại ${resultOrders.length}/${stationOrders.length} TO trước COT`,
+            `Giữ lại ${resultOrders.length}/${stationOrders.length} TO có trạng thái 882 cuối cùng trước COT`,
             resultOrders.length > 0 ? "success" : "info",
           );
         } else if (resultOrders.length === 0) {
