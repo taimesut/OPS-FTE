@@ -5,9 +5,10 @@ import tailwindcss from "@tailwindcss/vite";
 const metadata = `// ==UserScript==
 // @name         OPS FTE
 // @namespace    https://github.com/taimesut/OPS-FTE
-// @version      0.1.0
+// @version      0.1.1
 // @description  OPS FTE chạy trực tiếp trong SPX bằng phiên đăng nhập hiện tại
 // @match        https://spx.shopee.vn/*
+// @match        https://*.spx.shopee.vn/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==`;
@@ -17,6 +18,8 @@ export default defineConfig({
   build: {
     outDir: "userscript-dist",
     emptyOutDir: true,
+    minify: false,
+    sourcemap: false,
     cssCodeSplit: false,
     lib: {
       entry: "src/userscript.tsx",
