@@ -12,7 +12,6 @@ import {
 
 const emptyConfig: AppConfig = {
   soc: "",
-  cookies: "",
   hubs: [],
   socs: [],
   group_socs: {},
@@ -115,7 +114,6 @@ test("builds local config entirely from the selected catalog row", () => {
   const result = buildStationConfig({
     previousConfig: {
       ...emptyConfig,
-      proxy_url: "https://proxy.example",
       scanner_url: "https://scan.example",
       raw_group_socs_text: "legacy text",
     },
@@ -126,7 +124,6 @@ test("builds local config entirely from the selected catalog row", () => {
       { stationName: "Hub B", stationCode: "63A02", id: "5409" },
     ],
     groupSocs: { "HN SOC": ["DN Mega SOC", "HN SOC"] },
-    cookies: " cookie=value ",
     logUrl: " https://log.example ",
   });
 
@@ -149,11 +146,11 @@ test("builds local config entirely from the selected catalog row", () => {
   assert.deepEqual(result.group_socs, {
     "HN SOC": ["HN SOC", "DN Mega SOC"],
   });
-  assert.equal(result.cookies, "cookie=value");
   assert.equal(result.ggsheet_log_url, "https://log.example");
-  assert.equal(result.proxy_url, "https://proxy.example");
   assert.equal(result.scanner_url, "https://scan.example");
   assert.equal(result.raw_group_socs_text, undefined);
+  assert.equal("cookies" in result, false);
+  assert.equal("proxy_url" in result, false);
 });
 
 test("refuses to build with a missing SOC, malformed hubs, or invalid groups", () => {
@@ -163,7 +160,6 @@ test("refuses to build with a missing SOC, malformed hubs, or invalid groups", (
     currentSocId: "2490",
     hubs: [{ stationName: "Hub A", stationCode: "63A01", id: "3954" }],
     groupSocs: {},
-    cookies: "",
     logUrl: "",
   };
 
