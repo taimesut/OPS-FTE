@@ -1,0 +1,34 @@
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SettingsPage } from "./pages/SettingsPage";
+import { CheckSotNgoaiTinhPage } from "./pages/CheckSotNgoaiTinhPage";
+import { CheckSotNoiTinhPage } from "./pages/CheckSotNoiTinhPage";
+import { InternalHubOverviewPage } from "./pages/InternalHubOverviewPage";
+import { InternalHubVolumePage } from "./pages/InternalHubVolumePage";
+import { MobileLayout } from "./layouts/MobileLayout";
+import { HomePage } from "./pages/HomePage";
+import { LayMaTOPage } from "./pages/LayMaTOPage";
+import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
+import { ToastContainer } from "./components/Toast";
+
+export const UserscriptApp = () => {
+  return (
+    <div id="ops-fte-userscript-app" data-ops-fte-theme-root data-theme="light">
+      <MemoryRouter>
+        <ToastContainer />
+        <MobileLayout>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/check-sot/ngoai-tinh" element={<CheckSotNgoaiTinhPage />} />
+            <Route path="/check-sot/noi-tinh/overview" element={<InternalHubOverviewPage />} />
+            <Route path="/check-sot/noi-tinh/volume" element={<InternalHubVolumePage />} />
+            <Route path="/check-sot/noi-tinh" element={<CheckSotNoiTinhPage />} />
+            <Route path="/cai-dat" element={<SettingsPage />} />
+            <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
+            <Route path="/lay-ma-to" element={<LayMaTOPage />} />
+            <Route path="*" element={<HomePage />} />
+          </Routes>
+        </MobileLayout>
+      </MemoryRouter>
+    </div>
+  );
+};
