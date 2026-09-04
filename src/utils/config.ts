@@ -3,8 +3,6 @@ export interface AppConfig {
   soc_id?: string;
   soc_code?: string;
   number_prefix?: string;
-  /** @deprecated Userscript trên SPX dùng browser session hiện tại. */
-  cookies: string;
   hubs: string[];
   hub_ids?: Record<string, string>;
   hub_codes?: Record<string, string>;
@@ -13,17 +11,19 @@ export interface AppConfig {
   soc_codes?: Record<string, string>;
   group_socs: Record<string, string[]>;
   raw_group_socs_text?: string;
-  /** @deprecated Userscript trên SPX không cần proxy. */
-  proxy_url?: string;
   ggsheet_log_url?: string;
   scanner_url?: string;
 }
 
 export const SCANNER_URL = "https://scan-qr.taimesut.net";
 
+type LegacyAppConfig = Partial<AppConfig> & {
+  cookies?: unknown;
+  proxy_url?: unknown;
+};
+
 const emptyConfig = (): AppConfig => ({
   soc: "",
-  cookies: "",
   hubs: [],
   socs: [],
   group_socs: {},
@@ -33,10 +33,19 @@ export const getConfigs = (): AppConfig => {
   try {
     const raw = localStorage.getItem("configs");
     if (!raw) return emptyConfig();
-    const parsed = JSON.parse(raw) as Partial<AppConfig>;
-    return {
+
+    const parsed = JSON.parse(raw) as LegacyAppConfig;
+    const {
+      cookies: legacyCookies,
+      proxy_url: legacyProxyUrl,
+      ...currentConfig
+    } = parsed;
+    void legacyCookies;
+    void legacyProxyUrl;
+
+    const normalized: AppConfig = {
       ...emptyConfig(),
-      ...parsed,
+      ...currentConfig,
       hubs: Array.isArray(parsed.hubs) ? parsed.hubs : [],
       socs: Array.isArray(parsed.socs) ? parsed.socs : [],
       group_socs:
@@ -44,6 +53,13 @@ export const getConfigs = (): AppConfig => {
           ? parsed.group_socs
           : {},
     };
+
+    // Tự dọn dữ liệu legacy để Cookie/proxy cũ không còn nằm trong localStorage.
+    if ("cookies" in parsed || "proxy_url" in parsed) {
+      localStorage.setItem("configs", JSON.stringify(normalized));
+    }
+
+    return normalized;
   } catch {
     return emptyConfig();
   }
@@ -51,17 +67,6 @@ export const getConfigs = (): AppConfig => {
 
 export const saveConfigs = (configs: AppConfig) => {
   localStorage.setItem("configs", JSON.stringify(configs));
-};
-
-export const clearCookies = (): AppConfig => {
-  const nextConfig = { ...getConfigs(), cookies: "" };
-  saveConfigs(nextConfig);
-  return nextConfig;
-};
-
-export const getProxyUrl = (): string => {
-  const configs = getConfigs();
-  return configs.proxy_url || "";
 };
 
 export const getLogUrl = (): string => {
@@ -89,21 +94,6 @@ export const getHubs = (): string[] => {
 export const getSocs = (): string[] => {
   const configs = getConfigs();
   return configs.socs || [];
-};
-
-/**
- * Compatibility shim cho các màn hình cũ còn kiểm tra `getCookies()`.
- * Trên SPX, giá trị này chỉ báo rằng browser session hiện tại được sử dụng;
- * nó KHÔNG phải nội dung Cookie và không được gửi thủ công qua API client.
- */
-export const getCookies = (): string => {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname.toLowerCase();
-    if (hostname === "spx.shopee.vn" || hostname.endsWith(".spx.shopee.vn")) {
-      return "browser-session";
-    }
-  }
-  return getConfigs().cookies || "";
 };
 
 export const getSoc = (): string => {
