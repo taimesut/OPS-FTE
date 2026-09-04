@@ -11,7 +11,6 @@ import { PageHeader } from "../components/PageHeader";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import {
-  getCookies,
   getHubs,
   getSoc,
   getSocId,
@@ -123,12 +122,10 @@ export const InternalHubVolumePage = () => {
 
     const currentSoc = getSoc();
     const currentSocId = getSocId();
-    const currentCookies = getCookies();
     const currentHubs = readHubs();
     const configError = validateInternalHubVolumeConfig({
       soc: currentSoc,
       socId: currentSocId,
-      cookies: currentCookies,
       hubs: currentHubs,
     });
     if (configError) {
