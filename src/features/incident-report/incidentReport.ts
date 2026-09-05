@@ -172,3 +172,89 @@ export const parseTripDetailResponse = (payload: unknown): TripDetails => {
     expectedQuantity: expected !== null && expected >= 0 ? expected : null,
   };
 };
+
+export type LoadingKind = "pending" | "inbound";
+
+export interface LoadingPage {
+  pageNo: number;
+  count: number;
+  total: number;
+  codes: string[];
+  invalidCount: number;
+  rawItemCount: number;
+}
+
+export const extractLoadingCode = (value: unknown): string | null => {
+  if (!isRecord(value)) return null;
+  const code = text(value.scan_number) || text(value.to_number);
+  return code ? code.toUpperCase() : null;
+};
+
+export const createLoadingPath = (
+  kind: LoadingKind,
+  tripId: number,
+  sequence: number,
+  pageNo: number,
+): string => {
+  if (!Number.isInteger(tripId) || tripId <= 0) {
+    throw new Error("Trip id không hợp lệ.");
+  }
+  if (!Number.isInteger(sequence) || sequence < 0) {
+    throw new Error("Display sequence không hợp lệ.");
+  }
+  if (!Number.isInteger(pageNo) || pageNo < 1) {
+    throw new Error("Số trang không hợp lệ.");
+  }
+
+  const query = new URLSearchParams({
+    trip_id: String(tripId),
+    pageno: String(pageNo),
+    count: "24",
+  });
+  if (kind === "pending") {
+    query.set("unloaded_sequence_number", String(sequence));
+    query.set("actual_unloaded_sequence_number", "0");
+    query.set("type", "pending");
+  } else {
+    query.set("actual_unloaded_sequence_number", String(sequence));
+    query.set("type", "inbound");
+    query.set("unload_list_type", "2");
+  }
+  return `/api/admin/transportation/trip/loading/list?${query.toString()}`;
+};
+
+export const parseLoadingPage = (payload: unknown): LoadingPage => {
+  const data = responseData(payload, "Danh sách kiện");
+  const pageNo = finiteNumber(data.pageno);
+  const count = finiteNumber(data.count);
+  const total = finiteNumber(data.total);
+  if (pageNo === null || !Number.isInteger(pageNo) || pageNo < 1) {
+    throw new Error("Danh sách kiện: pageno không hợp lệ.");
+  }
+  if (count === null || !Number.isInteger(count) || count < 1) {
+    throw new Error("Danh sách kiện: count không hợp lệ.");
+  }
+  if (total === null || !Number.isInteger(total) || total < 0) {
+    throw new Error("Danh sách kiện: total không hợp lệ.");
+  }
+  if (!Array.isArray(data.list)) {
+    throw new Error("Danh sách kiện: list không hợp lệ.");
+  }
+
+  const codes: string[] = [];
+  let invalidCount = 0;
+  for (const item of data.list) {
+    const code = extractLoadingCode(item);
+    if (code) codes.push(code);
+    else invalidCount += 1;
+  }
+
+  return {
+    pageNo,
+    count,
+    total,
+    codes,
+    invalidCount,
+    rawItemCount: data.list.length,
+  };
+};
