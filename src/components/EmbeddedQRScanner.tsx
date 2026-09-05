@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ExternalLink, LoaderCircle, X } from "lucide-react";
-import { SCANNER_URL } from "../utils/config";
+import { Camera, LoaderCircle, RefreshCw, X } from "lucide-react";
+import QRScanner from "./QRScanner";
+import { showToast } from "./Toast";
+import { decodeBarcodeImage } from "../utils/barcode";
+import { getCameraErrorMessage, requestCameraStream } from "../utils/camera";
 
 export type ScanMode = "lhtrip" | "item";
 
@@ -11,23 +14,7 @@ interface EmbeddedQRScannerProps {
   onClose: () => void;
 }
 
-type ScannerStatus = "idle" | "starting" | "ready" | "error" | "popup";
-
-interface ScannerMessage {
-  type?: string;
-  requestId?: string;
-  value?: string;
-  message?: string;
-}
-
-interface ScannerSession {
-  requestId: string;
-  mode: ScanMode;
-}
-
-const SCANNER_ORIGIN = new URL(SCANNER_URL).origin;
-const IFRAME_SRC = `${SCANNER_URL}/?embedded=1`;
-const READY_TIMEOUT_MS = 7000;
+type ScannerStatus = "idle" | "starting" | "ready" | "error";
 
 export default function EmbeddedQRScanner({
   open,
@@ -35,231 +22,191 @@ export default function EmbeddedQRScanner({
   onScan,
   onClose,
 }: EmbeddedQRScannerProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const popupRef = useRef<Window | null>(null);
-  const sessionRef = useRef<ScannerSession | null>(null);
-  const frameLoadedRef = useRef(false);
-  const readyTimerRef = useRef<number | null>(null);
-  const onScanRef = useRef(onScan);
-  const onCloseRef = useRef(onClose);
+  const streamRef = useRef<MediaStream | null>(null);
+  const requestGenerationRef = useRef(0);
+  const handledScanRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState<ScannerStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [decodingImage, setDecodingImage] = useState(false);
 
-  useEffect(() => {
-    onScanRef.current = onScan;
-  }, [onScan]);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  const clearReadyTimer = useCallback(() => {
-    if (readyTimerRef.current !== null) {
-      window.clearTimeout(readyTimerRef.current);
-      readyTimerRef.current = null;
+  const releaseStream = useCallback(() => {
+    const current = streamRef.current;
+    streamRef.current = null;
+    if (current) {
+      current.getTracks().forEach((track) => track.stop());
     }
+    setStream(null);
   }, []);
 
-  const postToFrame = useCallback((message: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(message, SCANNER_ORIGIN);
-  }, []);
-
-  const stopSession = useCallback(() => {
-    const session = sessionRef.current;
-    if (session) {
-      postToFrame({
-        type: "LH_TRIP_SCANNER_STOP",
-        requestId: session.requestId,
-      });
-    }
-    clearReadyTimer();
-    popupRef.current?.close();
-    popupRef.current = null;
-    sessionRef.current = null;
+  const stopScanner = useCallback(() => {
+    requestGenerationRef.current += 1;
+    handledScanRef.current = false;
+    releaseStream();
     setStatus("idle");
-  }, [clearReadyTimer, postToFrame]);
-
-  const sendStart = useCallback(() => {
-    const session = sessionRef.current;
-    if (!session || !open) return;
-
-    setStatus("starting");
-    postToFrame({
-      type: "LH_TRIP_SCANNER_START",
-      requestId: session.requestId,
-      targetOrigin: window.location.origin,
-      mode: session.mode,
-    });
-
-    clearReadyTimer();
-    readyTimerRef.current = window.setTimeout(() => {
-      if (sessionRef.current?.requestId !== session.requestId) return;
-      setStatus("error");
-      setErrorMessage("Không thể mở camera trong khung nhúng.");
-    }, READY_TIMEOUT_MS);
-  }, [clearReadyTimer, open, postToFrame]);
-
-  const startSession = useCallback((nextMode: ScanMode) => {
-    stopSession();
-    const session = {
-      requestId: crypto.randomUUID(),
-      mode: nextMode,
-    } satisfies ScannerSession;
-    sessionRef.current = session;
     setErrorMessage("");
+    setDecodingImage(false);
+  }, [releaseStream]);
+
+  const startScanner = useCallback(async () => {
+    const generation = requestGenerationRef.current + 1;
+    requestGenerationRef.current = generation;
+    handledScanRef.current = false;
+    releaseStream();
     setStatus("starting");
-    if (frameLoadedRef.current) sendStart();
-  }, [sendStart, stopSession]);
+    setErrorMessage("");
+
+    // Đợi một nhịp để tránh React StrictMode mở camera hai lần trong dev.
+    await Promise.resolve();
+    if (requestGenerationRef.current !== generation) return;
+
+    try {
+      const nextStream = await requestCameraStream("environment");
+      if (requestGenerationRef.current !== generation) {
+        nextStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      streamRef.current = nextStream;
+      setStream(nextStream);
+      setStatus("ready");
+    } catch (error) {
+      if (requestGenerationRef.current !== generation) return;
+      releaseStream();
+      setStatus("error");
+      setErrorMessage(getCameraErrorMessage(error));
+    }
+  }, [releaseStream]);
 
   useEffect(() => {
-    if (open && mode) {
-      const timer = window.setTimeout(() => startSession(mode), 0);
+    if (!open || !mode) {
+      const timer = window.setTimeout(stopScanner, 0);
       return () => window.clearTimeout(timer);
     }
-    frameLoadedRef.current = false;
-    const timer = window.setTimeout(stopSession, 0);
-    return () => window.clearTimeout(timer);
-  }, [mode, open, startSession, stopSession]);
 
-  useEffect(() => {
-    const receiveMessage = (event: MessageEvent<ScannerMessage>) => {
-      if (event.origin !== SCANNER_ORIGIN) return;
+    const timer = window.setTimeout(() => {
+      void startScanner();
+    }, 0);
 
-      const session = sessionRef.current;
-      if (!session || event.data?.requestId !== session.requestId) return;
-
-      const iframeWindow = iframeRef.current?.contentWindow;
-      const isIframeMessage = event.source === iframeWindow;
-      const isPopupMessage = event.source === popupRef.current;
-      if (!isIframeMessage && !isPopupMessage) return;
-
-      if (event.data.type === "LH_TRIP_SCANNER_READY") {
-        clearReadyTimer();
-        setStatus("ready");
-        return;
-      }
-
-      if (event.data.type === "LH_TRIP_SCANNER_ERROR") {
-        clearReadyTimer();
-        setStatus("error");
-        setErrorMessage(event.data.message || "Không thể mở camera.");
-        return;
-      }
-
-      if (event.data.type === "LH_TRIP_SCANNER_CANCEL") {
-        stopSession();
-        onCloseRef.current();
-        return;
-      }
-
-      if (event.data.type !== "LH_TRIP_SCAN_RESULT" || typeof event.data.value !== "string") {
-        return;
-      }
-
-      const value = event.data.value.trim();
-      if (!value) return;
-      const currentMode = session.mode;
-      stopSession();
-      onScanRef.current(value, currentMode);
-      onCloseRef.current();
+    return () => {
+      window.clearTimeout(timer);
+      requestGenerationRef.current += 1;
+      releaseStream();
     };
+  }, [mode, open, releaseStream, startScanner, stopScanner]);
 
-    window.addEventListener("message", receiveMessage);
-    return () => window.removeEventListener("message", receiveMessage);
-  }, [clearReadyTimer, stopSession]);
+  const finishScan = useCallback(
+    (rawValue: string) => {
+      if (!open || !mode || handledScanRef.current) return;
+      const value = rawValue.trim();
+      if (!value) return;
 
-  const handleFrameLoad = () => {
-    frameLoadedRef.current = true;
-    if (sessionRef.current && open) sendStart();
-  };
+      handledScanRef.current = true;
+      try {
+        navigator.vibrate?.(100);
+      } catch {
+        // Vibration is optional.
+      }
 
-  const openPopupFallback = () => {
-    const session = sessionRef.current;
-    if (!session) return;
+      requestGenerationRef.current += 1;
+      releaseStream();
+      onScan(value, mode);
+      onClose();
+    },
+    [mode, onClose, onScan, open, releaseStream],
+  );
 
-    const url = new URL(SCANNER_URL);
-    url.searchParams.set("embedded", "0");
-    url.searchParams.set("requestId", session.requestId);
-    url.searchParams.set("targetOrigin", window.location.origin);
-    const popup = window.open(
-      url.toString(),
-      `lh-trip-scanner-${session.requestId}`,
-      "popup,width=480,height=720",
-    );
+  const handleCapturedImage = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || decodingImage || !mode) return;
 
-    if (!popup) {
-      setErrorMessage("Trình duyệt đã chặn cửa sổ Scanner. Hãy cho phép popup.");
-      return;
+    setDecodingImage(true);
+    try {
+      const value = await decodeBarcodeImage(file);
+      finishScan(value);
+      showToast("Đã quét mã từ ảnh trên thiết bị.", "success");
+    } catch {
+      showToast(
+        "Không tìm thấy mã QR/Barcode trong ảnh. Hãy chụp rõ hơn và thử lại.",
+        "warning",
+      );
+    } finally {
+      setDecodingImage(false);
     }
-
-    popupRef.current = popup;
-    setStatus("popup");
   };
 
   const handleClose = () => {
-    stopSession();
-    onCloseRef.current();
+    stopScanner();
+    onClose();
   };
 
   if (!open || !mode) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-slate-950"
+      className="fixed inset-0 z-[70] overflow-hidden bg-black"
       role="dialog"
       aria-modal="true"
-      aria-label="Quét mã QR trực tiếp"
+      aria-label="Quét mã QR hoặc Barcode trực tiếp trên thiết bị"
     >
-      <iframe
-        ref={iframeRef}
-        src={IFRAME_SRC}
-        title="Live QR scanner"
-        allow="camera; fullscreen"
-        onLoad={handleFrameLoad}
-        className="h-full w-full border-0 bg-slate-950"
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => void handleCapturedImage(event)}
       />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:p-3">
-        <div className="pointer-events-auto min-w-0 max-w-[calc(100vw-4.5rem)] break-safe rounded-full bg-slate-950/80 px-3 py-2 text-xs font-bold text-white backdrop-blur">
-          {status === "ready" ? "Đưa mã vào giữa khung" : "Đang kết nối camera..."}
-        </div>
-        <button
-          type="button"
-          onClick={handleClose}
-          className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-slate-950/80 text-white backdrop-blur focus:outline-none focus:ring-2 focus:ring-white"
-          aria-label="Đóng máy quét"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      {(status === "starting" || status === "error" || status === "popup") && (
-        <div className="absolute inset-x-2 bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-3">
-          <div className="mx-auto min-w-0 max-w-md rounded-2xl border border-white/10 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur">
-            {status === "starting" && (
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-                Đang mở camera live...
-              </div>
-            )}
-            {(status === "error" || status === "popup") && (
+      {status === "ready" && stream ? (
+        <QRScanner
+          key={`${mode}-${requestGenerationRef.current}`}
+          initialStream={stream}
+          onScan={finishScan}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-slate-950 p-5 text-white">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-white/5 p-5 text-center shadow-2xl backdrop-blur">
+            {status === "starting" ? (
               <>
-                <p className="break-safe text-sm font-semibold">{errorMessage || "Camera trong iframe chưa sẵn sàng."}</p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-primary" />
+                <h3 className="mt-4 text-lg font-black">Đang mở camera thiết bị</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/65">
+                  Camera được mở trực tiếp ngay trong OPS FTE, không chuyển qua website scanner khác.
+                </p>
+              </>
+            ) : (
+              <>
+                <Camera className="mx-auto h-10 w-10 text-primary" />
+                <h3 className="mt-4 text-lg font-black">Không mở được camera</h3>
+                <p className="mt-2 break-words text-sm leading-relaxed text-white/70">
+                  {errorMessage || "Camera trên thiết bị chưa sẵn sàng."}
+                </p>
+                <div className="mt-5 grid gap-2">
                   <button
                     type="button"
-                    onClick={openPopupFallback}
-                    className="btn btn-primary min-h-11 flex-1 gap-2 rounded-xl font-bold"
+                    onClick={() => void startScanner()}
+                    className="btn btn-primary min-h-11 w-full gap-2 rounded-xl font-bold"
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    Mở cửa sổ quét
+                    <RefreshCw className="h-4 w-4" />
+                    Thử mở lại camera
                   </button>
                   <button
                     type="button"
-                    onClick={handleClose}
-                    className="btn btn-ghost min-h-11 flex-1 rounded-xl text-white"
+                    disabled={decodingImage}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn min-h-11 w-full gap-2 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15"
                   >
-                    Đóng
+                    {decodingImage ? (
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                    {decodingImage ? "Đang đọc mã..." : "Chụp ảnh để quét"}
                   </button>
                 </div>
               </>
@@ -267,6 +214,20 @@ export default function EmbeddedQRScanner({
           </div>
         </div>
       )}
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[80] flex items-start justify-between gap-2 p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-3">
+        <div className="pointer-events-auto max-w-[calc(100vw-4.5rem)] rounded-full bg-slate-950/80 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur">
+          {mode === "lhtrip" ? "Quét mã LH TRIP" : "Quét mã đơn"} · QR / Barcode
+        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-slate-950/80 text-white shadow-lg backdrop-blur focus:outline-none focus:ring-2 focus:ring-white"
+          aria-label="Đóng máy quét"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }
