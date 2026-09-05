@@ -258,3 +258,86 @@ export const parseLoadingPage = (payload: unknown): LoadingPage => {
     rawItemCount: data.list.length,
   };
 };
+
+const orderReasons = (
+  reasons: Iterable<IncidentReason>,
+): IncidentReason[] => {
+  const selected = new Set(reasons);
+  return INCIDENT_REASONS.filter((reason) => selected.has(reason));
+};
+
+const orderSources = (
+  sources: Iterable<IncidentSource>,
+): IncidentSource[] => {
+  const selected = new Set(sources);
+  return (["auto", "manual"] as const).filter((source) =>
+    selected.has(source),
+  );
+};
+
+export const mergeIncidentCodes = (
+  items: readonly IncidentItem[],
+  codes: readonly string[],
+  reason: IncidentReason,
+  source: IncidentSource,
+): IncidentItem[] => {
+  const result = items.map((item) => ({
+    ...item,
+    reasons: [...item.reasons],
+    sources: [...item.sources],
+  }));
+  const byCode = new Map(result.map((item) => [item.code, item]));
+
+  for (const rawCode of codes) {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) continue;
+
+    const current = byCode.get(code);
+    if (current) {
+      current.reasons = orderReasons([...current.reasons, reason]);
+      current.sources = orderSources([...current.sources, source]);
+      continue;
+    }
+
+    const next: IncidentItem = {
+      id: code,
+      code,
+      reasons: [reason],
+      sources: [source],
+    };
+    result.push(next);
+    byCode.set(code, next);
+  }
+
+  return result;
+};
+
+export const toggleIncidentReason = (
+  items: readonly IncidentItem[],
+  id: string,
+  reason: IncidentReason,
+): IncidentItem[] =>
+  items.map((item) => {
+    if (item.id !== id) return item;
+    const selected = new Set(item.reasons);
+    if (selected.has(reason) && selected.size > 1) {
+      selected.delete(reason);
+    } else {
+      selected.add(reason);
+    }
+    return {
+      ...item,
+      reasons: orderReasons(selected),
+      sources: orderSources([...item.sources, "manual"]),
+    };
+  });
+
+export const removeIncidentItem = (
+  items: readonly IncidentItem[],
+  id: string,
+): IncidentItem[] => items.filter((item) => item.id !== id);
+
+export const formatIncidentLog = (items: readonly IncidentItem[]): string =>
+  items
+    .map((item) => `${item.code}@${item.reasons.join(" + ")}`)
+    .join("#");

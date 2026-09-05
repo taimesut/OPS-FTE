@@ -5,9 +5,14 @@ import {
   createTripDetailPath,
   createTripSearchPath,
   extractLoadingCode,
+  formatIncidentLog,
+  mergeIncidentCodes,
   parseLoadingPage,
   parseTripDetailResponse,
   parseTripSearchResponse,
+  removeIncidentItem,
+  toggleIncidentReason,
+  type IncidentItem,
 } from "../src/features/incident-report/incidentReport.ts";
 import {
   fetchAllLoadingItems,
@@ -245,4 +250,53 @@ test("API adapter delegates search and detail through the injected GET client", 
   assert.equal((await searchTrips("LT0Q944WOQG72", dependency)).length, 1);
   assert.equal((await fetchTripDetails(296766439, dependency)).id, 296766439);
   assert.equal(paths.length, 2);
+});
+
+test("merges pending, inbound and manual reasons into one row per code", () => {
+  let items: IncidentItem[] = [];
+  items = mergeIncidentCodes(
+    items,
+    [" spx-1 ", "TO-2", "SPX-1"],
+    "Thiếu",
+    "auto",
+  );
+  items = mergeIncidentCodes(items, ["SPX-1"], "Dư", "auto");
+  items = mergeIncidentCodes(items, ["spx-1"], "Rách", "manual");
+  assert.deepEqual(items, [
+    {
+      id: "SPX-1",
+      code: "SPX-1",
+      reasons: ["Rách", "Thiếu", "Dư"],
+      sources: ["auto", "manual"],
+    },
+    {
+      id: "TO-2",
+      code: "TO-2",
+      reasons: ["Thiếu"],
+      sources: ["auto"],
+    },
+  ]);
+});
+
+test("toggles flags without allowing an empty incident row", () => {
+  const original = mergeIncidentCodes([], ["SPX-1"], "Thiếu", "auto");
+  assert.deepEqual(
+    toggleIncidentReason(original, "SPX-1", "Dư")[0]?.reasons,
+    ["Thiếu", "Dư"],
+  );
+  assert.deepEqual(
+    toggleIncidentReason(original, "SPX-1", "Thiếu")[0]?.reasons,
+    ["Thiếu"],
+  );
+  assert.deepEqual(removeIncidentItem(original, "SPX-1"), []);
+});
+
+test("formats multi-reason rows for the existing Google Sheet webhook", () => {
+  const items = mergeIncidentCodes(
+    mergeIncidentCodes([], ["SPX-1"], "Thiếu", "auto"),
+    ["SPX-1"],
+    "Dư",
+    "auto",
+  );
+  assert.equal(formatIncidentLog(items), "SPX-1@Thiếu + Dư");
 });
