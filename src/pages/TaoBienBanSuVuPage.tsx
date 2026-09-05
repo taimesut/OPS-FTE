@@ -22,6 +22,7 @@ import { IncidentReportPreview } from "../features/incident-report/IncidentRepor
 import { TripSearchPanel } from "../features/incident-report/TripSearchPanel";
 import {
   INCIDENT_REASONS,
+  createIncidentLogPayload,
   formatIncidentLog,
   mergeIncidentCodes,
   normalizeSearchTerm,
@@ -460,6 +461,10 @@ export const TaoBienBanSuVuPage = () => {
       showToast("Chưa có mã sự vụ nào trong danh sách!", "warning");
       return;
     }
+    if (!selectedTrip) {
+      showToast("Chưa chọn LH Trip để gửi log.", "warning");
+      return;
+    }
 
     const logUrl = getLogUrl();
     if (!logUrl) {
@@ -472,14 +477,18 @@ export const TaoBienBanSuVuPage = () => {
 
     setIsSending(true);
     try {
+      const payload = createIncidentLogPayload({
+        soc: socName,
+        createdAt,
+        tripSummary: selectedTrip,
+        tripDetails: detailBranch.data,
+        items,
+      });
       await fetch(logUrl, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({
-          lhTrip: selectedTripNumber.trim().toUpperCase(),
-          incidentLogs: incidentLog,
-        }),
+        body: JSON.stringify(payload),
       });
       showToast("Đã gửi thành công Log Sự Vụ về Google Sheet!", "success");
     } catch (error) {
