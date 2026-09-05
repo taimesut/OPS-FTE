@@ -1,6 +1,7 @@
 import {
   CircleAlert,
   Gem,
+  Package,
   PackageOpen,
   Route,
   ShieldAlert,
@@ -12,20 +13,25 @@ const NUMBER_FORMATTER = new Intl.NumberFormat("vi-VN");
 
 const METRIC_TONES = {
   primary: "border-primary/20 bg-primary/5 text-primary",
+  neutral: "border-base-300 bg-base-200/60 text-base-content",
   warning: "border-warning/30 bg-warning/10 text-warning",
   error: "border-error/25 bg-error/10 text-error",
+  combined: "border-secondary/25 bg-secondary/10 text-secondary",
 } as const;
 
+const LOADING_METRIC_KEYS = ["total", "normal", "dg", "gtc", "dg-gtc"];
+
 interface MetricProps {
+  className?: string;
   icon: LucideIcon;
   label: string;
   tone: keyof typeof METRIC_TONES;
   value: number;
 }
 
-const Metric = ({ icon: Icon, label, tone, value }: MetricProps) => (
+const Metric = ({ className = "", icon: Icon, label, tone, value }: MetricProps) => (
   <div
-    className={`min-w-0 rounded-xl border px-2.5 py-3 sm:px-4 ${METRIC_TONES[tone]}`}
+    className={`min-w-0 rounded-xl border px-2.5 py-3 sm:px-4 ${METRIC_TONES[tone]} ${className}`}
   >
     <div className="flex items-center gap-1.5">
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -93,10 +99,16 @@ export const LooseOrderSummary = ({
           Chọn tuyến và bấm “Tìm kiếm” để kiểm tra hàng xá lẻ.
         </p>
       ) : state.status === "loading" ? (
-        <div className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Đang tải hàng xá lẻ">
-          <div className="skeleton h-20 rounded-xl sm:h-24" />
-          <div className="skeleton h-20 rounded-xl sm:h-24" />
-          <div className="skeleton h-20 rounded-xl sm:h-24" />
+        <div
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5"
+          aria-label="Đang tải hàng xá lẻ"
+        >
+          {LOADING_METRIC_KEYS.map((key, index) => (
+            <div
+              key={key}
+              className={`skeleton h-20 rounded-xl sm:h-24 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`}
+            />
+          ))}
         </div>
       ) : state.status === "error" ? (
         <div role="alert" className="alert alert-error items-start rounded-xl text-sm">
@@ -107,24 +119,37 @@ export const LooseOrderSummary = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5">
           <Metric
+            className="col-span-2 sm:col-span-1"
             icon={PackageOpen}
-            label="Tổng"
+            label="Tổng xá"
             tone="primary"
             value={state.summary.total}
           />
           <Metric
+            icon={Package}
+            label="Xá thường"
+            tone="neutral"
+            value={state.summary.normalCount}
+          />
+          <Metric
             icon={ShieldAlert}
-            label="Hàng DG"
+            label="Xá DG"
             tone="warning"
             value={state.summary.dgCount}
           />
           <Metric
             icon={Gem}
-            label="Hàng GTC"
+            label="Xá GTC"
             tone="error"
             value={state.summary.highValueCount}
+          />
+          <Metric
+            icon={ShieldAlert}
+            label="DG + GTC"
+            tone="combined"
+            value={state.summary.dgAndHighValueCount}
           />
         </div>
       )}
