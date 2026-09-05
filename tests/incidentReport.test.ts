@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createIncidentLogPayload,
   createLoadingPath,
   createTripDetailPath,
   createTripSearchPath,
@@ -98,6 +99,8 @@ test("builds and parses detail_v2 without trip_station", () => {
         ...trip,
         id: 296220351,
         trip_type_name: "By Land",
+        trip_source: 0,
+        cost_type: 1,
         seal_code: "SEAL-1",
         seal_code_list: ["SEAL-2"],
         remark: "",
@@ -112,6 +115,8 @@ test("builds and parses detail_v2 without trip_station", () => {
       tripName: trip.trip_name,
       tripDate: trip.trip_date,
       tripTypeName: "By Land",
+      tripSource: 0,
+      costType: 1,
       driverName: trip.driver_name,
       secondDriverName: "",
       vehicleNumber: trip.vehicle_number,
@@ -299,4 +304,110 @@ test("formats multi-reason rows for the existing Google Sheet webhook", () => {
     "auto",
   );
   assert.equal(formatIncidentLog(items), "SPX-1@Thiếu + Dư");
+});
+
+test("builds a structured incident payload while preserving legacy fields", () => {
+  const tripSummary = parseTripSearchResponse({
+    retcode: 0,
+    data: { list: [trip] },
+  })[0];
+  const details = parseTripDetailResponse({
+    retcode: 0,
+    data: {
+      ...trip,
+      trip_type_name: "By Land",
+      trip_source: 0,
+      cost_type: 1,
+      seal_code_list: ["SEAL-1"],
+      remark_loading_quantity: 68,
+    },
+  });
+  const items = mergeIncidentCodes(
+    mergeIncidentCodes([], ["SPXVN001"], "Thiếu", "auto"),
+    ["SPXVN001"],
+    "Rách",
+    "manual",
+  );
+
+  assert.deepEqual(
+    createIncidentLogPayload({
+      soc: " Pleiku SOC ",
+      createdAt: new Date("2026-09-05T11:00:00.000Z"),
+      tripSummary,
+      tripDetails: details,
+      items,
+    }),
+    {
+      schemaVersion: 1,
+      lhTrip: "LT0Q944WOQG72",
+      incidentLogs: "SPXVN001@Rách + Thiếu",
+      soc: "Pleiku SOC",
+      createdAt: "2026-09-05T11:00:00.000Z",
+      trip: {
+        id: 296766439,
+        tripNumber: "LT0Q944WOQG72",
+        tripName: trip.trip_name,
+        tripDate: trip.trip_date,
+        tripTypeName: "By Land",
+        tripSource: 0,
+        costType: 1,
+        driverName: trip.driver_name,
+        secondDriverName: "",
+        vehicleNumber: trip.vehicle_number,
+        vehicleTypeName: trip.vehicle_type_name,
+        agencyName: trip.agency_name,
+        sealCodes: ["SEAL-1"],
+        remark: "",
+        operator: "",
+        expectedQuantity: 68,
+      },
+      incidents: [{ code: "SPXVN001", reasons: ["Rách", "Thiếu"] }],
+    },
+  );
+});
+
+test("payload builder rejects mismatched trips, empty items and invalid dates", () => {
+  const summary = parseTripSearchResponse({
+    retcode: 0,
+    data: { list: [trip] },
+  })[0];
+  const details = parseTripDetailResponse({
+    retcode: 0,
+    data: { ...trip, seal_code_list: [] },
+  });
+  const items = mergeIncidentCodes([], ["SPX-1"], "Khác", "manual");
+
+  assert.throws(
+    () =>
+      createIncidentLogPayload({
+        soc: "SOC",
+        createdAt: new Date(),
+        tripSummary: summary,
+        tripDetails: { ...details, tripNumber: "LT-OTHER" },
+        items,
+      }),
+    /không khớp/i,
+  );
+  assert.throws(
+    () =>
+      createIncidentLogPayload({
+        soc: "SOC",
+        createdAt: new Date(),
+        tripSummary: summary,
+        tripDetails: null,
+        items: [],
+      }),
+    /sự vụ/i,
+  );
+  assert.throws(
+    () =>
+      createIncidentLogPayload({
+        soc: "SOC",
+        createdAt: new Date("invalid"),
+        tripSummary: summary,
+        tripDetails: null,
+        items,
+      }),
+    /thời gian/i,
+  );
 });

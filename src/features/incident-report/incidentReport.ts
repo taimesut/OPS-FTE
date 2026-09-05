@@ -31,6 +31,8 @@ export interface TripDetails {
   tripName: string;
   tripDate: number;
   tripTypeName: string;
+  tripSource: number | null;
+  costType: number | null;
   driverName: string;
   secondDriverName: string;
   vehicleNumber: string;
@@ -161,6 +163,8 @@ export const parseTripDetailResponse = (payload: unknown): TripDetails => {
     tripName: text(data.trip_name),
     tripDate: finiteNumber(data.trip_date) ?? 0,
     tripTypeName: text(data.trip_type_name),
+    tripSource: finiteNumber(data.trip_source),
+    costType: finiteNumber(data.cost_type),
     driverName: text(data.driver_name),
     secondDriverName: text(data.second_driver_name),
     vehicleNumber: text(data.vehicle_number),
@@ -341,3 +345,97 @@ export const formatIncidentLog = (items: readonly IncidentItem[]): string =>
   items
     .map((item) => `${item.code}@${item.reasons.join(" + ")}`)
     .join("#");
+
+export interface IncidentLogTrip {
+  id: number;
+  tripNumber: string;
+  tripName: string;
+  tripDate: number;
+  tripTypeName: string;
+  tripSource: number | null;
+  costType: number | null;
+  driverName: string;
+  secondDriverName: string;
+  vehicleNumber: string;
+  vehicleTypeName: string;
+  agencyName: string;
+  sealCodes: string[];
+  remark: string;
+  operator: string;
+  expectedQuantity: number | null;
+}
+
+export interface IncidentLogPayload {
+  schemaVersion: 1;
+  lhTrip: string;
+  incidentLogs: string;
+  soc: string;
+  createdAt: string;
+  trip: IncidentLogTrip;
+  incidents: Array<{ code: string; reasons: IncidentReason[] }>;
+}
+
+export interface IncidentLogPayloadInput {
+  soc: string;
+  createdAt: Date;
+  tripSummary: TripSummary;
+  tripDetails: TripDetails | null;
+  items: readonly IncidentItem[];
+}
+
+export const createIncidentLogPayload = ({
+  soc,
+  createdAt,
+  tripSummary,
+  tripDetails,
+  items,
+}: IncidentLogPayloadInput): IncidentLogPayload => {
+  if (!Number.isFinite(createdAt.valueOf())) {
+    throw new Error("Thời gian lập biên bản không hợp lệ.");
+  }
+  if (items.length === 0) {
+    throw new Error("Biên bản chưa có mã sự vụ.");
+  }
+
+  const lhTrip = normalizeSearchTerm(
+    tripDetails?.tripNumber || tripSummary.tripNumber,
+  );
+  const summaryTrip = normalizeSearchTerm(tripSummary.tripNumber);
+  if (!lhTrip || !summaryTrip || lhTrip !== summaryTrip) {
+    throw new Error("LH Trip chi tiết không khớp chuyến đã chọn.");
+  }
+
+  const trip: IncidentLogTrip = {
+    id: tripSummary.id,
+    tripNumber: lhTrip,
+    tripName: tripDetails?.tripName || tripSummary.tripName,
+    tripDate: tripDetails?.tripDate || tripSummary.tripDate,
+    tripTypeName: tripDetails?.tripTypeName || "",
+    tripSource: tripDetails?.tripSource ?? null,
+    costType: tripDetails?.costType ?? null,
+    driverName: tripDetails?.driverName || tripSummary.driverName,
+    secondDriverName:
+      tripDetails?.secondDriverName || tripSummary.secondDriverName,
+    vehicleNumber: tripDetails?.vehicleNumber || tripSummary.vehicleNumber,
+    vehicleTypeName:
+      tripDetails?.vehicleTypeName || tripSummary.vehicleTypeName,
+    agencyName: tripDetails?.agencyName || tripSummary.agencyName,
+    sealCodes: [...(tripDetails?.sealCodes ?? [])],
+    remark: tripDetails?.remark || "",
+    operator: tripDetails?.operator || "",
+    expectedQuantity: tripDetails?.expectedQuantity ?? null,
+  };
+
+  return {
+    schemaVersion: 1,
+    lhTrip,
+    incidentLogs: formatIncidentLog(items),
+    soc: soc.trim(),
+    createdAt: createdAt.toISOString(),
+    trip,
+    incidents: items.map((item) => ({
+      code: item.code,
+      reasons: [...item.reasons],
+    })),
+  };
+};
