@@ -27001,7 +27001,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime$1.jsx)(Metric, {
 						icon: ShieldAlert,
-						label: "DG + GTC",
+						label: "Xá DG + GTC",
 						tone: "combined",
 						value: state.summary.dgAndHighValueCount
 					})

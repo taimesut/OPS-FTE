@@ -147,7 +147,7 @@ export const LooseOrderSummary = ({
           />
           <Metric
             icon={ShieldAlert}
-            label="DG + GTC"
+            label="Xá DG + GTC"
             tone="combined"
             value={state.summary.dgAndHighValueCount}
           />
