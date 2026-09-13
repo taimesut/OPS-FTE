@@ -21,7 +21,8 @@ test("userscript release workflow builds, verifies and deploys the userscript", 
   const workflow = await readSource("../.github/workflows/userscript-release.yml");
 
   assert.match(workflow, /branches:\s*\n\s*- main/);
-  assert.match(workflow, /npm test/);
+  assert.match(workflow, /node-version:\s*24/);
+  assert.match(workflow, /npm run test:userscript/);
   assert.match(workflow, /npm run build:userscript/);
   assert.match(workflow, /0\.4\.\$\{GITHUB_RUN_NUMBER\}/);
   assert.ok(workflow.includes(updateUrl));
