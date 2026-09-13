@@ -7,11 +7,17 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
+import { CreateTimeRangeControl } from "../components/CreateTimeRangeControl";
 import {
   CotCutoffControl,
   type CotProgress,
 } from "../components/CotCutoffControl";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
+import {
+  createCreateTimeRange,
+  createDefaultCreateTimeRangeInput,
+  type CreateTimeRangeInput,
+} from "../utils/createTimeRange";
 import {
   createCotWindow,
   formatLocalDateTimeInput,
@@ -32,6 +38,8 @@ export const CheckSotNoiTinhPage = () => {
   const [hub, setHub] = useState("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
+  const [createTimeRangeInput, setCreateTimeRangeInput] =
+    useState<CreateTimeRangeInput>(() => createDefaultCreateTimeRangeInput());
   const [cotPreferences, setCotPreferences] =
     useState<CotCutoffPreferences>(() => {
       try {
@@ -70,6 +78,10 @@ export const CheckSotNoiTinhPage = () => {
     }));
   };
 
+  const resetCreateTimeRange = () => {
+    setCreateTimeRangeInput(createDefaultCreateTimeRangeInput());
+  };
+
   const checkSotNoiTinh = async () => {
     const currentSoc = getSoc();
     const currentSocId = getSocId();
@@ -96,6 +108,20 @@ export const CheckSotNoiTinhPage = () => {
       return;
     }
 
+    let activeCreateTimeRange;
+    try {
+      activeCreateTimeRange = createCreateTimeRange(
+        createTimeRangeInput.fromLocalDateTime,
+        createTimeRangeInput.toLocalDateTime,
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Create time không hợp lệ.",
+        "warning",
+      );
+      return;
+    }
+
     let cotWindow: CotWindow | undefined;
     if (cotPreferences.enabled) {
       try {
@@ -117,11 +143,9 @@ export const CheckSotNoiTinhPage = () => {
 
     try {
       const checkPackedOrders = async () => {
-        const now = Math.floor(Date.now() / 1000);
-        const sevenDaysAgo = now - 7 * 24 * 60 * 60;
         const url = `/api/in-station/general_to/outbound/search?pageno=1&count=500&receiver=${encodeURIComponent(
           hub,
-        )}&status=2&ctime=${sevenDaysAgo},${now}`;
+        )}&status=2&ctime=${activeCreateTimeRange.ctime}`;
 
         const response = await apiClient.get(url);
         const stationOrders = (response.data?.data?.list || []).filter(
@@ -223,6 +247,25 @@ export const CheckSotNoiTinhPage = () => {
             </button>
           </div>
         }
+      />
+
+      <CreateTimeRangeControl
+        fromLocalDateTime={createTimeRangeInput.fromLocalDateTime}
+        toLocalDateTime={createTimeRangeInput.toLocalDateTime}
+        disabled={loading}
+        onFromDateTimeChange={(fromLocalDateTime) =>
+          setCreateTimeRangeInput((current) => ({
+            ...current,
+            fromLocalDateTime,
+          }))
+        }
+        onToDateTimeChange={(toLocalDateTime) =>
+          setCreateTimeRangeInput((current) => ({
+            ...current,
+            toLocalDateTime,
+          }))
+        }
+        onReset={resetCreateTimeRange}
       />
 
       <CotCutoffControl
