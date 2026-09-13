@@ -2,15 +2,27 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+const defaultUserscriptVersion = "0.4.1";
+const defaultUserscriptUpdateUrl =
+  "https://taimesut.github.io/OPS-FTE/ops-fte.user.js";
+
+const userscriptVersion =
+  process.env.OPS_FTE_USERSCRIPT_VERSION?.trim() || defaultUserscriptVersion;
+const userscriptUpdateUrl =
+  process.env.OPS_FTE_USERSCRIPT_UPDATE_URL?.trim() ||
+  defaultUserscriptUpdateUrl;
+
 const metadata = `// ==UserScript==
 // @name         OPS FTE
 // @namespace    https://github.com/taimesut/OPS-FTE
-// @version      0.4.0
+// @version      ${userscriptVersion}
 // @description  OPS FTE chạy trực tiếp trong SPX bằng phiên đăng nhập hiện tại
 // @match        https://spx.shopee.vn/*
 // @match        https://*.spx.shopee.vn/*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    ${userscriptUpdateUrl}
+// @downloadURL  ${userscriptUpdateUrl}
 // ==/UserScript==`;
 
 const runtimeShim = `var process = globalThis.process || { env: { NODE_ENV: "production" } };`;

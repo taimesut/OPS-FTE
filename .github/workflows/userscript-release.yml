@@ -1,0 +1,93 @@
+name: Publish OPS FTE userscript
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: userscript-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Generate userscript version
+        id: version
+        shell: bash
+        run: echo "version=0.4.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build userscript
+        env:
+          OPS_FTE_USERSCRIPT_VERSION: ${{ steps.version.outputs.version }}
+          OPS_FTE_USERSCRIPT_UPDATE_URL: https://taimesut.github.io/OPS-FTE/ops-fte.user.js
+        run: npm run build:userscript
+
+      - name: Verify auto-update metadata
+        shell: bash
+        run: |
+          grep -F "@version      ${{ steps.version.outputs.version }}" userscript-dist/ops-fte.user.js
+          grep -F "@updateURL    https://taimesut.github.io/OPS-FTE/ops-fte.user.js" userscript-dist/ops-fte.user.js
+          grep -F "@downloadURL  https://taimesut.github.io/OPS-FTE/ops-fte.user.js" userscript-dist/ops-fte.user.js
+
+      - name: Create install page
+        shell: bash
+        run: |
+          cat > userscript-dist/index.html <<EOF
+          <!doctype html>
+          <html lang="vi">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>OPS FTE Userscript</title>
+            </head>
+            <body>
+              <main>
+                <h1>OPS FTE Userscript</h1>
+                <p>Version: ${{ steps.version.outputs.version }}</p>
+                <p><a href="./ops-fte.user.js">Cài đặt / cập nhật OPS FTE</a></p>
+              </main>
+            </body>
+          </html>
+          EOF
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: userscript-dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
