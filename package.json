@@ -11,7 +11,7 @@
     "build:userscript": "node node_modules/typescript/lib/tsc.js -b && vite build --config vite.userscript.config.ts",
     "bundle:gas": "node bundle-gas.mjs",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts tests/launcher.test.ts tests/gasAccessControl.test.ts tests/appVersionGas.test.ts tests/stationCatalogGas.test.ts tests/appVersion.test.ts tests/stationCatalog.test.ts tests/config.test.ts tests/transferOrderLookup.test.ts tests/transferOrderTable.test.ts tests/packedOrderMetrics.test.ts tests/internalHubOverview.test.ts tests/internalHubVolume.test.ts tests/cotCutoff.test.ts tests/transferOrderCot.test.ts tests/internalCotUi.test.ts tests/apiErrorLog.test.ts tests/apiClientLogging.test.ts tests/apiErrorLoggingGas.test.ts tests/gasBundler.test.ts",
+    "test": "node --experimental-strip-types --test tests/looseOrders.test.ts tests/stations.test.ts tests/launcher.test.ts tests/gasAccessControl.test.ts tests/appVersionGas.test.ts tests/stationCatalogGas.test.ts tests/appVersion.test.ts tests/stationCatalog.test.ts tests/config.test.ts tests/transferOrderLookup.test.ts tests/transferOrderTable.test.ts tests/packedOrderMetrics.test.ts tests/internalHubOverview.test.ts tests/internalHubVolume.test.ts tests/cotCutoff.test.ts tests/transferOrderCot.test.ts tests/internalCotUi.test.ts tests/createTimeRange.test.ts tests/createTimeRangeUi.test.ts tests/apiErrorLog.test.ts tests/apiClientLogging.test.ts tests/apiErrorLoggingGas.test.ts tests/gasBundler.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
