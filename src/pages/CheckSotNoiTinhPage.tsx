@@ -7,12 +7,16 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
+import { CreateTimeRangeNotice } from "../components/CreateTimeRangeNotice";
 import {
   CotCutoffControl,
   type CotProgress,
 } from "../components/CotCutoffControl";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
-import { createDefaultCreateTimeRange } from "../utils/createTimeRange";
+import {
+  createDefaultCreateTimeRange,
+  type CreateTimeRange,
+} from "../utils/createTimeRange";
 import {
   createCotWindow,
   formatLocalDateTimeInput,
@@ -33,6 +37,8 @@ export const CheckSotNoiTinhPage = () => {
   const [hub, setHub] = useState("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
+  const [lastCreateTimeRange, setLastCreateTimeRange] =
+    useState<CreateTimeRange | null>(null);
   const [cotPreferences, setCotPreferences] =
     useState<CotCutoffPreferences>(() => {
       try {
@@ -98,6 +104,12 @@ export const CheckSotNoiTinhPage = () => {
     }
 
     const activeCreateTimeRange = createDefaultCreateTimeRange();
+    setLastCreateTimeRange(activeCreateTimeRange);
+    console.info("[Check sót nội tỉnh] Create Time TO đóng bao", {
+      from: activeCreateTimeRange.fromLocalDateTime,
+      to: activeCreateTimeRange.toLocalDateTime,
+      ctime: activeCreateTimeRange.ctime,
+    });
 
     let cotWindow: CotWindow | undefined;
     if (cotPreferences.enabled) {
@@ -225,6 +237,8 @@ export const CheckSotNoiTinhPage = () => {
           </div>
         }
       />
+
+      <CreateTimeRangeNotice range={lastCreateTimeRange} />
 
       <CotCutoffControl
         enabled={cotPreferences.enabled}
