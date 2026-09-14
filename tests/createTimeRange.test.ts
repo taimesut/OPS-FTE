@@ -2,16 +2,37 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createCreateTimeRange,
+  createDefaultCreateTimeRange,
   createDefaultCreateTimeRangeInput,
 } from "../src/utils/createTimeRange.ts";
 
-test("default create time range covers the previous seven days", () => {
+test("default create time range covers the previous six calendar months", () => {
   const now = new Date(2026, 8, 14, 4, 50, 35, 0);
 
   assert.deepEqual(createDefaultCreateTimeRangeInput(now), {
-    fromLocalDateTime: "2026-09-07T04:50",
+    fromLocalDateTime: "2026-03-14T04:50",
     toLocalDateTime: "2026-09-14T04:50",
   });
+
+  const range = createDefaultCreateTimeRange(now);
+  const expectedFrom = Math.floor(
+    new Date(2026, 2, 14, 4, 50, 35, 0).getTime() / 1000,
+  );
+  const expectedTo = Math.floor(now.getTime() / 1000);
+
+  assert.equal(range.fromTimestamp, expectedFrom);
+  assert.equal(range.toTimestamp, expectedTo);
+  assert.equal(range.ctime, `${expectedFrom},${expectedTo}`);
+});
+
+test("six month default clamps to the last valid day of the target month", () => {
+  const now = new Date(2026, 7, 31, 12, 15, 20, 0);
+  const range = createDefaultCreateTimeRange(now);
+  const expectedFrom = Math.floor(
+    new Date(2026, 1, 28, 12, 15, 20, 0).getTime() / 1000,
+  );
+
+  assert.equal(range.fromTimestamp, expectedFrom);
 });
 
 test("create time range converts local inputs to the ctime query format", () => {
