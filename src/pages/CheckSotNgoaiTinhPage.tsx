@@ -13,8 +13,12 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
+import { CreateTimeRangeNotice } from "../components/CreateTimeRangeNotice";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
-import { createDefaultCreateTimeRange } from "../utils/createTimeRange";
+import {
+  createDefaultCreateTimeRange,
+  type CreateTimeRange,
+} from "../utils/createTimeRange";
 import { Search, Globe, PackageCheck } from "lucide-react";
 
 export const CheckSotNgoaiTinhPage = () => {
@@ -23,6 +27,8 @@ export const CheckSotNgoaiTinhPage = () => {
   const [currentSoc, setCurrentSoc] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
+  const [lastCreateTimeRange, setLastCreateTimeRange] =
+    useState<CreateTimeRange | null>(null);
   const looseOrders = useLooseOrderCheck();
 
   useEffect(() => {
@@ -59,6 +65,12 @@ export const CheckSotNgoaiTinhPage = () => {
     }
 
     const activeCreateTimeRange = createDefaultCreateTimeRange();
+    setLastCreateTimeRange(activeCreateTimeRange);
+    console.info("[Check sót ngoại tỉnh] Create Time TO đóng bao", {
+      from: activeCreateTimeRange.fromLocalDateTime,
+      to: activeCreateTimeRange.toLocalDateTime,
+      ctime: activeCreateTimeRange.ctime,
+    });
 
     setLoading(true);
 
@@ -155,6 +167,8 @@ export const CheckSotNgoaiTinhPage = () => {
           </div>
         }
       />
+
+      <CreateTimeRangeNotice range={lastCreateTimeRange} />
 
       <LooseOrderSummary
         state={looseOrders.state}
