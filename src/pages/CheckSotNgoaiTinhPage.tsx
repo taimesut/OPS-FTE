@@ -13,13 +13,8 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
-import { CreateTimeRangeControl } from "../components/CreateTimeRangeControl";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
-import {
-  createCreateTimeRange,
-  createDefaultCreateTimeRangeInput,
-  type CreateTimeRangeInput,
-} from "../utils/createTimeRange";
+import { createDefaultCreateTimeRange } from "../utils/createTimeRange";
 import { Search, Globe, PackageCheck } from "lucide-react";
 
 export const CheckSotNgoaiTinhPage = () => {
@@ -28,8 +23,6 @@ export const CheckSotNgoaiTinhPage = () => {
   const [currentSoc, setCurrentSoc] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<TransferOrder[]>([]);
-  const [createTimeRangeInput, setCreateTimeRangeInput] =
-    useState<CreateTimeRangeInput>(() => createDefaultCreateTimeRangeInput());
   const looseOrders = useLooseOrderCheck();
 
   useEffect(() => {
@@ -37,10 +30,6 @@ export const CheckSotNgoaiTinhPage = () => {
     setSocs(getSocs() || []);
     setCurrentSoc(getSoc() || "");
   }, []);
-
-  const resetCreateTimeRange = () => {
-    setCreateTimeRangeInput(createDefaultCreateTimeRangeInput());
-  };
 
   const checkSotNgoaiTinh = async () => {
     const sender = getSoc();
@@ -69,19 +58,7 @@ export const CheckSotNgoaiTinhPage = () => {
       return;
     }
 
-    let activeCreateTimeRange;
-    try {
-      activeCreateTimeRange = createCreateTimeRange(
-        createTimeRangeInput.fromLocalDateTime,
-        createTimeRangeInput.toLocalDateTime,
-      );
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Create time không hợp lệ.",
-        "warning",
-      );
-      return;
-    }
+    const activeCreateTimeRange = createDefaultCreateTimeRange();
 
     setLoading(true);
 
@@ -177,25 +154,6 @@ export const CheckSotNgoaiTinhPage = () => {
             </button>
           </div>
         }
-      />
-
-      <CreateTimeRangeControl
-        fromLocalDateTime={createTimeRangeInput.fromLocalDateTime}
-        toLocalDateTime={createTimeRangeInput.toLocalDateTime}
-        disabled={loading}
-        onFromDateTimeChange={(fromLocalDateTime) =>
-          setCreateTimeRangeInput((current) => ({
-            ...current,
-            fromLocalDateTime,
-          }))
-        }
-        onToDateTimeChange={(toLocalDateTime) =>
-          setCreateTimeRangeInput((current) => ({
-            ...current,
-            toLocalDateTime,
-          }))
-        }
-        onReset={resetCreateTimeRange}
       />
 
       <LooseOrderSummary
