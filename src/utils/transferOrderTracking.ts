@@ -14,13 +14,33 @@ const firstText = (record: UnknownRecord, keys: readonly string[]): string => {
   return "";
 };
 
-const parseTimestamp = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
+const parseTimestamp = (record: UnknownRecord): number | null => {
+  const candidates = [
+    record.timestamp,
+    record.track_time_ms,
+    record.track_time,
+    record.create_time,
+    record.ctime,
+    record.time,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
   }
+
   return null;
+};
+
+const parseStringList = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 };
 
 export interface TransferOrderTrackingEvent {
@@ -29,6 +49,12 @@ export interface TransferOrderTrackingEvent {
   title: string;
   description: string;
   location: string;
+  stationId: string;
+  operator: string;
+  tags: string[];
+  eventCode: string;
+  photoUrls: string[];
+  source: "tracking" | "event";
 }
 
 export interface TransferOrderTrackingResult {
@@ -37,15 +63,14 @@ export interface TransferOrderTrackingResult {
   events: TransferOrderTrackingEvent[];
 }
 
-const TITLE_KEYS = [
+const DISPLAY_NAME_KEYS = [
   "status_name",
   "status_text",
   "tracking_status",
-  "display_status",
+  "display_name",
   "event_name",
   "event_title",
   "title",
-  "message",
 ] as const;
 
 const DESCRIPTION_KEYS = [
@@ -54,6 +79,7 @@ const DESCRIPTION_KEYS = [
   "remark",
   "reason",
   "event_description",
+  "on_hold_reason",
 ] as const;
 
 const LOCATION_KEYS = [
@@ -65,45 +91,94 @@ const LOCATION_KEYS = [
   "site_name",
 ] as const;
 
+const wrapperOnlyStatuses = new Set(["-1", "-2"]);
+
 const collectTrackingEvents = (
   value: unknown,
   events: TransferOrderTrackingEvent[],
+  source: "tracking" | "event" = "tracking",
 ): void => {
   const record = asRecord(value);
   if (!record) return;
 
-  const status = firstText(record, ["status", "status_code", "event_code", "code"]);
-  const timestamp = parseTimestamp(
-    record.timestamp ?? record.create_time ?? record.ctime ?? record.time,
-  );
-  const explicitTitle = firstText(record, TITLE_KEYS);
-  const description = firstText(record, DESCRIPTION_KEYS);
+  const rawStatus = firstText(record, ["status", "status_code", "code"]);
+  const eventCode = firstText(record, ["event_code"]);
+  const timestamp = parseTimestamp(record);
+  const message = firstText(record, ["message"]);
+  const displayName = firstText(record, DISPLAY_NAME_KEYS);
+  const rawDescription = firstText(record, DESCRIPTION_KEYS);
   const location = firstText(record, LOCATION_KEYS);
-  const title =
-    explicitTitle ||
-    description ||
-    (status ? `Trạng thái ${status}` : "Cập nhật hành trình");
+  const stationId = firstText(record, ["station_id"]);
+  const operator = firstText(record, ["operator", "biz_staff_name"]);
+  const tags = parseStringList(record.tags);
+  const photoUrls = parseStringList(record.photo_url);
 
-  const hasOwnEvent = Boolean(
-    status || timestamp !== null || explicitTitle || description || location,
+  const status = wrapperOnlyStatuses.has(rawStatus) ? "" : rawStatus;
+  const title =
+    message ||
+    displayName ||
+    rawDescription ||
+    (status ? `Trạng thái ${status}` : eventCode || "Cập nhật hành trình");
+
+  const secondaryParts = [displayName, rawDescription].filter(
+    (part, index, parts) => part && part !== title && parts.indexOf(part) === index,
+  );
+  const description = secondaryParts.join(" · ");
+
+  // SPX dùng status -1/-2 làm record trung gian chỉ để chứa event_children.
+  // Không render record rỗng đó, nhưng vẫn render event_children bên dưới.
+  const hasSemanticOwnEvent = Boolean(
+    status ||
+      message ||
+      displayName ||
+      rawDescription ||
+      location ||
+      operator ||
+      eventCode ||
+      tags.length ||
+      photoUrls.length,
   );
 
-  if (hasOwnEvent) {
+  if (hasSemanticOwnEvent) {
     events.push({
       status,
       timestamp,
       title,
-      description: description === title ? "" : description,
+      description,
       location,
+      stationId,
+      operator,
+      tags,
+      eventCode,
+      photoUrls,
+      source,
     });
   }
 
-  for (const key of ["children", "event_children"] as const) {
-    const children = record[key];
-    if (!Array.isArray(children)) continue;
-    for (const child of children) collectTrackingEvents(child, events);
+  const children = record.children;
+  if (Array.isArray(children)) {
+    for (const child of children) collectTrackingEvents(child, events, "tracking");
+  }
+
+  const eventChildren = record.event_children;
+  if (Array.isArray(eventChildren)) {
+    for (const child of eventChildren) collectTrackingEvents(child, events, "event");
   }
 };
+
+const eventIdentity = (event: TransferOrderTrackingEvent): string =>
+  [
+    event.status,
+    event.eventCode,
+    event.timestamp ?? "",
+    event.title,
+    event.description,
+    event.location,
+    event.stationId,
+    event.operator,
+    event.tags.join(","),
+    event.photoUrls.join(","),
+  ].join("|");
 
 export const parseTransferOrderTrackingResponse = (
   payload: unknown,
@@ -124,14 +199,12 @@ export const parseTransferOrderTrackingResponse = (
   const events: TransferOrderTrackingEvent[] = [];
   for (const item of data.tracking_list) collectTrackingEvents(item, events);
 
-  const uniqueEvents = events.filter((event, index, source) => {
-    const key = `${event.status}|${event.timestamp ?? ""}|${event.title}|${event.description}|${event.location}`;
-    return (
-      source.findIndex(
-        (candidate) =>
-          `${candidate.status}|${candidate.timestamp ?? ""}|${candidate.title}|${candidate.description}|${candidate.location}` === key,
-      ) === index
-    );
+  const seen = new Set<string>();
+  const uniqueEvents = events.filter((event) => {
+    const key = eventIdentity(event);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 
   uniqueEvents.sort((left, right) => {
