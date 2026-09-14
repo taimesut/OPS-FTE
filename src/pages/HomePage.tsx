@@ -84,7 +84,7 @@ export const HomePage = () => {
         {/* Contact Action Buttons */}
         <div className="space-y-2.5 pt-1">
           <a
-            href="https://zalo.me/0987654321"
+            href="https://zalo.me/0328805839"
             target="_blank"
             rel="noreferrer"
             className="btn btn-primary min-h-12 w-full touch-manipulation gap-2 rounded-2xl text-sm font-bold shadow-md"
@@ -154,11 +154,11 @@ export const HomePage = () => {
         {/* Email Footer */}
         <div className="border-t border-base-200 pt-3">
           <a
-            href="mailto:nguyenthanhtaiabcxyz@gmail.com"
+            href="mailto:thanhtai.nguyen04@spxexpress.com"
             className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 break-safe text-xs font-semibold text-base-content/60 transition-colors hover:text-primary"
           >
             <Mail className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-            <span>0987.654.321@spxexpress.com</span>
+            <span>thanhtai.nguyen04@spxexpress.com</span>
           </a>
         </div>
       </div>

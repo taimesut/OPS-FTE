@@ -164,7 +164,7 @@ export default function EmbeddedQRScanner({
 
       {status === "ready" && stream ? (
         <QRScanner
-          key={`${mode}-${requestGenerationRef.current}`}
+          key={`${mode}-${stream.id}`}
           initialStream={stream}
           onScan={finishScan}
         />
@@ -217,7 +217,10 @@ export default function EmbeddedQRScanner({
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[80] flex items-start justify-between gap-2 p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-3">
         <div className="pointer-events-auto max-w-[calc(100vw-4.5rem)] rounded-full bg-slate-950/80 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur">
-          {mode === "lhtrip" ? "Quét mã LH TRIP" : "Quét mã đơn"} · QR / Barcode
+          {mode === "lhtrip"
+            ? "Quét LH Trip hoặc biển số"
+            : "Quét mã SPX / TO"}{" "}
+          · QR / Barcode
         </div>
         <button
           type="button"
