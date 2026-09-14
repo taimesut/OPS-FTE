@@ -503,36 +503,6 @@ function fetchShopeeApi(endpoint, cookie, method, bodyData, requestId) {
   }
 }
 
-/**
-  Hàm xử lý nhận dữ liệu Log Biên Bản Sự Vụ gửi về từ Web App
-  Dữ liệu JSON POST tới gồm:
-  - lhTrip: Mã chuyến xe (Cột 1)
-  - incidentLogs: Chuỗi đơn sự vụ định dạng "Mã đơn 1@lí do#Mã đơn 2@lí do" (Cột 2)
- */
 function doPost(e) {
-  try {
-    var contents = JSON.parse(e.postData.contents);
-    var lhTrip = contents.lhTrip || "";
-    var incidentLogs = contents.incidentLogs || "";
-
-    // Mở Google Sheet hiện tại (hoặc Sheet "LogSutVu")
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("LogSutVu") || ss.getActiveSheet();
-
-    // Nếu trang tính chưa có tiêu đề cột, tạo tiêu đề ở dòng 1
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(["LH TRIP", "Đơn sự vụ"]);
-    }
-
-    // Ghi thêm dòng mới gồm 2 cột chuẩn
-    sheet.appendRow([lhTrip, incidentLogs]);
-
-    return ContentService.createTextOutput(
-      JSON.stringify({ status: "success", message: "Đã lưu log thành công!" })
-    ).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(
-      JSON.stringify({ status: "error", message: error.toString() })
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
+  return handleIncidentReportPost_(e);
 }
