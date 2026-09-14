@@ -14,22 +14,33 @@ const firstText = (record: UnknownRecord, keys: readonly string[]): string => {
   return "";
 };
 
+const normalizeTimestamp = (value: unknown): number | null => {
+  let parsed: number | null = null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    parsed = value;
+  } else if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) parsed = numeric;
+  }
+
+  if (parsed === null) return null;
+  return parsed > 1_000_000_000_000 ? Math.floor(parsed / 1000) : parsed;
+};
+
 const parseTimestamp = (record: UnknownRecord): number | null => {
   const candidates = [
     record.timestamp,
-    record.track_time_ms,
     record.track_time,
+    record.track_time_ms,
     record.create_time,
     record.ctime,
     record.time,
   ];
 
   for (const value of candidates) {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && value.trim()) {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) return parsed;
-    }
+    const timestamp = normalizeTimestamp(value);
+    if (timestamp !== null) return timestamp;
   }
 
   return null;
