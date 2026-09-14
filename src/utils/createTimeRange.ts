@@ -11,9 +11,28 @@ export interface CreateTimeRange extends CreateTimeRangeInput {
 
 const LOCAL_DATE_TIME_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-const DEFAULT_RANGE_DAYS = 7;
+const DEFAULT_RANGE_MONTHS = 6;
 
 const pad = (value: number): string => String(value).padStart(2, "0");
+
+const subtractCalendarMonths = (date: Date, months: number): Date => {
+  const result = new Date(date);
+  const day = result.getDate();
+
+  // Move to the first day before changing month so dates such as August 31
+  // do not overflow into the following month.
+  result.setDate(1);
+  result.setMonth(result.getMonth() - months);
+
+  const lastDayOfTargetMonth = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0,
+  ).getDate();
+  result.setDate(Math.min(day, lastDayOfTargetMonth));
+
+  return result;
+};
 
 export const formatCreateTimeLocalDateTime = (date = new Date()): string => {
   if (Number.isNaN(date.getTime())) {
@@ -59,13 +78,31 @@ export const createDefaultCreateTimeRangeInput = (
     throw new Error("Create time không hợp lệ.");
   }
 
-  const from = new Date(
-    now.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000,
-  );
+  const from = subtractCalendarMonths(now, DEFAULT_RANGE_MONTHS);
 
   return {
     fromLocalDateTime: formatCreateTimeLocalDateTime(from),
     toLocalDateTime: formatCreateTimeLocalDateTime(now),
+  };
+};
+
+export const createDefaultCreateTimeRange = (
+  now = new Date(),
+): CreateTimeRange => {
+  if (Number.isNaN(now.getTime())) {
+    throw new Error("Create time không hợp lệ.");
+  }
+
+  const from = subtractCalendarMonths(now, DEFAULT_RANGE_MONTHS);
+  const fromTimestamp = Math.floor(from.getTime() / 1000);
+  const toTimestamp = Math.floor(now.getTime() / 1000);
+
+  return {
+    fromLocalDateTime: formatCreateTimeLocalDateTime(from),
+    toLocalDateTime: formatCreateTimeLocalDateTime(now),
+    fromTimestamp,
+    toTimestamp,
+    ctime: `${fromTimestamp},${toTimestamp}`,
   };
 };
 
