@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import QRCodeModal from "./QRCodeModal";
+import TrackingModal from "./TrackingModal";
 import {
-  SlidersHorizontal,
-  Search,
-  QrCode,
   ArrowLeft,
   ArrowRight,
   PackageCheck,
+  QrCode,
+  Route,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   classifyPackedOrder,
@@ -20,6 +22,8 @@ import {
   TRANSFER_ORDER_COLUMNS,
   type TransferOrderColumnKey,
 } from "../utils/transferOrderTable";
+import { fetchTransferOrderTracking } from "../utils/transferOrderTrackingApi";
+import type { TransferOrderTrackingResult } from "../utils/transferOrderTracking";
 
 export interface TransferOrder {
   to_number: string;
@@ -31,8 +35,8 @@ export interface TransferOrder {
   status: string;
   complete_time: number;
   pack_name: string;
-  high_value: number; // 1 là Y, 2 là N
-  dg_type: number[]; // 1 NON DG - 2 DG Type A - 3 DG Type B - 4 DG Type C - 5 DG Type D
+  high_value: number;
+  dg_type: number[];
   current_station_name: string;
 }
 
@@ -85,12 +89,14 @@ interface TransferOrderCompactRowProps {
   item: TransferOrder;
   visibleColumns: TransferOrderColumnKey[];
   onViewQR: () => void;
+  onViewTracking: () => void;
 }
 
 const TransferOrderCompactRow = ({
   item,
   visibleColumns,
   onViewQR,
+  onViewTracking,
 }: TransferOrderCompactRowProps) => {
   const showToNumber = visibleColumns.includes("to_number");
   const showAction = visibleColumns.includes("action");
@@ -145,14 +151,26 @@ const TransferOrderCompactRow = ({
             <ClassificationBadge classification={classification} />
           ) : null}
           {showAction ? (
-            <button
-              type="button"
-              className="btn btn-square btn-sm min-h-11 min-w-11 shrink-0 touch-manipulation rounded-xl btn-primary"
-              onClick={onViewQR}
-              aria-label={`Xem QR của ${item.to_number}`}
-            >
-              <QrCode className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                className="btn btn-square btn-sm min-h-11 min-w-11 touch-manipulation rounded-xl btn-outline"
+                onClick={onViewTracking}
+                aria-label={`Xem tracking của ${item.to_number}`}
+                title="Xem tracking"
+              >
+                <Route className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="btn btn-square btn-sm min-h-11 min-w-11 touch-manipulation rounded-xl btn-primary"
+                onClick={onViewQR}
+                aria-label={`Xem QR của ${item.to_number}`}
+                title="Xem QR"
+              >
+                <QrCode className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -175,6 +193,7 @@ const TransferOrderCompactRow = ({
           {showWeight ? <span>{(item.weight / 1000).toFixed(2)} kg</span> : null}
         </div>
       ) : null}
+
       {showSecondaryMetadata ? (
         <p
           className={`${showHeader || showPrimaryMetadata ? "mt-0.5" : ""} truncate text-[11px] leading-4 text-base-content/55`}
@@ -197,11 +216,17 @@ export const TOTable = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // View QR TO Modal State
   const [selectedTO, setSelectedTO] = useState<TransferOrder | null>(null);
   const [showQR, setShowQR] = useState(false);
 
-  // Cấu hình cột hiển thị
+  const [trackingTO, setTrackingTO] = useState<TransferOrder | null>(null);
+  const [showTracking, setShowTracking] = useState(false);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingData, setTrackingData] =
+    useState<TransferOrderTrackingResult | null>(null);
+  const [trackingError, setTrackingError] = useState("");
+  const trackingRequestId = useRef(0);
+
   const [visibleColumns, setVisibleColumns] = useState<
     TransferOrderColumnKey[]
   >(() => {
@@ -239,7 +264,6 @@ export const TOTable = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Lọc theo từ khóa tìm kiếm nhanh
   const filteredOrders = useMemo(
     () => orders.filter((item) => matchesTransferOrderSearch(item, searchQuery)),
     [orders, searchQuery],
@@ -260,20 +284,53 @@ export const TOTable = ({
   const toggleColumn = (colKey: TransferOrderColumnKey) => {
     setVisibleColumns((prev) =>
       prev.includes(colKey)
-        ? prev.filter((k) => k !== colKey)
+        ? prev.filter((key) => key !== colKey)
         : [...prev, colKey],
     );
   };
 
+  const loadTracking = async (item: TransferOrder) => {
+    const requestId = trackingRequestId.current + 1;
+    trackingRequestId.current = requestId;
+    setTrackingTO(item);
+    setShowTracking(true);
+    setTrackingLoading(true);
+    setTrackingData(null);
+    setTrackingError("");
+
+    try {
+      const data = await fetchTransferOrderTracking(item.to_number);
+      if (trackingRequestId.current !== requestId) return;
+      setTrackingData(data);
+    } catch (error) {
+      if (trackingRequestId.current !== requestId) return;
+      setTrackingError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Không thể tải tracking của đơn đại diện.",
+      );
+    } finally {
+      if (trackingRequestId.current === requestId) setTrackingLoading(false);
+    }
+  };
+
+  const closeTracking = () => {
+    trackingRequestId.current += 1;
+    setShowTracking(false);
+    setTrackingTO(null);
+    setTrackingLoading(false);
+    setTrackingData(null);
+    setTrackingError("");
+  };
+
   return (
     <div className="space-y-4">
-      {/* Dynamic Stats Banner */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
         <div className="stat min-w-0 rounded-xl border border-base-200 bg-base-100 p-3 shadow-xs sm:rounded-2xl sm:p-4">
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số TO
           </div>
-          <div className="stat-value text-2xl md:text-3xl text-primary font-black mt-1">
+          <div className="stat-value mt-1 text-2xl font-black text-primary md:text-3xl">
             {filteredOrders.length}
           </div>
           <div className="break-safe text-xs leading-relaxed opacity-70">
@@ -287,10 +344,12 @@ export const TOTable = ({
           <div className="stat-title text-xs font-semibold uppercase text-base-content/60">
             Tổng số kiện
           </div>
-          <div className="stat-value text-2xl md:text-3xl text-secondary font-black mt-1">
+          <div className="stat-value mt-1 text-2xl font-black text-secondary md:text-3xl">
             {packedMetrics.totalQuantity}
           </div>
-          <div className="break-safe text-xs leading-relaxed opacity-70">Tổng sản phẩm/kiện</div>
+          <div className="break-safe text-xs leading-relaxed opacity-70">
+            Tổng sản phẩm/kiện
+          </div>
         </div>
 
         <div className="stat min-w-0 rounded-xl border border-warning/25 bg-warning/5 p-3 shadow-xs sm:rounded-2xl sm:p-4">
@@ -330,19 +389,16 @@ export const TOTable = ({
         </div>
       </div>
 
-      {/* Main Card Container */}
       <div className="app-surface overflow-hidden">
-        {/* Toolbar Controls */}
         <div className="grid gap-2 border-b border-base-200 bg-base-200/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3 sm:p-4">
-          {/* Tìm kiếm nhanh */}
           <div className="relative min-w-0 w-full sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
             <input
               type="text"
               aria-label="Tìm kiếm Transfer Order"
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
                 setCurrentPage(1);
               }}
               placeholder="Tìm mã TO, Sender, người đóng, điểm đến..."
@@ -351,7 +407,6 @@ export const TOTable = ({
           </div>
 
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-end">
-            {/* Button Tùy chọn cột */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
@@ -360,45 +415,42 @@ export const TOTable = ({
                 aria-label="Tùy chọn cột hiển thị"
                 aria-expanded={showColumnConfig}
               >
-                <SlidersHorizontal className="w-4 h-4" />
+                <SlidersHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline">Tùy chọn cột</span>
               </button>
 
-              {showColumnConfig && (
+              {showColumnConfig ? (
                 <div className="absolute right-0 top-full z-30 mt-2 w-[min(14rem,calc(100vw-2rem))] rounded-2xl border border-base-200 bg-base-100 p-3 shadow-2xl animate-in fade-in zoom-in-95 motion-reduce:animate-none">
-                  <div className="mb-2 border-b border-base-200 pb-2 text-xs font-bold text-base-content/50 uppercase tracking-wider">
+                  <div className="mb-2 border-b border-base-200 pb-2 text-xs font-bold uppercase tracking-wider text-base-content/50">
                     Hiển thị cột
                   </div>
                   <div className="flex max-h-60 flex-col gap-1.5 overflow-y-auto">
-                    {TABLE_COLUMNS.map((col) => (
+                    {TABLE_COLUMNS.map((column) => (
                       <label
-                        key={col.key}
+                        key={column.key}
                         className="flex min-h-11 cursor-pointer touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-base-200"
                       >
                         <input
                           type="checkbox"
-                          checked={visibleColumns.includes(col.key)}
-                          onChange={() => toggleColumn(col.key)}
+                          checked={visibleColumns.includes(column.key)}
+                          onChange={() => toggleColumn(column.key)}
                           className="checkbox checkbox-xs checkbox-primary rounded"
                         />
-                        <span className="text-xs font-medium">{col.label}</span>
+                        <span className="text-xs font-medium">{column.label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
-            {/* Selector Số lượng dòng hiển thị */}
             <div className="flex min-w-0 items-center justify-end gap-2 text-xs">
-              <span className="text-base-content/60 hidden sm:inline">
-                Dòng:
-              </span>
+              <span className="hidden text-base-content/60 sm:inline">Dòng:</span>
               <select
                 aria-label="Số dòng hiển thị"
                 value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
+                onChange={(event) => {
+                  setItemsPerPage(Number(event.target.value));
                   setCurrentPage(1);
                 }}
                 className="select select-bordered select-sm min-h-11 w-full min-w-0 rounded-xl sm:w-auto"
@@ -412,124 +464,136 @@ export const TOTable = ({
           </div>
         </div>
 
-        {/* Data Table */}
         {filteredOrders.length > 0 ? (
           <>
-          <div className="md:hidden">
-            {currentOrders.map((item) => (
-              <TransferOrderCompactRow
-                key={item.to_number}
-                item={item}
-                visibleColumns={visibleColumns}
-                onViewQR={() => {
-                  setSelectedTO(item);
-                  setShowQR(true);
-                }}
-              />
-            ))}
-          </div>
-          <div className="hidden max-w-full overflow-x-auto md:block">
-            <table className="table table-sm w-full min-w-[60rem] whitespace-nowrap md:table-md">
-              <thead className="bg-base-200/50 text-base-content font-bold border-b border-base-200">
-                <tr>
-                  {TABLE_COLUMNS.map(
-                    (col) =>
-                      visibleColumns.includes(col.key) && (
-                        <th key={col.key} className="text-xs py-3">
-                          {col.label}
-                        </th>
-                      ),
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-base-200">
-                {currentOrders.map((item) => (
-                  <tr
-                    key={item.to_number}
-                    className="hover:bg-base-200/40 transition-colors"
-                  >
-                    {visibleColumns.includes("to_number") && (
-                      <td>
-                        <span className="font-bold text-primary font-mono text-sm">
-                          {item.to_number}
-                        </span>
-                      </td>
-                    )}
-                    {visibleColumns.includes("operator") && (
-                      <td className="text-sm">{item.operator || "---"}</td>
-                    )}
-                    {visibleColumns.includes("classification") && (
-                      <td>
-                        <ClassificationBadge
-                          classification={classifyPackedOrder(item)}
-                        />
-                      </td>
-                    )}
-                    {visibleColumns.includes("sender") && (
-                      <td className="font-semibold text-sm">
-                        {item.sender || "---"}
-                      </td>
-                    )}
-                    {visibleColumns.includes("route") && (
-                      <td className="font-semibold text-sm">
-                        {item.receiver || "---"}
-                      </td>
-                    )}
-                    {visibleColumns.includes("pack_name") && (
-                      <td>
-                        <span className="badge badge-outline badge-sm font-mono">
-                          {item.pack_name || "Mặc định"}
-                        </span>
-                      </td>
-                    )}
-                    {visibleColumns.includes("quantity") && (
-                      <td className="font-bold text-center text-sm">
-                        {item.quantity}
-                      </td>
-                    )}
-                    {visibleColumns.includes("weight") && (
-                      <td className="text-right text-sm">
-                        {(item.weight / 1000).toFixed(2)} kg
-                      </td>
-                    )}
-                    {visibleColumns.includes("status") && (
-                      <td>
-                        <span className="badge badge-success badge-sm gap-1 bg-success/15 border-0 text-success font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                          {item.status || "Đã đóng gói"}
-                        </span>
-                      </td>
-                    )}
-                    {visibleColumns.includes("complete_time") && (
-                      <td className="text-xs text-base-content/70">
-                        {formatTransferTime(item.complete_time)}
-                      </td>
-                    )}
-                    {visibleColumns.includes("action") && (
-                      <td>
-                        <button
-                          className="btn btn-xs btn-primary gap-1.5 rounded-lg"
-                          onClick={() => {
-                            setSelectedTO(item);
-                            setShowQR(true);
-                          }}
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          View QR
-                        </button>
-                      </td>
+            <div className="md:hidden">
+              {currentOrders.map((item) => (
+                <TransferOrderCompactRow
+                  key={item.to_number}
+                  item={item}
+                  visibleColumns={visibleColumns}
+                  onViewTracking={() => void loadTracking(item)}
+                  onViewQR={() => {
+                    setSelectedTO(item);
+                    setShowQR(true);
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="hidden max-w-full overflow-x-auto md:block">
+              <table className="table table-sm w-full min-w-[64rem] whitespace-nowrap md:table-md">
+                <thead className="border-b border-base-200 bg-base-200/50 font-bold text-base-content">
+                  <tr>
+                    {TABLE_COLUMNS.map(
+                      (column) =>
+                        visibleColumns.includes(column.key) && (
+                          <th key={column.key} className="py-3 text-xs">
+                            {column.label}
+                          </th>
+                        ),
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-base-200">
+                  {currentOrders.map((item) => (
+                    <tr
+                      key={item.to_number}
+                      className="transition-colors hover:bg-base-200/40"
+                    >
+                      {visibleColumns.includes("to_number") && (
+                        <td>
+                          <span className="font-mono text-sm font-bold text-primary">
+                            {item.to_number}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.includes("operator") && (
+                        <td className="text-sm">{item.operator || "---"}</td>
+                      )}
+                      {visibleColumns.includes("classification") && (
+                        <td>
+                          <ClassificationBadge
+                            classification={classifyPackedOrder(item)}
+                          />
+                        </td>
+                      )}
+                      {visibleColumns.includes("sender") && (
+                        <td className="text-sm font-semibold">
+                          {item.sender || "---"}
+                        </td>
+                      )}
+                      {visibleColumns.includes("route") && (
+                        <td className="text-sm font-semibold">
+                          {item.receiver || "---"}
+                        </td>
+                      )}
+                      {visibleColumns.includes("pack_name") && (
+                        <td>
+                          <span className="badge badge-outline badge-sm font-mono">
+                            {item.pack_name || "Mặc định"}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.includes("quantity") && (
+                        <td className="text-center text-sm font-bold">
+                          {item.quantity}
+                        </td>
+                      )}
+                      {visibleColumns.includes("weight") && (
+                        <td className="text-right text-sm">
+                          {(item.weight / 1000).toFixed(2)} kg
+                        </td>
+                      )}
+                      {visibleColumns.includes("status") && (
+                        <td>
+                          <span className="badge badge-success badge-sm gap-1 border-0 bg-success/15 font-bold text-success">
+                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                            {item.status || "Đã đóng gói"}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.includes("complete_time") && (
+                        <td className="text-xs text-base-content/70">
+                          {formatTransferTime(item.complete_time)}
+                        </td>
+                      )}
+                      {visibleColumns.includes("action") && (
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline gap-1.5 rounded-lg"
+                              onClick={() => void loadTracking(item)}
+                              aria-label={`Xem tracking của ${item.to_number}`}
+                            >
+                              <Route className="h-3.5 w-3.5" />
+                              Tracking
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-primary gap-1.5 rounded-lg"
+                              onClick={() => {
+                                setSelectedTO(item);
+                                setShowQR(true);
+                              }}
+                            >
+                              <QrCode className="h-3.5 w-3.5" />
+                              View QR
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         ) : (
-          /* Empty State */
           <div className="flex flex-col items-center justify-center p-8 text-center sm:p-12">
-            <div className="w-16 h-16 rounded-2xl bg-base-200 flex items-center justify-center mb-4 text-base-content/30">
-              <PackageCheck className="w-8 h-8" />
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-base-200 text-base-content/30">
+              <PackageCheck className="h-8 w-8" />
             </div>
             <h3 className="text-lg font-bold">{emptyTitle}</h3>
             <p className="mt-1 max-w-sm break-safe text-sm text-base-content/60">
@@ -538,7 +602,6 @@ export const TOTable = ({
           </div>
         )}
 
-        {/* Pagination Footer */}
         {filteredOrders.length > 0 && (
           <div className="grid gap-3 border-t border-base-200 bg-base-200/20 p-3 text-xs sm:flex sm:items-center sm:justify-between sm:p-4">
             <div className="break-safe leading-relaxed text-base-content/70">
@@ -560,11 +623,11 @@ export const TOTable = ({
             <div className="join w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                onClick={() => setCurrentPage((previous) => Math.max(previous - 1, 1))}
                 disabled={currentPage === 1}
                 className="join-item btn btn-xs min-h-11 flex-1 touch-manipulation btn-outline rounded-l-xl sm:flex-none"
               >
-                <ArrowLeft className="w-3 h-3" />
+                <ArrowLeft className="h-3 w-3" />
                 Trước
               </button>
               <span
@@ -576,20 +639,19 @@ export const TOTable = ({
               <button
                 type="button"
                 onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  setCurrentPage((previous) => Math.min(previous + 1, totalPages))
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
                 className="join-item btn btn-xs min-h-11 flex-1 touch-manipulation btn-outline rounded-r-xl sm:flex-none"
               >
                 Sau
-                <ArrowRight className="w-3 h-3" />
+                <ArrowRight className="h-3 w-3" />
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* QRCode View Modal */}
       <QRCodeModal
         open={showQR}
         value={selectedTO?.to_number ?? ""}
@@ -603,6 +665,18 @@ export const TOTable = ({
           setShowQR(false);
           setSelectedTO(null);
         }}
+      />
+
+      <TrackingModal
+        open={showTracking}
+        toNumber={trackingTO?.to_number ?? ""}
+        loading={trackingLoading}
+        data={trackingData}
+        error={trackingError}
+        onRetry={() => {
+          if (trackingTO) void loadTracking(trackingTO);
+        }}
+        onClose={closeTracking}
       />
     </div>
   );
