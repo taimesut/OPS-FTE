@@ -119,12 +119,43 @@ test("parses real SPX event_children, photos, operators and ignores empty wrappe
   assert.equal(asmPhoto.status, "");
   assert.equal(asmPhoto.source, "event");
   assert.equal(asmPhoto.eventCode, "INSTATION_UPDATE_ASM_PHOTO");
-  assert.equal(asmPhoto.timestamp, 1789283546000);
+  assert.equal(asmPhoto.timestamp, 1789283546);
   assert.equal(asmPhoto.title, "Parcel photo is taken by the ASM.");
   assert.equal(asmPhoto.description, "ASM_Photo");
   assert.equal(asmPhoto.stationId, "3983");
   assert.equal(asmPhoto.operator, "CBSNC001VN3983/Unknown/Unknown");
   assert.deepEqual(asmPhoto.photoUrls, ["https://example.com/parcel.jpg"]);
+});
+
+test("normalizes millisecond timestamps before sorting", () => {
+  const events = parseTransferOrderTrackingResponse({
+    retcode: 0,
+    data: {
+      tracking_list: [
+        {
+          status: 33,
+          timestamp: 1789333609,
+          message: "Later tracking event",
+        },
+        {
+          status: -1,
+          timestamp: 1789283546,
+          event_children: [
+            {
+              event_code: "INSTATION_UPDATE_ASM_PHOTO",
+              track_time_ms: 1789283546000,
+              message: "Earlier ASM event",
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(events[0].title, "Later tracking event");
+  assert.equal(events[0].timestamp, 1789333609);
+  assert.equal(events[1].title, "Earlier ASM event");
+  assert.equal(events[1].timestamp, 1789283546);
 });
 
 test("keeps unknown future statuses generic instead of requiring a status map", () => {
