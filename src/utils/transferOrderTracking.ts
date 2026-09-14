@@ -1,3 +1,5 @@
+import { getTrackingStatusName } from "./trackingStatusMap.ts";
+
 type UnknownRecord = Record<string, unknown>;
 
 const asRecord = (value: unknown): UnknownRecord | null =>
@@ -56,12 +58,14 @@ const parseStringList = (value: unknown): string[] => {
 
 export interface TransferOrderTrackingEvent {
   status: string;
+  statusName: string;
   timestamp: number | null;
   title: string;
   description: string;
   location: string;
   stationId: string;
   operator: string;
+  workstation: string;
   tags: string[];
   eventCode: string;
   photoUrls: string[];
@@ -72,6 +76,33 @@ export interface TransferOrderTrackingResult {
   toNumber: string;
   shipmentId: string;
   events: TransferOrderTrackingEvent[];
+}
+
+export type TrackingFlow =
+  | "Khởi tạo"
+  | "Inbound"
+  | "Đóng bao"
+  | "Linehaul"
+  | "Phân loại"
+  | "Pickup"
+  | "Delivery"
+  | "Return"
+  | "Exception"
+  | "Event hệ thống"
+  | "Khác";
+
+export interface TransferOrderTrackingFlowGroup {
+  flow: TrackingFlow;
+  events: TransferOrderTrackingEvent[];
+}
+
+export interface TransferOrderTrackingStationGroup {
+  stationKey: string;
+  stationName: string;
+  stationId: string;
+  flows: TransferOrderTrackingFlowGroup[];
+  firstTimestamp: number | null;
+  lastTimestamp: number | null;
 }
 
 const DISPLAY_NAME_KEYS = [
@@ -102,12 +133,25 @@ const LOCATION_KEYS = [
   "site_name",
 ] as const;
 
+const WORKSTATION_KEYS = [
+  "workstation",
+  "workstation_name",
+  "work_station",
+  "work_station_name",
+] as const;
+
 const wrapperOnlyStatuses = new Set(["-1", "-2"]);
+
+interface InheritedTrackingContext {
+  location: string;
+  stationId: string;
+}
 
 const collectTrackingEvents = (
   value: unknown,
   events: TransferOrderTrackingEvent[],
   source: "tracking" | "event" = "tracking",
+  inherited: InheritedTrackingContext = { location: "", stationId: "" },
 ): void => {
   const record = asRecord(value);
   if (!record) return;
@@ -118,33 +162,36 @@ const collectTrackingEvents = (
   const message = firstText(record, ["message"]);
   const displayName = firstText(record, DISPLAY_NAME_KEYS);
   const rawDescription = firstText(record, DESCRIPTION_KEYS);
-  const location = firstText(record, LOCATION_KEYS);
-  const stationId = firstText(record, ["station_id"]);
+  const ownLocation = firstText(record, LOCATION_KEYS);
+  const ownStationId = firstText(record, ["station_id"]);
+  const location = ownLocation || inherited.location;
+  const stationId = ownStationId || inherited.stationId;
   const operator = firstText(record, ["operator", "biz_staff_name"]);
+  const workstation = firstText(record, WORKSTATION_KEYS);
   const tags = parseStringList(record.tags);
   const photoUrls = parseStringList(record.photo_url);
 
   const status = wrapperOnlyStatuses.has(rawStatus) ? "" : rawStatus;
+  const mappedStatusName = status ? getTrackingStatusName(status) : "";
+  const statusName = displayName || mappedStatusName;
   const title =
     message ||
-    displayName ||
     rawDescription ||
+    statusName ||
     (status ? `Trạng thái ${status}` : eventCode || "Cập nhật hành trình");
 
-  const secondaryParts = [displayName, rawDescription].filter(
+  const secondaryParts = [rawDescription].filter(
     (part, index, parts) => part && part !== title && parts.indexOf(part) === index,
   );
   const description = secondaryParts.join(" · ");
 
-  // SPX dùng status -1/-2 làm record trung gian chỉ để chứa event_children.
-  // Không render record rỗng đó, nhưng vẫn render event_children bên dưới.
   const hasSemanticOwnEvent = Boolean(
     status ||
       message ||
       displayName ||
       rawDescription ||
-      location ||
       operator ||
+      workstation ||
       eventCode ||
       tags.length ||
       photoUrls.length,
@@ -153,12 +200,14 @@ const collectTrackingEvents = (
   if (hasSemanticOwnEvent) {
     events.push({
       status,
+      statusName,
       timestamp,
       title,
       description,
       location,
       stationId,
       operator,
+      workstation,
       tags,
       eventCode,
       photoUrls,
@@ -166,20 +215,27 @@ const collectTrackingEvents = (
     });
   }
 
+  const childContext = { location, stationId };
+
   const children = record.children;
   if (Array.isArray(children)) {
-    for (const child of children) collectTrackingEvents(child, events, "tracking");
+    for (const child of children) {
+      collectTrackingEvents(child, events, "tracking", childContext);
+    }
   }
 
   const eventChildren = record.event_children;
   if (Array.isArray(eventChildren)) {
-    for (const child of eventChildren) collectTrackingEvents(child, events, "event");
+    for (const child of eventChildren) {
+      collectTrackingEvents(child, events, "event", childContext);
+    }
   }
 };
 
 const eventIdentity = (event: TransferOrderTrackingEvent): string =>
   [
     event.status,
+    event.statusName,
     event.eventCode,
     event.timestamp ?? "",
     event.title,
@@ -187,9 +243,129 @@ const eventIdentity = (event: TransferOrderTrackingEvent): string =>
     event.location,
     event.stationId,
     event.operator,
+    event.workstation,
     event.tags.join(","),
     event.photoUrls.join(","),
   ].join("|");
+
+const inferStationFromMessage = (event: TransferOrderTrackingEvent): string => {
+  const text = `${event.title} ${event.description}`;
+  const match = /(?:arrived|unloading|unloaded)\s+at\s+\[([^\]]+)\]/i.exec(text);
+  return match?.[1]?.trim() ?? "";
+};
+
+export const getTrackingFlow = (
+  event: TransferOrderTrackingEvent,
+): TrackingFlow => {
+  if (event.source === "event") return "Event hệ thống";
+
+  const name = event.statusName || "";
+  if (name === "Created" || name.endsWith("_Created")) return "Khởi tạo";
+  if (/Return/i.test(name)) return "Return";
+  if (/Exception|Onhold|On_Hold|Holding|Damaged|Lost|Missing|Intercept/i.test(name)) {
+    return "Exception";
+  }
+  if (/Deliver/i.test(name)) return "Delivery";
+  if (/Pickup|Collection/i.test(name)) return "Pickup";
+  if (/LH(?:Packing|Packed|Transporting|Transported|Arrived|Unloading|Unloaded)/i.test(name)) {
+    return "Linehaul";
+  }
+  if (/PendingReceive|Received|Manifest_Received|Inbound/i.test(name)) return "Inbound";
+  if (/Packing|Packed|Container_Pack|Cache_Pack|Handover_Pack/i.test(name)) {
+    return "Đóng bao";
+  }
+  if (/Sorting|Sorted|Staging|Stage_Out|Weighing/i.test(name)) return "Phân loại";
+  return "Khác";
+};
+
+const timestampOr = (event: TransferOrderTrackingEvent, fallback: number): number =>
+  event.timestamp ?? fallback;
+
+export const groupTransferOrderTrackingByStationAndFlow = (
+  events: TransferOrderTrackingEvent[],
+): TransferOrderTrackingStationGroup[] => {
+  const chronological = [...events].sort((left, right) => {
+    const leftTime = timestampOr(left, Number.MAX_SAFE_INTEGER);
+    const rightTime = timestampOr(right, Number.MAX_SAFE_INTEGER);
+    return leftTime - rightTime;
+  });
+
+  const groups: TransferOrderTrackingStationGroup[] = [];
+  let currentStationName = "";
+  let currentStationId = "";
+  let currentGroup: TransferOrderTrackingStationGroup | null = null;
+
+  const openStationGroup = (
+    stationName: string,
+    stationId: string,
+    timestamp: number | null,
+  ): TransferOrderTrackingStationGroup => {
+    const normalizedName = stationName || (stationId ? `Station ID ${stationId}` : "Khởi tạo");
+    const group: TransferOrderTrackingStationGroup = {
+      stationKey: `${normalizedName}|${stationId}|${groups.length}`,
+      stationName: normalizedName,
+      stationId,
+      flows: [],
+      firstTimestamp: timestamp,
+      lastTimestamp: timestamp,
+    };
+    groups.push(group);
+    return group;
+  };
+
+  for (const event of chronological) {
+    const inferredStation = inferStationFromMessage(event);
+    const explicitStationName = event.location || inferredStation;
+    const explicitStationId = event.stationId;
+
+    if (explicitStationName || explicitStationId) {
+      const stationChanged =
+        !currentGroup ||
+        (explicitStationName && explicitStationName !== currentStationName) ||
+        (explicitStationId && currentStationId && explicitStationId !== currentStationId);
+
+      if (stationChanged) {
+        currentStationName = explicitStationName || currentStationName;
+        currentStationId = explicitStationId || "";
+        currentGroup = openStationGroup(
+          currentStationName,
+          currentStationId,
+          event.timestamp,
+        );
+      } else {
+        currentStationName = explicitStationName || currentStationName;
+        currentStationId = explicitStationId || currentStationId;
+      }
+    }
+
+    if (!currentGroup) {
+      currentGroup = openStationGroup("", "", event.timestamp);
+    }
+
+    const flow = getTrackingFlow(event);
+    let flowGroup = currentGroup.flows[currentGroup.flows.length - 1];
+    if (!flowGroup || flowGroup.flow !== flow) {
+      flowGroup = { flow, events: [] };
+      currentGroup.flows.push(flowGroup);
+    }
+    flowGroup.events.push(event);
+
+    if (
+      currentGroup.firstTimestamp === null ||
+      (event.timestamp !== null && event.timestamp < currentGroup.firstTimestamp)
+    ) {
+      currentGroup.firstTimestamp = event.timestamp;
+    }
+    if (
+      currentGroup.lastTimestamp === null ||
+      (event.timestamp !== null && event.timestamp > currentGroup.lastTimestamp)
+    ) {
+      currentGroup.lastTimestamp = event.timestamp;
+    }
+  }
+
+  return groups;
+};
 
 export const parseTransferOrderTrackingResponse = (
   payload: unknown,

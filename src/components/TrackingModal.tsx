@@ -1,19 +1,21 @@
 import {
   AlertCircle,
   Camera,
+  ChevronDown,
   Clock3,
   ExternalLink,
   MapPin,
   PackageSearch,
   Route,
   ScanLine,
-  Tag,
-  UserRound,
+  Wrench,
   X,
 } from "lucide-react";
-import type {
-  TransferOrderTrackingEvent,
-  TransferOrderTrackingResult,
+import {
+  groupTransferOrderTrackingByStationAndFlow,
+  type TransferOrderTrackingEvent,
+  type TransferOrderTrackingFlowGroup,
+  type TransferOrderTrackingResult,
 } from "../utils/transferOrderTracking";
 
 interface TrackingModalProps {
@@ -28,191 +30,179 @@ interface TrackingModalProps {
 
 const trackingTimeParts = (timestamp: number | null) => {
   if (timestamp === null) {
-    return { time: "--:--:--", date: "Không có thời gian" };
+    return { time: "--:--:--", date: "Unknown date" };
   }
 
-  const milliseconds =
-    timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000;
-  const date = new Date(milliseconds);
+  const date = new Date(timestamp * 1000);
   if (Number.isNaN(date.getTime())) {
-    return { time: "--:--:--", date: "Không có thời gian" };
+    return { time: "--:--:--", date: "Unknown date" };
   }
 
   return {
-    time: date.toLocaleTimeString("vi-VN", {
+    time: date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
+      hour12: false,
     }),
-    date: date.toLocaleDateString("vi-VN", {
+    date: date.toLocaleDateString("en-GB", {
       day: "2-digit",
-      month: "2-digit",
+      month: "short",
       year: "numeric",
     }),
   };
 };
 
-const TrackingBadge = ({ event }: { event: TransferOrderTrackingEvent }) => (
+const StatusLabel = ({ event }: { event: TransferOrderTrackingEvent }) => (
   <div className="flex flex-wrap items-center gap-1.5">
-    {event.status ? (
-      <span className="badge badge-outline badge-sm font-mono font-bold">
-        Status {event.status}
+    <span className="font-black text-base-content">
+      {event.statusName || (event.status ? `Status ${event.status}` : "System Event")}
+    </span>
+    {event.tags.map((tag) => (
+      <span key={tag} className="badge badge-outline badge-sm font-bold">
+        {tag}
       </span>
-    ) : null}
-    {event.eventCode ? (
-      <span
-        className="badge badge-ghost badge-sm max-w-full truncate font-mono text-[10px]"
-        title={event.eventCode}
-      >
-        {event.eventCode}
-      </span>
-    ) : null}
-    {event.source === "event" ? (
-      <span className="badge badge-info badge-sm gap-1 border-0 bg-info/10 text-info">
-        <ScanLine className="h-3 w-3" aria-hidden="true" />
-        Event
+    ))}
+    {event.status && !event.statusName ? (
+      <span className="badge badge-ghost badge-sm font-mono text-[10px]">
+        {event.status}
       </span>
     ) : null}
   </div>
 );
 
-const TrackingEventCard = ({
-  event,
-  latest,
-}: {
-  event: TransferOrderTrackingEvent;
-  latest: boolean;
-}) => {
+const TrackingEventRow = ({ event }: { event: TransferOrderTrackingEvent }) => {
   const time = trackingTimeParts(event.timestamp);
 
   return (
-    <li className="relative grid grid-cols-[22px_minmax(0,1fr)] gap-3 pb-4 last:pb-0 sm:grid-cols-[28px_minmax(0,1fr)]">
-      <div className="relative flex justify-center">
-        <span
-          className={`relative z-[1] mt-4 grid h-5 w-5 place-items-center rounded-full border-4 border-base-100 sm:h-6 sm:w-6 ${
-            latest ? "bg-primary" : event.source === "event" ? "bg-info" : "bg-base-300"
-          }`}
-        >
-          {latest ? <span className="h-1.5 w-1.5 rounded-full bg-primary-content" /> : null}
-        </span>
+    <div className="grid grid-cols-[78px_minmax(0,1fr)] gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[96px_minmax(0,1fr)]">
+      <div className="text-right">
+        <div className="font-mono text-sm font-black text-base-content">{time.time}</div>
+        <div className="mt-0.5 text-[11px] font-semibold text-base-content/45">{time.date}</div>
       </div>
 
-      <article
-        className={`min-w-0 overflow-hidden rounded-2xl border ${
-          latest
-            ? "border-primary/30 bg-primary/[0.04] shadow-sm"
-            : "border-base-200 bg-base-100"
-        }`}
-      >
-        <div className="p-3.5 sm:p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                {latest ? (
-                  <span className="badge badge-primary badge-sm border-0 font-bold">
-                    Mới nhất
+      <div className="relative min-w-0 border-l border-base-300 pl-4 before:absolute before:-left-[5px] before:top-1.5 before:h-2.5 before:w-2.5 before:rounded-full before:bg-primary before:ring-4 before:ring-base-100">
+        <StatusLabel event={event} />
+
+        <div className="mt-1.5 space-y-1 text-xs leading-5 text-base-content/65">
+          {event.title ? (
+            <p className="break-safe">
+              <span className="font-bold text-base-content/45">message:</span>{" "}
+              {event.title}
+            </p>
+          ) : null}
+          {event.description ? (
+            <p className="break-safe text-base-content/50">{event.description}</p>
+          ) : null}
+          {event.operator ? (
+            <p className="break-all">
+              <span className="font-bold text-base-content/45">operator:</span>{" "}
+              {event.operator}
+            </p>
+          ) : null}
+          {event.workstation ? (
+            <p className="break-all">
+              <span className="font-bold text-base-content/45">workstation:</span>{" "}
+              {event.workstation}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AuxiliaryEventRow = ({ event }: { event: TransferOrderTrackingEvent }) => {
+  const time = trackingTimeParts(event.timestamp);
+  const photoCount = event.photoUrls.length;
+  const label = photoCount > 0 ? `View ${photoCount} Photo${photoCount > 1 ? "s" : ""}` : "View 1 Node";
+
+  return (
+    <div className="grid grid-cols-[78px_minmax(0,1fr)] gap-3 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-[96px_minmax(0,1fr)]">
+      <div className="text-right">
+        <div className="font-mono text-sm font-black text-base-content">{time.time}</div>
+        <div className="mt-0.5 text-[11px] font-semibold text-base-content/45">{time.date}</div>
+      </div>
+
+      <details className="group min-w-0 border-l border-base-300 pl-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-black text-info marker:hidden">
+          {photoCount > 0 ? (
+            <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <ScanLine className="h-4 w-4 shrink-0" aria-hidden="true" />
+          )}
+          {label}
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+
+        <div className="mt-2 rounded-xl bg-base-200/35 p-3 text-xs text-base-content/65">
+          {event.eventCode ? (
+            <p className="break-all font-mono text-[10px] font-bold text-base-content/55">
+              {event.eventCode}
+            </p>
+          ) : null}
+          {event.title ? <p className="mt-1 break-safe">{event.title}</p> : null}
+          {event.operator ? (
+            <p className="mt-1 break-all">
+              <span className="font-bold text-base-content/45">operator:</span>{" "}
+              {event.operator}
+            </p>
+          ) : null}
+
+          {photoCount > 0 ? (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {event.photoUrls.map((photoUrl, index) => (
+                <a
+                  key={`${photoUrl}-${index}`}
+                  href={photoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group/photo relative aspect-[4/3] overflow-hidden rounded-xl border border-base-200 bg-base-200"
+                  aria-label={`Mở ảnh tracking ${index + 1}`}
+                >
+                  <img
+                    src={photoUrl}
+                    alt={`Ảnh tracking ${index + 1}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover/photo:scale-[1.03]"
+                  />
+                  <span className="absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-lg bg-base-100/90 text-base-content shadow-sm">
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   </span>
-                ) : null}
-                <TrackingBadge event={event} />
-              </div>
-              <h4 className="mt-2 break-safe text-sm font-black leading-5 text-base-content sm:text-[15px]">
-                {event.title}
-              </h4>
-              {event.description ? (
-                <p className="mt-1 break-safe text-xs leading-5 text-base-content/55">
-                  {event.description}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2 rounded-xl bg-base-200/60 px-2.5 py-1.5 text-xs sm:block sm:min-w-24 sm:text-right">
-              <span className="font-black text-base-content">{time.time}</span>
-              <span className="text-base-content/45 sm:mt-0.5 sm:block">{time.date}</span>
-            </div>
-          </div>
-
-          <div className="mt-3 grid gap-2 text-xs text-base-content/65 sm:grid-cols-2">
-            {event.location || event.stationId ? (
-              <div className="flex min-w-0 items-start gap-2 rounded-xl bg-base-200/35 px-2.5 py-2">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-base-content/40">
-                    Trạm
-                  </p>
-                  <p className="break-safe font-semibold text-base-content/75">
-                    {event.location || `Station ID ${event.stationId}`}
-                  </p>
-                  {event.location && event.stationId ? (
-                    <p className="mt-0.5 font-mono text-[10px] text-base-content/40">
-                      ID {event.stationId}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            {event.operator ? (
-              <div className="flex min-w-0 items-start gap-2 rounded-xl bg-base-200/35 px-2.5 py-2">
-                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-base-content/40">
-                    Operator
-                  </p>
-                  <p className="break-all font-semibold text-base-content/75">
-                    {event.operator}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {event.tags.length > 0 ? (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <Tag className="h-3.5 w-3.5 text-base-content/40" aria-hidden="true" />
-              {event.tags.map((tag) => (
-                <span key={tag} className="badge badge-ghost badge-sm font-semibold">
-                  {tag}
-                </span>
+                </a>
               ))}
             </div>
           ) : null}
-
-          {event.photoUrls.length > 0 ? (
-            <div className="mt-3 border-t border-base-200 pt-3">
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-base-content/55">
-                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-                Ảnh tracking
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {event.photoUrls.map((photoUrl, index) => (
-                  <a
-                    key={`${photoUrl}-${index}`}
-                    href={photoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-base-200 bg-base-200"
-                    aria-label={`Mở ảnh tracking ${index + 1}`}
-                  >
-                    <img
-                      src={photoUrl}
-                      alt={`Ảnh tracking ${index + 1}`}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                    />
-                    <span className="absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-lg bg-base-100/90 text-base-content shadow-sm">
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </div>
-      </article>
-    </li>
+      </details>
+    </div>
   );
 };
+
+const FlowGroup = ({ group }: { group: TransferOrderTrackingFlowGroup }) => (
+  <section className="rounded-xl border border-base-200 bg-base-100 p-3 sm:p-4">
+    <div className="mb-3 flex items-center gap-2">
+      <div className="h-px flex-1 bg-base-200" />
+      <span className="badge badge-ghost badge-sm font-bold">{group.flow}</span>
+      <div className="h-px flex-1 bg-base-200" />
+    </div>
+
+    {group.events.map((event, index) =>
+      event.source === "event" ? (
+        <AuxiliaryEventRow
+          key={`${event.eventCode}-${event.timestamp ?? "na"}-${index}`}
+          event={event}
+        />
+      ) : (
+        <TrackingEventRow
+          key={`${event.status}-${event.timestamp ?? "na"}-${index}`}
+          event={event}
+        />
+      ),
+    )}
+  </section>
+);
 
 export default function TrackingModal({
   open,
@@ -225,6 +215,9 @@ export default function TrackingModal({
 }: TrackingModalProps) {
   if (!open) return null;
 
+  const stationGroups = data
+    ? groupTransferOrderTrackingByStationAndFlow(data.events)
+    : [];
   const latestEvent = data?.events[0] ?? null;
   const latestTime = latestEvent ? trackingTimeParts(latestEvent.timestamp) : null;
 
@@ -234,14 +227,14 @@ export default function TrackingModal({
         <button onClick={onClose}>close</button>
       </form>
 
-      <div className="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-xl p-0 sm:rounded-2xl">
+      <div className="modal-box max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto rounded-xl p-0 sm:rounded-2xl">
         <header className="sticky top-0 z-20 border-b border-base-200 bg-base-100/95 px-4 py-3.5 backdrop-blur sm:px-5 sm:py-4">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
               <Route className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-lg font-black">Tracking bao</h3>
+              <h3 className="text-lg font-black">Order Tracking History</h3>
               <p className="mt-0.5 break-all font-mono text-xs font-bold text-primary sm:text-sm">
                 {toNumber}
               </p>
@@ -287,7 +280,7 @@ export default function TrackingModal({
             </div>
           ) : data ? (
             <>
-              <section className="mb-5 grid gap-2.5 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+              <section className="mb-5 grid gap-2.5 sm:grid-cols-2">
                 <div className="rounded-2xl border border-base-200 bg-base-200/30 p-3.5">
                   <div className="flex items-start gap-2.5">
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-base-100 text-primary shadow-xs">
@@ -301,7 +294,7 @@ export default function TrackingModal({
                         {data.shipmentId}
                       </p>
                       <p className="mt-1 text-xs text-base-content/50">
-                        {data.events.length} mốc hành trình
+                        {data.events.length} events · {stationGroups.length} station groups
                       </p>
                     </div>
                   </div>
@@ -314,18 +307,11 @@ export default function TrackingModal({
                         <Clock3 className="h-4.5 w-4.5" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">
-                            Cập nhật mới nhất
-                          </p>
-                          {latestEvent.status ? (
-                            <span className="badge badge-primary badge-xs font-mono">
-                              {latestEvent.status}
-                            </span>
-                          ) : null}
-                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-primary/70">
+                          Latest update
+                        </p>
                         <p className="mt-1 break-safe text-sm font-black leading-5">
-                          {latestEvent.title}
+                          {latestEvent.statusName || latestEvent.title}
                         </p>
                         <p className="mt-1 text-xs text-base-content/55">
                           {latestTime.time} · {latestTime.date}
@@ -337,24 +323,48 @@ export default function TrackingModal({
                 ) : null}
               </section>
 
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-sm font-black">Lịch sử hành trình</h4>
-                  <p className="mt-0.5 text-xs text-base-content/50">
-                    Mới nhất ở trên · hiển thị cả event hệ thống/ASM nếu có
-                  </p>
-                </div>
-              </div>
+              <div className="space-y-5">
+                {stationGroups.map((station, stationIndex) => (
+                  <section
+                    key={station.stationKey}
+                    className="overflow-hidden rounded-2xl border border-base-200 bg-base-200/20"
+                  >
+                    <header className="flex items-start gap-3 border-b border-base-200 bg-base-100 px-3.5 py-3 sm:px-4">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary/10 text-secondary">
+                        {station.stationName === "Khởi tạo" ? (
+                          <Wrench className="h-4.5 w-4.5" aria-hidden="true" />
+                        ) : (
+                          <MapPin className="h-4.5 w-4.5" aria-hidden="true" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="break-safe text-sm font-black sm:text-base">
+                            {station.stationName}
+                          </h4>
+                          <span className="badge badge-ghost badge-sm">
+                            Trạm {stationIndex + 1}
+                          </span>
+                        </div>
+                        {station.stationId ? (
+                          <p className="mt-0.5 font-mono text-[10px] text-base-content/45">
+                            Station ID {station.stationId}
+                          </p>
+                        ) : null}
+                      </div>
+                    </header>
 
-              <ol className="relative before:absolute before:bottom-4 before:left-[10px] before:top-4 before:w-px before:bg-base-300 sm:before:left-[13px]">
-                {data.events.map((event, index) => (
-                  <TrackingEventCard
-                    key={`${event.status}-${event.eventCode}-${event.timestamp ?? "na"}-${index}`}
-                    event={event}
-                    latest={index === 0}
-                  />
+                    <div className="space-y-2.5 p-2.5 sm:p-3">
+                      {station.flows.map((flow, flowIndex) => (
+                        <FlowGroup
+                          key={`${station.stationKey}-${flow.flow}-${flowIndex}`}
+                          group={flow}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 ))}
-              </ol>
+              </div>
             </>
           ) : null}
         </div>
