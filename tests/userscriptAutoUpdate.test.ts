@@ -17,6 +17,20 @@ test("userscript metadata includes a stable Violentmonkey update endpoint", asyn
   assert.ok(source.includes(updateUrl));
 });
 
+test("userscript can call and confirm the Google Apps Script incident webhook", async () => {
+  const metadata = await readSource("../vite.userscript.config.ts");
+  const submitSource = await readSource(
+    "../src/features/incident-report/incidentReportSubmit.ts",
+  );
+
+  assert.match(metadata, /@grant\s+GM_xmlhttpRequest/);
+  assert.match(metadata, /@connect\s+script\.google\.com/);
+  assert.match(metadata, /@connect\s+script\.googleusercontent\.com/);
+  assert.match(submitSource, /GM_xmlhttpRequest/);
+  assert.match(submitSource, /parseSubmitResult/);
+  assert.match(submitSource, /response\.responseText/);
+});
+
 test("userscript release workflow builds, verifies and deploys the userscript", async () => {
   const workflow = await readSource("../.github/workflows/userscript-release.yml");
 
