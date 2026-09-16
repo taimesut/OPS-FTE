@@ -1,6 +1,7 @@
 import {
   INCIDENT_REASONS,
   type IncidentItem,
+  type IncidentStatus,
   type TripDetails,
   type TripSummary,
 } from "./incidentReport";
@@ -11,6 +12,11 @@ interface IncidentReportPreviewProps {
   details: TripDetails | null;
   items: readonly IncidentItem[];
   createdAt: Date;
+  incidentId: string;
+  status: IncidentStatus;
+  description: string;
+  actionTaken: string;
+  owner: string;
 }
 
 const BLANK_VALUE = "________________";
@@ -28,6 +34,11 @@ export function IncidentReportPreview({
   details,
   items,
   createdAt,
+  incidentId,
+  status,
+  description,
+  actionTaken,
+  owner,
 }: IncidentReportPreviewProps) {
   const driver = details?.driverName || trip.driverName;
   const secondDriver = details?.secondDriverName || trip.secondDriverName;
@@ -41,6 +52,9 @@ export function IncidentReportPreview({
         <h2 className="text-xl font-black uppercase sm:text-2xl">
           Biên bản sự vụ LH Trip
         </h2>
+        <p className="mt-1 font-mono text-sm font-bold text-slate-700">
+          {display(incidentId)}
+        </p>
         <p className="mt-1 text-sm text-slate-600">
           Lập lúc {createdAt.toLocaleString("vi-VN")}
         </p>
@@ -90,6 +104,27 @@ export function IncidentReportPreview({
           <dd>{display(details?.remark || "")}</dd>
         </div>
       </dl>
+
+      <section className="mb-5 rounded-xl border border-slate-300 bg-slate-50 p-4 text-sm print:break-inside-avoid">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <strong>Trạng thái</strong>
+            <p>{status}</p>
+          </div>
+          <div>
+            <strong>Người phụ trách</strong>
+            <p>{display(owner.trim())}</p>
+          </div>
+          <div className="sm:col-span-2">
+            <strong>Mô tả sự vụ</strong>
+            <p className="mt-1 whitespace-pre-wrap">{display(description.trim())}</p>
+          </div>
+          <div className="sm:col-span-2">
+            <strong>Hướng xử lý / hành động đã thực hiện</strong>
+            <p className="mt-1 whitespace-pre-wrap">{display(actionTaken.trim())}</p>
+          </div>
+        </div>
+      </section>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[58rem] border-collapse text-xs print:min-w-0 print:text-[8px]">
