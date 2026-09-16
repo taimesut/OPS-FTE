@@ -519,6 +519,7 @@ export const TaoBienBanSuVuPage = () => {
         `Đã lưu ${result.incidentId || incidentId} vào Google Sheet.`,
         "success",
       );
+      resetAll();
     } catch (error) {
       console.error("[Submit Log Error]", error);
       showToast(
