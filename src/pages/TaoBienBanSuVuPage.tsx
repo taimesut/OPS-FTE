@@ -19,9 +19,11 @@ import { decodeBarcodeImage } from "../utils/barcode";
 import { getConfigs, getLogUrl } from "../utils/config";
 import { IncidentItemsEditor } from "../features/incident-report/IncidentItemsEditor";
 import { IncidentReportPreview } from "../features/incident-report/IncidentReportPreview";
+import { IncidentWorkflowEditor } from "../features/incident-report/IncidentWorkflowEditor";
 import { TripSearchPanel } from "../features/incident-report/TripSearchPanel";
 import {
   INCIDENT_REASONS,
+  createIncidentId,
   createIncidentLogPayload,
   formatIncidentLog,
   mergeIncidentCodes,
@@ -30,6 +32,7 @@ import {
   toggleIncidentReason,
   type IncidentItem,
   type IncidentReason,
+  type IncidentStatus,
   type LoadingKind,
   type TripDetails,
   type TripSummary,
@@ -39,6 +42,7 @@ import {
   fetchTripDetails,
   searchTrips,
 } from "../features/incident-report/incidentReportApi";
+import { submitIncidentReport } from "../features/incident-report/incidentReportSubmit";
 
 type IncidentStep = "lhtrip" | "scan_items" | "preview";
 type LoadStatus = "idle" | "loading" | "success" | "error";
@@ -252,6 +256,11 @@ export const TaoBienBanSuVuPage = () => {
   ]);
   const [items, setItems] = useState<IncidentItem[]>([]);
   const [createdAt, setCreatedAt] = useState(() => new Date());
+  const [incidentId, setIncidentId] = useState("");
+  const [incidentStatus, setIncidentStatus] = useState<IncidentStatus>("Mới");
+  const [incidentDescription, setIncidentDescription] = useState("");
+  const [actionTaken, setActionTaken] = useState("");
+  const [incidentOwner, setIncidentOwner] = useState("");
   const [socName] = useState(() => getConfigs().soc);
   const [isSending, setIsSending] = useState(false);
   const generationRef = useRef(0);
@@ -321,13 +330,19 @@ export const TaoBienBanSuVuPage = () => {
 
   const selectTrip = (trip: TripSummary) => {
     const generation = generationRef.current + 1;
+    const nextCreatedAt = new Date();
     generationRef.current = generation;
     setSelectedTrip(trip);
     setSearchResults([]);
     setSearchError("");
     setItems([]);
     setCurrentCode("");
-    setCreatedAt(new Date());
+    setCreatedAt(nextCreatedAt);
+    setIncidentId(createIncidentId(nextCreatedAt, trip.id));
+    setIncidentStatus("Mới");
+    setIncidentDescription("");
+    setActionTaken("");
+    setIncidentOwner("");
     setStep("scan_items");
 
     void Promise.allSettled([
@@ -449,6 +464,13 @@ export const TaoBienBanSuVuPage = () => {
       showToast("Chưa có mã sự vụ nào trong danh sách.", "warning");
       return;
     }
+    if (
+      items.some((item) => item.reasons.includes("Khác")) &&
+      !incidentDescription.trim()
+    ) {
+      showToast("Sự vụ ‘Khác’ cần có mô tả trước khi lập biên bản.", "warning");
+      return;
+    }
     setStep("preview");
   };
 
@@ -466,15 +488,6 @@ export const TaoBienBanSuVuPage = () => {
       return;
     }
 
-    const logUrl = getLogUrl();
-    if (!logUrl) {
-      showToast(
-        "Chưa cài đặt Link Google Sheet nhận Log! Bạn có thể vào Cài Đặt để dán Webhook.",
-        "warning",
-      );
-      return;
-    }
-
     setIsSending(true);
     try {
       const payload = createIncidentLogPayload({
@@ -483,18 +496,36 @@ export const TaoBienBanSuVuPage = () => {
         tripSummary: selectedTrip,
         tripDetails: detailBranch.data,
         items,
+        workflow: {
+          incidentId,
+          status: incidentStatus,
+          description: incidentDescription,
+          actionTaken,
+          owner: incidentOwner,
+        },
       });
-      await fetch(logUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload),
-      });
-      showToast("Đã gửi thành công Log Sự Vụ về Google Sheet!", "success");
+      const result = await submitIncidentReport(payload, getLogUrl());
+
+      if (result.status === "error") {
+        showToast(result.message || "Không thể lưu sự vụ.", "error");
+        return;
+      }
+      if (result.status === "unconfirmed") {
+        showToast(result.message, "warning");
+        return;
+      }
+
+      showToast(
+        `Đã lưu ${result.incidentId || incidentId} vào Google Sheet.`,
+        "success",
+      );
     } catch (error) {
       console.error("[Submit Log Error]", error);
       showToast(
-        "Gửi log về Google Sheet thất bại. Kiểm tra lại đường dẫn Webhook!",
+        errorText(
+          error,
+          "Lưu sự vụ thất bại. Kiểm tra lại Apps Script hoặc đường dẫn Webhook!",
+        ),
         "error",
       );
     } finally {
@@ -528,6 +559,11 @@ export const TaoBienBanSuVuPage = () => {
     setSelectedReasons(["Khác"]);
     setItems([]);
     setCreatedAt(new Date());
+    setIncidentId("");
+    setIncidentStatus("Mới");
+    setIncidentDescription("");
+    setActionTaken("");
+    setIncidentOwner("");
   };
 
   return (
@@ -542,7 +578,7 @@ export const TaoBienBanSuVuPage = () => {
       <PageHeader
         icon={Truck}
         title="Tạo Biên Bản Sự Vụ LH TRIP"
-        description="Tìm chuyến, tự tải kiện Thiếu/Dư và lập biên bản theo dữ liệu SPX"
+        description="Tìm chuyến, đối soát Thiếu/Dư, ghi nhận xử lý và lập biên bản theo dữ liệu SPX"
       />
       <IncidentStepIndicator currentStep={step} />
 
@@ -590,7 +626,10 @@ export const TaoBienBanSuVuPage = () => {
           />
 
           <section className="app-surface space-y-3 p-4 sm:p-5">
-            <h3 className="font-black">Trạng thái đồng bộ SPX</h3>
+            <h3 className="font-black">Đối soát dữ liệu SPX</h3>
+            <p className="text-sm text-base-content/60">
+              Hệ thống tự tải chi tiết chuyến và nhận diện danh sách Thiếu/Dư trước khi lập biên bản.
+            </p>
             <div className="grid gap-3 lg:grid-cols-3">
               <BranchStatusRow
                 label="Chi tiết chuyến"
@@ -652,6 +691,19 @@ export const TaoBienBanSuVuPage = () => {
               void handleCapturedImage(event, "item")
             }
           />
+
+          <IncidentWorkflowEditor
+            incidentId={incidentId}
+            status={incidentStatus}
+            description={incidentDescription}
+            actionTaken={actionTaken}
+            owner={incidentOwner}
+            items={items}
+            onStatusChange={setIncidentStatus}
+            onDescriptionChange={setIncidentDescription}
+            onActionTakenChange={setActionTaken}
+            onOwnerChange={setIncidentOwner}
+          />
         </div>
       ) : null}
 
@@ -677,7 +729,7 @@ export const TaoBienBanSuVuPage = () => {
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Gửi Log
+                Lưu sự vụ
               </button>
               <button
                 type="button"
@@ -695,6 +747,42 @@ export const TaoBienBanSuVuPage = () => {
               </button>
             </div>
           </MobileActionBar>
+
+          <section className="app-surface space-y-4 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
+                  Mã sự vụ
+                </p>
+                <p className="mt-1 break-all font-mono text-lg font-black text-primary">
+                  {incidentId}
+                </p>
+              </div>
+              <span className="badge badge-primary badge-outline h-auto px-3 py-2 font-bold">
+                {incidentStatus}
+              </span>
+            </div>
+            <dl className="grid gap-4 text-sm md:grid-cols-2">
+              <div>
+                <dt className="font-bold text-base-content/55">Người phụ trách</dt>
+                <dd className="mt-1 whitespace-pre-wrap">
+                  {incidentOwner.trim() || "Chưa chỉ định"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-bold text-base-content/55">Mô tả sự vụ</dt>
+                <dd className="mt-1 whitespace-pre-wrap">
+                  {incidentDescription.trim() || "Chưa có mô tả"}
+                </dd>
+              </div>
+              <div className="md:col-span-2">
+                <dt className="font-bold text-base-content/55">Hướng xử lý</dt>
+                <dd className="mt-1 whitespace-pre-wrap">
+                  {actionTaken.trim() || "Chưa cập nhật hướng xử lý"}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
           <section className="space-y-3 rounded-2xl bg-slate-900 p-4 text-slate-100 shadow-lg sm:p-5">
             <div className="flex flex-col gap-3 border-b border-slate-700 pb-3 sm:flex-row sm:items-center sm:justify-between">
