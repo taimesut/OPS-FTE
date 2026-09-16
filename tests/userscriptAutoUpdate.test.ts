@@ -31,6 +31,35 @@ test("userscript can call and confirm the Google Apps Script incident webhook", 
   assert.match(submitSource, /response\.responseText/);
 });
 
+test("userscript exposes QR generator and keeps header controls unobstructed", async () => {
+  const [userscriptSource, appSource, layoutSource, qrPageSource] =
+    await Promise.all([
+      readSource("../src/userscript.tsx"),
+      readSource("../src/UserscriptApp.tsx"),
+      readSource("../src/layouts/MobileLayout.tsx"),
+      readSource("../src/pages/TaoMaQRPage.tsx"),
+    ]);
+
+  assert.doesNotMatch(userscriptSource, /const closeButton = document\.createElement/);
+  assert.match(userscriptSource, /<UserscriptApp onRequestClose=\{close\}/);
+  assert.match(appSource, /path="\/tao-ma-qr"/);
+  assert.match(layoutSource, /label: "Tạo mã QR"/);
+  assert.match(layoutSource, /<ToggleTheme \/>/);
+  assert.match(layoutSource, /aria-label="Đóng OPS FTE"/);
+  assert.match(qrPageSource, /react-qr-code/);
+  assert.match(qrPageSource, /Tạo mã QR/);
+});
+
+test("embedded scanner releases camera when the mobile app leaves foreground", async () => {
+  const scannerSource = await readSource("../src/components/EmbeddedQRScanner.tsx");
+
+  assert.match(scannerSource, /visibilitychange/);
+  assert.match(scannerSource, /pagehide/);
+  assert.match(scannerSource, /ops-fte:panel-close/);
+  assert.match(scannerSource, /document\.visibilityState === "hidden"/);
+  assert.match(scannerSource, /stopScanner\(\);\s*\n\s*onClose\(\);/);
+});
+
 test("userscript release workflow builds, verifies and deploys the userscript", async () => {
   const workflow = await readSource("../.github/workflows/userscript-release.yml");
 
