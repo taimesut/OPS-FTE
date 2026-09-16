@@ -4,6 +4,7 @@ import appCss from "./global.css?inline";
 import { UserscriptApp } from "./UserscriptApp";
 
 const HOST_ID = "ops-fte-userscript-host";
+const PANEL_CLOSE_EVENT = "ops-fte:panel-close";
 
 console.log("[OPS-FTE] userscript entry loaded", window.location.href);
 
@@ -39,7 +40,7 @@ function mountOpsFte() {
     launcher.style.cssText = [
       "position:fixed",
       "right:16px",
-      "bottom:20px",
+      "bottom:max(20px,env(safe-area-inset-bottom))",
       "z-index:2147483647",
       "border:0",
       "border-radius:9999px",
@@ -61,40 +62,16 @@ function mountOpsFte() {
       "z-index:2147483646",
       "background:white",
       "overflow:auto",
+      "overscroll-behavior:contain",
       "pointer-events:auto",
       "display:none",
     ].join(";");
     shadow.appendChild(panel);
 
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.textContent = "×";
-    closeButton.setAttribute("aria-label", "Đóng OPS FTE");
-    closeButton.style.cssText = [
-      "position:fixed",
-      "right:12px",
-      "top:10px",
-      "z-index:2147483647",
-      "width:40px",
-      "height:40px",
-      "border:0",
-      "border-radius:9999px",
-      "background:rgba(0,0,0,.08)",
-      "font:700 26px/40px system-ui,sans-serif",
-      "cursor:pointer",
-    ].join(";");
-    panel.appendChild(closeButton);
-
     const reactRoot = document.createElement("div");
-    reactRoot.style.minHeight = "100vh";
+    reactRoot.style.minHeight = "100dvh";
+    reactRoot.style.width = "100%";
     panel.appendChild(reactRoot);
-
-    const root = ReactDOM.createRoot(reactRoot);
-    root.render(
-      <React.StrictMode>
-        <UserscriptApp />
-      </React.StrictMode>,
-    );
 
     const open = () => {
       panel.style.display = "block";
@@ -102,12 +79,19 @@ function mountOpsFte() {
     };
 
     const close = () => {
+      window.dispatchEvent(new CustomEvent(PANEL_CLOSE_EVENT));
       panel.style.display = "none";
       launcher.style.display = "block";
     };
 
+    const root = ReactDOM.createRoot(reactRoot);
+    root.render(
+      <React.StrictMode>
+        <UserscriptApp onRequestClose={close} />
+      </React.StrictMode>,
+    );
+
     launcher.addEventListener("click", open);
-    closeButton.addEventListener("click", close);
 
     console.log("[OPS-FTE] mounted successfully");
   } catch (error) {
