@@ -8,7 +8,16 @@ export const INCIDENT_REASONS = [
   "Khác",
 ] as const;
 
+export const INCIDENT_STATUSES = [
+  "Mới",
+  "Đang xử lý",
+  "Chờ xác nhận",
+  "Đã xử lý",
+  "Đóng sự vụ",
+] as const;
+
 export type IncidentReason = (typeof INCIDENT_REASONS)[number];
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
 export type IncidentSource = "auto" | "manual";
 
 export interface TripSummary {
@@ -51,6 +60,14 @@ export interface IncidentItem {
   sources: IncidentSource[];
 }
 
+export interface IncidentWorkflow {
+  incidentId: string;
+  status: IncidentStatus;
+  description: string;
+  actionTaken: string;
+  owner: string;
+}
+
 type JsonRecord = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -75,6 +92,36 @@ const responseData = (payload: unknown, label: string): JsonRecord => {
 
 export const normalizeSearchTerm = (raw: string): string =>
   raw.trim().toUpperCase();
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+export const createIncidentId = (
+  createdAt: Date,
+  tripId: number,
+  entropy?: string,
+): string => {
+  if (!Number.isFinite(createdAt.valueOf())) {
+    throw new Error("Thời gian tạo mã sự vụ không hợp lệ.");
+  }
+  if (!Number.isInteger(tripId) || tripId <= 0) {
+    throw new Error("Trip id không hợp lệ.");
+  }
+
+  const datePart = `${createdAt.getFullYear()}${pad2(createdAt.getMonth() + 1)}${pad2(
+    createdAt.getDate(),
+  )}`;
+  const timePart = `${pad2(createdAt.getHours())}${pad2(createdAt.getMinutes())}${pad2(
+    createdAt.getSeconds(),
+  )}`;
+  const tripPart = String(tripId).slice(-4).padStart(4, "0");
+  const randomPart = (entropy ?? Math.random().toString(36).slice(2, 6))
+    .replace(/[^a-z0-9]/gi, "")
+    .toUpperCase()
+    .slice(0, 4)
+    .padEnd(4, "0");
+
+  return `SV-${datePart}-${timePart}-${tripPart}-${randomPart}`;
+};
 
 export const createTripSearchPath = (raw: string): string => {
   const value = normalizeSearchTerm(raw);
@@ -373,6 +420,7 @@ export interface IncidentLogPayload {
   createdAt: string;
   trip: IncidentLogTrip;
   incidents: Array<{ code: string; reasons: IncidentReason[] }>;
+  workflow?: IncidentWorkflow;
 }
 
 export interface IncidentLogPayloadInput {
@@ -381,7 +429,44 @@ export interface IncidentLogPayloadInput {
   tripSummary: TripSummary;
   tripDetails: TripDetails | null;
   items: readonly IncidentItem[];
+  workflow?: IncidentWorkflow;
 }
+
+const normalizeWorkflowText = (
+  value: string,
+  label: string,
+  maxLength: number,
+): string => {
+  const normalized = value.trim();
+  if (normalized.length > maxLength) {
+    throw new Error(`${label} vượt quá ${maxLength} ký tự.`);
+  }
+  return normalized;
+};
+
+const normalizeIncidentWorkflow = (
+  workflow: IncidentWorkflow,
+): IncidentWorkflow => {
+  const incidentId = normalizeWorkflowText(
+    workflow.incidentId,
+    "Mã sự vụ",
+    80,
+  ).toUpperCase();
+  if (!incidentId) {
+    throw new Error("Mã sự vụ không hợp lệ.");
+  }
+  if (!INCIDENT_STATUSES.includes(workflow.status)) {
+    throw new Error("Trạng thái sự vụ không hợp lệ.");
+  }
+
+  return {
+    incidentId,
+    status: workflow.status,
+    description: normalizeWorkflowText(workflow.description, "Mô tả sự vụ", 2000),
+    actionTaken: normalizeWorkflowText(workflow.actionTaken, "Hướng xử lý", 2000),
+    owner: normalizeWorkflowText(workflow.owner, "Người phụ trách", 160),
+  };
+};
 
 export const createIncidentLogPayload = ({
   soc,
@@ -389,6 +474,7 @@ export const createIncidentLogPayload = ({
   tripSummary,
   tripDetails,
   items,
+  workflow,
 }: IncidentLogPayloadInput): IncidentLogPayload => {
   if (!Number.isFinite(createdAt.valueOf())) {
     throw new Error("Thời gian lập biên bản không hợp lệ.");
@@ -426,7 +512,7 @@ export const createIncidentLogPayload = ({
     expectedQuantity: tripDetails?.expectedQuantity ?? null,
   };
 
-  return {
+  const payload: IncidentLogPayload = {
     schemaVersion: 1,
     lhTrip,
     incidentLogs: formatIncidentLog(items),
@@ -438,4 +524,10 @@ export const createIncidentLogPayload = ({
       reasons: [...item.reasons],
     })),
   };
+
+  if (workflow) {
+    payload.workflow = normalizeIncidentWorkflow(workflow);
+  }
+
+  return payload;
 };
