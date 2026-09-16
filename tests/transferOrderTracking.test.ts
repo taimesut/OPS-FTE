@@ -271,7 +271,7 @@ test("propagates SPX tracking API errors", () => {
   );
 });
 
-test("wires TO detail to first shipment tracking and renders grouped modal", async () => {
+test("wires TO detail to first shipment tracking and renders SPX-style timeline", async () => {
   const [apiSource, tableSource, modalSource] = await Promise.all([
     readFile(new URL("../src/utils/transferOrderTrackingApi.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/components/TOTable.tsx", import.meta.url), "utf8"),
@@ -288,11 +288,14 @@ test("wires TO detail to first shipment tracking and renders grouped modal", asy
   assert.match(tableSource, /<TrackingModal/);
   assert.match(modalSource, /Order Tracking History/);
   assert.match(modalSource, /groupTransferOrderTrackingByStationAndFlow/);
+  assert.match(modalSource, /TimelineRail/);
+  assert.match(modalSource, /StationTimelineGroup/);
+  assert.match(modalSource, /group\/station/);
   assert.match(modalSource, /event\.statusName/);
   assert.match(modalSource, /event\.workstation/);
-  assert.match(modalSource, /View \$\{photoCount\} Photo/);
-  assert.match(modalSource, /View 1 Node/);
-  assert.match(modalSource, /Đơn đại diện đầu tiên/);
-  assert.match(modalSource, /Đang lấy đơn đầu tiên trong bao/);
+  assert.match(modalSource, /photoCount > 0/);
+  assert.match(modalSource, /ảnh tracking/);
+  assert.match(modalSource, /max-w-\[480px\]/);
+  assert.match(modalSource, /Đang tải toàn bộ hành trình/);
   assert.match(modalSource, /Thử lại/);
 });
