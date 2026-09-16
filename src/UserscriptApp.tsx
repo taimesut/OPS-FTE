@@ -8,14 +8,19 @@ import { MobileLayout } from "./layouts/MobileLayout";
 import { HomePage } from "./pages/HomePage";
 import { LayMaTOPage } from "./pages/LayMaTOPage";
 import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
+import { TaoMaQRPage } from "./pages/TaoMaQRPage";
 import { ToastContainer } from "./components/Toast";
 
-export const UserscriptApp = () => {
+interface UserscriptAppProps {
+  onRequestClose?: () => void;
+}
+
+export const UserscriptApp = ({ onRequestClose }: UserscriptAppProps) => {
   return (
     <div id="ops-fte-userscript-app" data-ops-fte-theme-root data-theme="light">
       <MemoryRouter>
         <ToastContainer />
-        <MobileLayout>
+        <MobileLayout onRequestClose={onRequestClose}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/check-sot/ngoai-tinh" element={<CheckSotNgoaiTinhPage />} />
@@ -25,6 +30,7 @@ export const UserscriptApp = () => {
             <Route path="/cai-dat" element={<SettingsPage />} />
             <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
             <Route path="/lay-ma-to" element={<LayMaTOPage />} />
+            <Route path="/tao-ma-qr" element={<TaoMaQRPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </MobileLayout>
