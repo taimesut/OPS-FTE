@@ -819,6 +819,11 @@ export const TaoBienBanSuVuPage = () => {
             details={detailBranch.data}
             items={items}
             createdAt={createdAt}
+            incidentId={incidentId}
+            status={incidentStatus}
+            description={incidentDescription}
+            actionTaken={actionTaken}
+            owner={incidentOwner}
           />
         </div>
       ) : null}
