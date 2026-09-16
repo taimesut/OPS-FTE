@@ -16,6 +16,8 @@ interface EmbeddedQRScannerProps {
 
 type ScannerStatus = "idle" | "starting" | "ready" | "error";
 
+const PANEL_CLOSE_EVENT = "ops-fte:panel-close";
+
 export default function EmbeddedQRScanner({
   open,
   mode,
@@ -25,6 +27,7 @@ export default function EmbeddedQRScanner({
   const streamRef = useRef<MediaStream | null>(null);
   const requestGenerationRef = useRef(0);
   const handledScanRef = useRef(false);
+  const nativeCapturePendingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState<ScannerStatus>("idle");
@@ -43,6 +46,7 @@ export default function EmbeddedQRScanner({
   const stopScanner = useCallback(() => {
     requestGenerationRef.current += 1;
     handledScanRef.current = false;
+    nativeCapturePendingRef.current = false;
     releaseStream();
     setStatus("idle");
     setErrorMessage("");
@@ -57,7 +61,6 @@ export default function EmbeddedQRScanner({
     setStatus("starting");
     setErrorMessage("");
 
-    // Đợi một nhịp để tránh React StrictMode mở camera hai lần trong dev.
     await Promise.resolve();
     if (requestGenerationRef.current !== generation) return;
 
@@ -96,6 +99,52 @@ export default function EmbeddedQRScanner({
     };
   }, [mode, open, releaseStream, startScanner, stopScanner]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const closeForLifecycle = () => {
+      stopScanner();
+      onClose();
+    };
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "hidden" &&
+        !nativeCapturePendingRef.current
+      ) {
+        closeForLifecycle();
+      }
+    };
+
+    const handlePageHide = () => {
+      closeForLifecycle();
+    };
+
+    const handlePanelClose = () => {
+      closeForLifecycle();
+    };
+
+    const handleWindowFocus = () => {
+      if (nativeCapturePendingRef.current) {
+        window.setTimeout(() => {
+          nativeCapturePendingRef.current = false;
+        }, 300);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener(PANEL_CLOSE_EVENT, handlePanelClose);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener(PANEL_CLOSE_EVENT, handlePanelClose);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [onClose, open, stopScanner]);
+
   const finishScan = useCallback(
     (rawValue: string) => {
       if (!open || !mode || handledScanRef.current) return;
@@ -120,6 +169,7 @@ export default function EmbeddedQRScanner({
   const handleCapturedImage = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    nativeCapturePendingRef.current = false;
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || decodingImage || !mode) return;
@@ -137,6 +187,13 @@ export default function EmbeddedQRScanner({
     } finally {
       setDecodingImage(false);
     }
+  };
+
+  const openNativeCapture = () => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    nativeCapturePendingRef.current = true;
+    input.click();
   };
 
   const handleClose = () => {
@@ -198,7 +255,7 @@ export default function EmbeddedQRScanner({
                   <button
                     type="button"
                     disabled={decodingImage}
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={openNativeCapture}
                     className="btn min-h-11 w-full gap-2 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15"
                   >
                     {decodingImage ? (
