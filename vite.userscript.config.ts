@@ -20,7 +20,10 @@ const metadata = `// ==UserScript==
 // @match        https://spx.shopee.vn/*
 // @match        https://*.spx.shopee.vn/*
 // @run-at       document-idle
-// @grant        none
+// @inject-into  page
+// @grant        GM_xmlhttpRequest
+// @connect      script.google.com
+// @connect      script.googleusercontent.com
 // @updateURL    ${userscriptUpdateUrl}
 // @downloadURL  ${userscriptUpdateUrl}
 // ==/UserScript==`;
