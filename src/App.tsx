@@ -8,6 +8,7 @@ import { MobileLayout } from "./layouts/MobileLayout";
 import { HomePage } from "./pages/HomePage";
 import { LayMaTOPage } from "./pages/LayMaTOPage";
 import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
+import { TaoMaQRPage } from "./pages/TaoMaQRPage";
 import { ToastContainer } from "./components/Toast";
 
 export const App = () => {
@@ -15,7 +16,6 @@ export const App = () => {
     <HashRouter>
       <ToastContainer />
       <MobileLayout>
-        {/* Cấu hình các Routes */}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route
@@ -34,7 +34,7 @@ export const App = () => {
           <Route path="/cai-dat" element={<SettingsPage />} />
           <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
           <Route path="/lay-ma-to" element={<LayMaTOPage />} />
-          {/* Route bắt lỗi 404 */}
+          <Route path="/tao-ma-qr" element={<TaoMaQRPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </MobileLayout>
