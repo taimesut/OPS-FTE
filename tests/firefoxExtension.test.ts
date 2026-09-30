@@ -10,6 +10,12 @@ test("Firefox build injects OPS FTE on SPX and grants webhook hosts", async () =
 
   assert.match(source, /manifest_version:\s*3/);
   assert.match(source, /ops-fte@taimesut/);
+  assert.match(source, /strict_min_version:\s*"140\.0"/);
+  assert.match(source, /data_collection_permissions/);
+  assert.match(source, /websiteContent/);
+  assert.match(source, /personallyIdentifyingInfo/);
+  assert.match(source, /gecko_android/);
+  assert.match(source, /strict_min_version:\s*"142\.0"/);
   assert.match(source, /https:\/\/spx\.shopee\.vn\/\*/);
   assert.match(source, /https:\/\/\*\.spx\.shopee\.vn\/\*/);
   assert.match(source, /https:\/\/script\.google\.com\/\*/);
