@@ -1,0 +1,57 @@
+name: Build OPS FTE Firefox extension
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-firefox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test Firefox extension
+        run: npm run test:firefox
+
+      - name: Generate extension version
+        id: version
+        shell: bash
+        run: echo "version=0.5.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Firefox extension
+        env:
+          OPS_FTE_FIREFOX_VERSION: ${{ steps.version.outputs.version }}
+        run: npm run build:firefox
+
+      - name: Package extension
+        shell: bash
+        run: |
+          cd firefox-dist
+          zip -r ../ops-fte-firefox.zip .
+          cd ..
+          cp ops-fte-firefox.zip ops-fte-firefox.xpi
+
+      - name: Upload Firefox artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-fte-firefox-${{ steps.version.outputs.version }}
+          path: |
+            ops-fte-firefox.zip
+            ops-fte-firefox.xpi
+            firefox-dist/
+          if-no-files-found: error
