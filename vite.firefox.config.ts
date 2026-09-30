@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const defaultFirefoxVersion = "0.5.0";
+const defaultFirefoxVersion = "0.5.4";
 const firefoxVersion =
   process.env.OPS_FTE_FIREFOX_VERSION?.trim() || defaultFirefoxVersion;
 
