@@ -29,6 +29,17 @@ test("Firefox background performs the cross-origin Apps Script POST", async () =
   assert.match(source, /AbortController/);
 });
 
+test("incident submit uses the Firefox background bridge when available", async () => {
+  const source = await readSource(
+    "../src/features/incident-report/incidentReportSubmit.ts",
+  );
+
+  assert.match(source, /getFirefoxRuntime/);
+  assert.match(source, /submitThroughFirefoxExtension/);
+  assert.match(source, /ops-fte:webhook-post/);
+  assert.match(source, /browser\.runtime/);
+});
+
 test("package exposes Firefox build and test commands", async () => {
   const packageJson = JSON.parse(await readSource("../package.json")) as {
     scripts?: Record<string, string>;
