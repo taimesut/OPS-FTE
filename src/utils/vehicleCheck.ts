@@ -11,7 +11,6 @@ import type { VehicleTravelTimeEntry } from "./vehicleTravelTime.ts";
 
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
 export const VEHICLE_CHECK_TARGET_STATION_NAME = "Pleiku SOC";
-export const VEHICLE_CHECK_OVERDUE_GRACE_SECONDS = 2 * 60 * 60;
 
 export interface VehicleCheckWindow {
   from: number;
@@ -777,14 +776,10 @@ export const isVehicleCheckRowInDisplayWindow = (
     return false;
   }
 
-  const earliestAllowedEta =
-    window.from - VEHICLE_CHECK_OVERDUE_GRACE_SECONDS;
-
-  // Chỉ giữ xe còn hợp lý để đang inbound:
-  // - ETA trong tương lai đến +N giờ; hoặc
-  // - ETA mới trễ tối đa 2 giờ để tránh mất xe do delay nhẹ.
-  // Trip cũ đã quá ETA nhiều giờ sẽ bị loại, tránh giữ xe đã xử lý/rời Pleiku.
-  return row.eta >= earliestAllowedEta && row.eta <= window.to;
+  // Ý nghĩa của "8H":
+  // chỉ hiển thị trip có ETA dự kiến đến Pleiku từ hiện tại đến +8 giờ.
+  // ETA đã qua hoặc nằm sau giới hạn đều không được hiển thị.
+  return row.eta >= window.from && row.eta <= window.to;
 };
 
 export interface BuildVehicleCheckRowsResult {

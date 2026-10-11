@@ -154,9 +154,9 @@ export const CheckXePage = () => {
           : result.eligibleTripCount > 0
             ? "Đã đọc " +
               result.eligibleTripCount +
-              " trip hợp lệ nhưng chưa có trip nào nằm trong khung +" +
+              " trip có tuyến về Pleiku nhưng không có ETA nằm trong " +
               hours +
-              " giờ."
+              " giờ tới."
             : "Không có trip đang hướng về Pleiku trên Sheet.",
         result.rows.length > 0
           ? "success"
@@ -189,7 +189,7 @@ export const CheckXePage = () => {
             <label className="form-control w-full sm:w-44">
               <span className="label pb-1">
                 <span className="label-text text-xs font-bold">
-                  Số giờ cần check tiếp
+                  ETA đến Pleiku trong
                 </span>
               </span>
               <input
@@ -200,7 +200,7 @@ export const CheckXePage = () => {
                 disabled={loading}
                 onChange={(event) => setHours(Number(event.target.value))}
                 className="input input-bordered min-h-11 w-full rounded-xl"
-                aria-label="Số giờ cần check tiếp"
+                aria-label="Số giờ ETA dự kiến đến Pleiku"
               />
             </label>
 
@@ -228,7 +228,7 @@ export const CheckXePage = () => {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-              Khung ETA Pleiku
+              Trip dự kiến đến Pleiku
             </p>
             <p className="mt-1 break-safe text-sm font-bold">{summaryText}</p>
             <p className="mt-1 text-xs text-base-content/60">
@@ -244,9 +244,9 @@ export const CheckXePage = () => {
                   (excludedByWindowCount > 0
                     ? " · " +
                       numberFormatter.format(excludedByWindowCount) +
-                      " trip ngoài +" +
+                      " trip không nằm trong " +
                       hours +
-                      " giờ"
+                      " giờ tới"
                     : "") +
                   (unknownEtaActiveCount > 0
                     ? " · " +
@@ -391,7 +391,7 @@ export const CheckXePage = () => {
                         <p className="mt-1 max-w-md text-xs leading-relaxed text-base-content/55">
                           {hasChecked
                             ? eligibleTripCount > 0
-                              ? "Hệ thống đã nhận diện được trip hợp lệ. Hãy tăng số giờ nếu muốn xem các trip có ETA còn xa hơn."
+                              ? "Không có ETA Pleiku nào nằm từ thời điểm hiện tại đến hết khung giờ đã chọn. Hãy tăng số giờ nếu muốn xem xa hơn."
                               : "Không tìm thấy trip có tuyến hiện tại hoặc tuyến tiếp theo hướng về Pleiku SOC."
                             : "Nhấn Check xe để đọc trực tiếp dữ liệu gid=0 của Google Sheet."}
                         </p>

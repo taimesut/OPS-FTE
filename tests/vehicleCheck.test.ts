@@ -411,7 +411,7 @@ test("does not treat an old Pleiku sequence as a vehicle currently heading to Pl
   assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
 });
 
-test("keeps an active inbound vehicle only during the short overdue grace", () => {
+test("hides an inbound vehicle when ETA is already in the past", () => {
   const window = {
     from: 1_791_657_221,
     to: 1_791_686_021,
@@ -441,7 +441,7 @@ test("keeps an active inbound vehicle only during the short overdue grace", () =
     travelTimeSource: "sheet_config" as const,
   };
 
-  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), true);
+  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), false);
 });
 
 test("hides an active inbound vehicle when ETA cannot be calculated", () => {
@@ -508,6 +508,76 @@ test("hides an old inbound leg after ETA is overdue by more than two hours", () 
   };
 
   assert.equal(isVehicleCheckRowInDisplayWindow(oldRow, window), false);
+});
+
+test("8H includes ETA exactly now and exactly at +8 hours", () => {
+  const window = {
+    from: 1_791_657_221,
+    to: 1_791_686_021,
+  };
+
+  const makeRow = (eta: number) => ({
+    tripNumber: "LT-BOUNDARY",
+    tripName: "",
+    vehiclePlateNumber: "81H",
+    vehicleTypeName: "—",
+    agencyName: "—",
+    stations: [],
+    eta,
+    etaSource: "travel_atd" as const,
+    targetSta: null,
+    positionStatus: "in_transit" as const,
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    currentPositionLabel: "BMT SOC → Pleiku SOC",
+    currentSequenceNumber: 1,
+    lastEventAt: window.from - 60,
+    lastEventType: "atd" as const,
+    actualArrivalAt: null,
+    transportQuantity: 10,
+    targetUnloadTransportOrder: null,
+    sheetUpdatedAt: window.from,
+    travelTimeMinutes: 270,
+    travelTimeSource: "app_config" as const,
+  });
+
+  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.from), window), true);
+  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.to), window), true);
+});
+
+test("8H excludes ETA before now and after +8 hours", () => {
+  const window = {
+    from: 1_791_657_221,
+    to: 1_791_686_021,
+  };
+
+  const makeRow = (eta: number) => ({
+    tripNumber: "LT-OUTSIDE",
+    tripName: "",
+    vehiclePlateNumber: "81H",
+    vehicleTypeName: "—",
+    agencyName: "—",
+    stations: [],
+    eta,
+    etaSource: "travel_atd" as const,
+    targetSta: null,
+    positionStatus: "in_transit" as const,
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    currentPositionLabel: "BMT SOC → Pleiku SOC",
+    currentSequenceNumber: 1,
+    lastEventAt: window.from - 60,
+    lastEventType: "atd" as const,
+    actualArrivalAt: null,
+    transportQuantity: 10,
+    targetUnloadTransportOrder: null,
+    sheetUpdatedAt: window.from,
+    travelTimeMinutes: 270,
+    travelTimeSource: "app_config" as const,
+  });
+
+  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.from - 1), window), false);
+  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.to + 1), window), false);
 });
 
 test("filters calculated Sheet ETA by the requested hours", () => {
