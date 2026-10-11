@@ -9,6 +9,7 @@ import { HomePage } from "./pages/HomePage";
 import { LayMaTOPage } from "./pages/LayMaTOPage";
 import { TaoBienBanSuVuPage } from "./pages/TaoBienBanSuVuPage";
 import { TaoMaQRPage } from "./pages/TaoMaQRPage";
+import { CheckXePage } from "./pages/CheckXePage";
 import { ToastContainer } from "./components/Toast";
 
 interface UserscriptAppProps {
@@ -31,6 +32,7 @@ export const UserscriptApp = ({ onRequestClose }: UserscriptAppProps) => {
             <Route path="/tao-bien-ban-su-vu" element={<TaoBienBanSuVuPage />} />
             <Route path="/lay-ma-to" element={<LayMaTOPage />} />
             <Route path="/tao-ma-qr" element={<TaoMaQRPage />} />
+            <Route path="/check-xe" element={<CheckXePage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </MobileLayout>
