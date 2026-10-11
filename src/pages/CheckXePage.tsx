@@ -1,21 +1,16 @@
 import { useMemo, useState } from "react";
-import { Clock3, ExternalLink, RefreshCw, Truck } from "lucide-react";
+import { Clock3, RefreshCw, Route, Truck } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import {
   DEFAULT_VEHICLE_CHECK_HOURS,
+  getRouteLabel,
+  getStationStatusLabel,
   type VehicleCheckRow,
   type VehicleCheckWindow,
-  type VehicleEtaSource,
-  type VehiclePositionStatus,
 } from "../utils/vehicleCheck";
 import { fetchVehicleCheckRows } from "../utils/vehicleCheckData";
-import {
-  VEHICLE_CHECK_SPREADSHEET_URL,
-  VEHICLE_TRAVEL_TIME_SHEET_NAME,
-} from "../utils/vehicleCheckSheet";
-import type { VehicleTravelTimeSource } from "../utils/vehicleTravelTime";
 
 const numberFormatter = new Intl.NumberFormat("vi-VN");
 const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
@@ -27,97 +22,65 @@ const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
 const formatUnixTime = (value: number): string =>
   dateTimeFormatter.format(new Date(value * 1_000));
 
-const formatDuration = (minutes: number | null): string => {
-  if (minutes === null) return "—";
-  const hours = Math.floor(minutes / 60);
-  const remainMinutes = minutes % 60;
-  if (!hours) return remainMinutes + " phút";
-  if (!remainMinutes) return hours + " giờ";
-  return hours + " giờ " + remainMinutes + " phút";
-};
-
-const etaSourceLabel = (
-  source: VehicleEtaSource,
-  travelSource: VehicleTravelTimeSource | null,
-): string => {
-  if (source === "actual_arrival") return "ATA Pleiku";
-  if (source === "pleiku_eta") return "trip_eta Pleiku";
-  if (source === "pleiku_sta") return "trip_sta Pleiku";
-
-  const travelLabel =
-    travelSource === "app_config"
-      ? "cấu hình OPS FTE"
-      : travelSource === "sheet_config"
-        ? "cấu hình Sheet"
-      : travelSource === "sheet_history"
-        ? "lịch sử ATA/ATD"
-        : travelSource === "sheet_schedule"
-          ? "lịch chạy trên Sheet"
-          : "thời gian Sheet";
-
-  if (source === "travel_atd") return "ATD + " + travelLabel;
-  if (source === "travel_etd") return "ETD + " + travelLabel;
-  if (source === "travel_std") return "STD + " + travelLabel;
-  return "Chưa xác định";
-};
-
-const positionStatusLabel = (status: VehiclePositionStatus): string => {
-  switch (status) {
-    case "arrived":
-      return "Đã đến Pleiku";
-    case "departed_target":
-      return "Đã rời Pleiku";
-    case "in_transit":
-      return "Đang chạy";
-    case "at_station":
-      return "Đang ở SOC";
-    default:
-      return "Chưa có ATA/ATD";
-  }
-};
-
-const positionStatusClass = (status: VehiclePositionStatus): string => {
-  switch (status) {
-    case "arrived":
-      return "badge badge-success whitespace-nowrap font-bold";
-    case "in_transit":
-      return "badge badge-info whitespace-nowrap font-bold";
-    case "at_station":
-      return "badge badge-warning whitespace-nowrap font-bold";
-    case "departed_target":
-      return "badge badge-neutral whitespace-nowrap font-bold";
-    default:
-      return "badge badge-ghost whitespace-nowrap font-bold";
-  }
-};
-
-const formatRemainingTime = (eta: number | null): string => {
+const formatRemaining = (eta: number | null): string => {
   if (eta === null) return "—";
-  const diffMinutes = Math.round((eta * 1_000 - Date.now()) / 60_000);
-  if (diffMinutes <= 0) return "Đã quá ETA";
-  return formatDuration(diffMinutes);
+  const minutes = Math.ceil((eta * 1_000 - Date.now()) / 60_000);
+  if (minutes <= 0) return "Đã tới mốc ETA";
+  const hours = Math.floor(minutes / 60);
+  const remain = minutes % 60;
+  if (hours <= 0) return remain + " phút";
+  if (remain === 0) return hours + " giờ";
+  return hours + " giờ " + remain + " phút";
 };
 
-const routeText = (row: VehicleCheckRow): string =>
-  row.stations.map((station) => station.stationName).join(" → ") || "—";
+const statusBadgeClass = (row: VehicleCheckRow): string => {
+  if (row.pleikuStationStatus === 80) {
+    return "badge badge-success whitespace-nowrap font-bold";
+  }
+  if (
+    row.pleikuStationStatus === 60 ||
+    row.pleikuStationStatus === 50
+  ) {
+    return "badge badge-warning whitespace-nowrap font-bold";
+  }
+  if (row.pleikuStationStatus === 200) {
+    return "badge badge-info whitespace-nowrap font-bold";
+  }
+  if (row.operationalState === "moving") {
+    return "badge badge-info whitespace-nowrap font-bold";
+  }
+  if (row.operationalState === "holding") {
+    return "badge badge-error whitespace-nowrap font-bold";
+  }
+  return "badge badge-ghost whitespace-nowrap font-bold";
+};
+
+const processLabel = (row: VehicleCheckRow): string =>
+  row.pleikuStationStatus !== 0
+    ? row.pleikuProcessLabel
+    : row.operationalState === "moving"
+      ? "Đang di chuyển"
+      : row.operationalState === "holding"
+        ? "SOC đang giữ xe"
+        : "Chưa xác định";
 
 export const CheckXePage = () => {
   const [hours, setHours] = useState(DEFAULT_VEHICLE_CHECK_HOURS);
   const [rows, setRows] = useState<VehicleCheckRow[]>([]);
+  const [apiTotal, setApiTotal] = useState(0);
+  const [candidateCount, setCandidateCount] = useState(0);
+  const [pagesFetched, setPagesFetched] = useState(0);
+  const [queryWindow, setQueryWindow] =
+    useState<VehicleCheckWindow | null>(null);
   const [displayWindow, setDisplayWindow] =
     useState<VehicleCheckWindow | null>(null);
-  const [sourceSheetName, setSourceSheetName] = useState("");
-  const [sourceRowCount, setSourceRowCount] = useState(0);
-  const [eligibleTripCount, setEligibleTripCount] = useState(0);
-  const [excludedByWindowCount, setExcludedByWindowCount] = useState(0);
-  const [unknownEtaActiveCount, setUnknownEtaActiveCount] = useState(0);
-  const [latestSheetUpdatedAt, setLatestSheetUpdatedAt] =
-    useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
-  const summaryText = useMemo(() => {
-    if (!displayWindow) return "Từ thời điểm hiện tại đến +" + hours + " giờ";
+  const etaWindowText = useMemo(() => {
+    if (!displayWindow) {
+      return "Từ hiện tại đến +" + hours + " giờ";
+    }
     return (
       formatUnixTime(displayWindow.from) +
       " → " +
@@ -125,9 +88,20 @@ export const CheckXePage = () => {
     );
   }, [displayWindow, hours]);
 
+  const apiWindowText = useMemo(() => {
+    if (!queryWindow) {
+      return "API quét từ hiện tại -1 ngày đến +1 ngày";
+    }
+    return (
+      formatUnixTime(queryWindow.from) +
+      " → " +
+      formatUnixTime(queryWindow.to)
+    );
+  }, [queryWindow]);
+
   const handleCheck = async () => {
     if (!Number.isFinite(hours) || hours <= 0) {
-      showToast("Số giờ cần kiểm tra phải lớn hơn 0.", "warning");
+      showToast("Số giờ ETA phải lớn hơn 0.", "warning");
       return;
     }
 
@@ -135,41 +109,27 @@ export const CheckXePage = () => {
     try {
       const result = await fetchVehicleCheckRows(hours);
       setRows(result.rows);
+      setApiTotal(result.apiTotal);
+      setCandidateCount(result.candidateCount);
+      setPagesFetched(result.pagesFetched);
+      setQueryWindow(result.queryWindow);
       setDisplayWindow(result.displayWindow);
-      setSourceSheetName(result.sourceSheetName);
-      setSourceRowCount(result.sourceRowCount);
-      setEligibleTripCount(result.eligibleTripCount);
-      setExcludedByWindowCount(result.excludedByWindowCount);
-      setUnknownEtaActiveCount(result.unknownEtaActiveCount);
-      setLatestSheetUpdatedAt(result.latestSheetUpdatedAt);
       setHasChecked(true);
 
       showToast(
         result.rows.length > 0
           ? "Hiển thị " +
               result.rows.length +
-              "/" +
-              result.eligibleTripCount +
-              " trip hợp lệ đang hướng về Pleiku."
-          : result.eligibleTripCount > 0
-            ? "Đã đọc " +
-              result.eligibleTripCount +
-              " trip có tuyến về Pleiku nhưng không có ETA nằm trong " +
-              hours +
-              " giờ tới."
-            : "Không có trip đang hướng về Pleiku trên Sheet.",
-        result.rows.length > 0
-          ? "success"
-          : result.eligibleTripCount > 0
-            ? "warning"
-            : "info",
+              " trip có Pending Inbound tại Pleiku."
+          : "Không có trip phù hợp.",
+        result.rows.length > 0 ? "success" : "info",
       );
     } catch (error) {
-      console.error("[Check xe · Google Sheet]", error);
+      console.error("[Check xe · list_v2]", error);
       showToast(
         error instanceof Error && error.message
           ? error.message
-          : "Không thể đọc dữ liệu Check xe từ Google Sheet.",
+          : "Không thể tải danh sách trip từ SPX.",
         "error",
       );
     } finally {
@@ -183,7 +143,7 @@ export const CheckXePage = () => {
         icon={Truck}
         tone="info"
         title="Check xe"
-        description="Đọc trực tiếp dữ liệu vận hành trên Google Sheet, không gọi API SPX. ATA/ATD được dùng để xác định xe đang ở đâu và ETA về Pleiku."
+        description="Lấy trip trực tiếp từ FMS list_v2, lọc Pending Inbound TO và đọc trạng thái trip_station quanh Pleiku SOC."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-end">
             <label className="form-control w-full sm:w-44">
@@ -192,85 +152,80 @@ export const CheckXePage = () => {
                   ETA đến Pleiku trong
                 </span>
               </span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={hours}
-                disabled={loading}
-                onChange={(event) => setHours(Number(event.target.value))}
-                className="input input-bordered min-h-11 w-full rounded-xl"
-                aria-label="Số giờ ETA dự kiến đến Pleiku"
-              />
+              <div className="join w-full">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={hours}
+                  disabled={loading}
+                  onChange={(event) =>
+                    setHours(Number(event.target.value))
+                  }
+                  className="input input-bordered join-item min-h-11 w-full"
+                  aria-label="Số giờ ETA dự kiến đến Pleiku"
+                />
+                <span className="join-item flex min-h-11 items-center border border-base-300 bg-base-200 px-3 text-sm font-bold">
+                  H
+                </span>
+              </div>
             </label>
 
             <button
               type="button"
               onClick={handleCheck}
               disabled={loading || !Number.isFinite(hours) || hours <= 0}
-              className="btn btn-primary min-h-11 w-full gap-2 rounded-xl shadow-xs sm:w-auto"
+              className="btn btn-primary min-h-11 w-full gap-2 rounded-xl sm:w-auto"
             >
               {loading ? (
                 <span className="loading loading-spinner loading-sm" />
               ) : (
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
               )}
-              {loading ? "Đang đọc Sheet" : "Check xe"}
+              {loading ? "Đang quét trip" : "Check xe"}
             </button>
           </div>
         }
       />
 
       <section className="app-surface p-3 sm:p-4" aria-live="polite">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="app-icon-badge shrink-0 bg-info/10 text-info">
-            <Clock3 aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-              Trip dự kiến đến Pleiku
-            </p>
-            <p className="mt-1 break-safe text-sm font-bold">{summaryText}</p>
-            <p className="mt-1 text-xs text-base-content/60">
-              {hasChecked
-                ? "Đã đọc " +
-                  numberFormatter.format(sourceRowCount) +
-                  " dòng từ " +
-                  (sourceSheetName || "gid=0") +
-                  " · " +
-                  numberFormatter.format(eligibleTripCount) +
-                  " trip hợp lệ · hiển thị " +
-                  numberFormatter.format(rows.length) +
-                  (excludedByWindowCount > 0
-                    ? " · " +
-                      numberFormatter.format(excludedByWindowCount) +
-                      " trip không nằm trong " +
-                      hours +
-                      " giờ tới"
-                    : "") +
-                  (unknownEtaActiveCount > 0
-                    ? " · " +
-                      numberFormatter.format(unknownEtaActiveCount) +
-                      " xe đang hoạt động chưa có ETA"
-                    : "")
-                : "Nguồn duy nhất: Google Sheet gid=0. Check xe không gọi API SPX."}
-            </p>
-            {latestSheetUpdatedAt !== null ? (
-              <p className="mt-1 text-xs text-base-content/45">
-                time_update mới nhất trên Sheet:{" "}
-                {formatUnixTime(latestSheetUpdatedAt)}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="flex min-w-0 gap-3">
+            <span className="app-icon-badge shrink-0 bg-info/10 text-info">
+              <Clock3 aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
+                ETA Pleiku
               </p>
-            ) : null}
+              <p className="mt-1 text-sm font-bold">{etaWindowText}</p>
+              <p className="mt-1 text-xs text-base-content/55">
+                Trip chưa đến Pleiku chỉ hiện khi ETA nằm trong khung này.
+              </p>
+            </div>
           </div>
-          <a
-            href={VEHICLE_CHECK_SPREADSHEET_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-ghost btn-sm shrink-0 gap-1.5"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            Mở Sheet
-          </a>
+
+          <div className="flex min-w-0 gap-3">
+            <span className="app-icon-badge shrink-0 bg-primary/10 text-primary">
+              <Route aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
+                Khung quét FMS
+              </p>
+              <p className="mt-1 text-sm font-bold">{apiWindowText}</p>
+              <p className="mt-1 text-xs text-base-content/55">
+                {hasChecked
+                  ? numberFormatter.format(apiTotal) +
+                    " trip API · " +
+                    numberFormatter.format(candidateCount) +
+                    " trip có Pending Inbound TO + 44SOCGL · " +
+                    pagesFetched +
+                    " trang"
+                  : "trip_station_status=60,50,200,80 · count=50 · quét đủ các trang"}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -278,81 +233,96 @@ export const CheckXePage = () => {
         <SectionHeading
           icon={Truck}
           id="vehicle-check-heading"
-          title="Danh sách xe về Pleiku"
-          description={
-            "ATA mới nhất = đang ở SOC; ATD mới nhất = đang chạy từ SOC đó sang điểm kế tiếp. " +
-            "ETA ưu tiên trip_eta Pleiku; nếu thiếu sẽ dùng thời gian trên tab " +
-            VEHICLE_TRAVEL_TIME_SHEET_NAME +
-            " hoặc thời gian học từ lịch sử trên chính Sheet."
-          }
+          title="Danh sách xe / trip"
+          description="Pleiku có status khác 0 sẽ map trực tiếp. Nếu Pleiku = 0, hệ thống lùi từng SOC trước đó để tìm xe đang chạy hay SOC đang giữ xe."
           tone="info"
         />
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[1660px]">
+            <table className="table table-sm min-w-[1600px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
-                  <th>LH Trip Number</th>
+                  <th>LH Trip</th>
                   <th>Biển số</th>
-                  <th>Vị trí hiện tại</th>
-                  <th>Event cuối</th>
+                  <th>Trạng thái</th>
+                  <th>Vị trí xe</th>
                   <th>ETA Pleiku</th>
                   <th>Còn lại</th>
-                  <th>Nguồn ETA</th>
-                  <th>SL vận chuyển</th>
-                  <th>TO dỡ Pleiku</th>
+                  <th className="text-right">Pending Inbound TO</th>
+                  <th className="text-right">Pending Inbound Order</th>
+                  <th>Tuyến SOC</th>
                   <th>Loại xe</th>
                   <th>Nhà xe</th>
-                  <th>Cập nhật Sheet</th>
-                  <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, index) => (
-                  <tr key={row.tripNumber + "-" + index} className="hover">
-                    <td className="font-bold text-primary">{row.tripNumber}</td>
-                    <td className="font-semibold">{row.vehiclePlateNumber}</td>
-                    <td className="min-w-72">
-                      <p className="font-bold">{row.currentPositionLabel}</p>
-                      <p
-                        className="mt-1 max-w-80 text-xs leading-relaxed text-base-content/45"
-                        title={routeText(row)}
-                      >
-                        {routeText(row)}
+                {rows.map((row) => (
+                  <tr key={row.tripNumber} className="hover align-top">
+                    <td className="whitespace-nowrap font-bold text-primary">
+                      {row.tripNumber}
+                    </td>
+                    <td className="whitespace-nowrap font-semibold">
+                      {row.vehiclePlateNumber}
+                    </td>
+                    <td>
+                      <span className={statusBadgeClass(row)}>
+                        {processLabel(row)}
+                      </span>
+                      <p className="mt-1 text-xs text-base-content/45">
+                        Pleiku status: {row.pleikuStationStatus}
                       </p>
                     </td>
-                    <td className="whitespace-nowrap text-sm tabular-nums">
-                      {row.lastEventAt !== null
-                        ? (row.lastEventType === "atd" ? "ATD " : "ATA ") +
-                          formatUnixTime(row.lastEventAt)
-                        : "—"}
+                    <td className="min-w-64 font-semibold">
+                      {row.currentPositionLabel}
                     </td>
                     <td className="whitespace-nowrap font-black tabular-nums">
-                      {row.eta !== null ? formatUnixTime(row.eta) : "—"}
+                      {row.etaPleiku !== null
+                        ? formatUnixTime(row.etaPleiku)
+                        : "—"}
                     </td>
                     <td className="whitespace-nowrap text-sm font-semibold">
-                      {formatRemainingTime(row.eta)}
-                    </td>
-                    <td className="min-w-44 text-sm text-base-content/70">
-                      <span>
-                        {etaSourceLabel(row.etaSource, row.travelTimeSource)}
-                      </span>
-                      {row.travelTimeMinutes !== null ? (
-                        <span className="mt-0.5 block text-xs text-base-content/45">
-                          {formatDuration(row.travelTimeMinutes)}
-                        </span>
-                      ) : null}
+                      {row.pleikuStationStatus !== 0
+                        ? "Đang xử lý tại Pleiku"
+                        : formatRemaining(row.etaPleiku)}
                     </td>
                     <td className="text-right font-bold tabular-nums">
-                      {numberFormatter.format(row.transportQuantity)}
+                      {numberFormatter.format(row.pendingInboundTo)}
                     </td>
                     <td className="text-right font-bold tabular-nums">
-                      {row.targetUnloadTransportOrder === null
-                        ? "—"
-                        : numberFormatter.format(
-                            row.targetUnloadTransportOrder,
-                          )}
+                      {numberFormatter.format(row.pendingInboundOrder)}
+                    </td>
+                    <td className="min-w-[420px]">
+                      <p className="text-sm font-semibold">
+                        {getRouteLabel(row)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {row.stations.map((station) => (
+                          <span
+                            key={
+                              row.tripNumber +
+                              "-" +
+                              station.sequenceNumber
+                            }
+                            className={
+                              "badge badge-sm " +
+                              (station.stationCode === "44SOCGL"
+                                ? "badge-primary"
+                                : "badge-ghost")
+                            }
+                            title={
+                              station.stationCode +
+                              " · status " +
+                              station.tripStationStatus
+                            }
+                          >
+                            {station.stationName} ·{" "}
+                            {getStationStatusLabel(
+                              station.tripStationStatus,
+                            )}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="whitespace-nowrap text-sm">
                       {row.vehicleTypeName}
@@ -360,22 +330,12 @@ export const CheckXePage = () => {
                     <td className="whitespace-nowrap text-sm">
                       {row.agencyName}
                     </td>
-                    <td className="whitespace-nowrap text-sm tabular-nums text-base-content/60">
-                      {row.sheetUpdatedAt !== null
-                        ? formatUnixTime(row.sheetUpdatedAt)
-                        : "—"}
-                    </td>
-                    <td>
-                      <span className={positionStatusClass(row.positionStatus)}>
-                        {positionStatusLabel(row.positionStatus)}
-                      </span>
-                    </td>
                   </tr>
                 ))}
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={13}>
+                    <td colSpan={11}>
                       <div className="flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center">
                         <Truck
                           className="h-8 w-8 text-base-content/30"
@@ -383,17 +343,13 @@ export const CheckXePage = () => {
                         />
                         <p className="mt-3 text-sm font-bold">
                           {hasChecked
-                            ? eligibleTripCount > 0
-                              ? "Có trip hợp lệ nhưng đang nằm ngoài khung đã chọn"
-                              : "Không có trip đang hướng về Pleiku"
-                            : "Chưa đọc dữ liệu từ Sheet"}
+                            ? "Không có trip phù hợp"
+                            : "Chưa quét danh sách trip"}
                         </p>
-                        <p className="mt-1 max-w-md text-xs leading-relaxed text-base-content/55">
+                        <p className="mt-1 max-w-lg text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? eligibleTripCount > 0
-                              ? "Không có ETA Pleiku nào nằm từ thời điểm hiện tại đến hết khung giờ đã chọn. Hãy tăng số giờ nếu muốn xem xa hơn."
-                              : "Không tìm thấy trip có tuyến hiện tại hoặc tuyến tiếp theo hướng về Pleiku SOC."
-                            : "Nhấn Check xe để đọc trực tiếp dữ liệu gid=0 của Google Sheet."}
+                            ? "Trip phải có Pending Inbound TO > 0, có station_code 44SOCGL và nếu chưa đến Pleiku thì ETA phải nằm trong số giờ đã chọn."
+                            : "Nhấn Check xe để quét list_v2 từ hiện tại -1 ngày đến +1 ngày."}
                         </p>
                       </div>
                     </td>

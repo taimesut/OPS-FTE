@@ -1,77 +1,126 @@
+import apiClient from "./apiClient.ts";
 import { getConfigs } from "./config.ts";
 import {
-  buildVehicleCheckRowsFromSheet,
   createVehicleCheckDisplayWindow,
-  isVehicleCheckRowInDisplayWindow,
+  createVehicleCheckParams,
+  createVehicleCheckQueryWindow,
+  isVehicleCheckRowVisible,
+  parseVehicleCheckResponse,
+  VEHICLE_CHECK_PAGE_SIZE,
+  VEHICLE_CHECK_PATH,
   type VehicleCheckRow,
   type VehicleCheckWindow,
 } from "./vehicleCheck.ts";
-import { loadVehicleCheckSheetBundle } from "./vehicleCheckSheet.ts";
 
 export interface VehicleCheckResult {
   rows: VehicleCheckRow[];
+  apiTotal: number;
+  candidateCount: number;
+  displayedCount: number;
+  queryWindow: VehicleCheckWindow;
   displayWindow: VehicleCheckWindow;
-  sourceSheetName: string;
-  sourceRowCount: number;
-  latestSheetUpdatedAt: number | null;
-  eligibleTripCount: number;
-  excludedByWindowCount: number;
-  unknownEtaActiveCount: number;
+  pagesFetched: number;
 }
 
-const sortVehicleRows = (
+export interface VehicleCheckApiDependency {
+  get(
+    path: string,
+    options: {
+      params: ReturnType<typeof createVehicleCheckParams>;
+      suppressErrorToast: true;
+    },
+  ): Promise<{ data: unknown }>;
+}
+
+const resolveConfiguredRouteMinutes = (): Record<string, number> => {
+  const config = getConfigs();
+  if (
+    config.soc.trim().toLocaleLowerCase("vi-VN") !==
+      "pleiku soc" ||
+    !config.soc_id
+  ) {
+    return {};
+  }
+  return { ...(config.soc_eta_minutes?.[config.soc_id] || {}) };
+};
+
+const sortRows = (
   first: VehicleCheckRow,
   second: VehicleCheckRow,
 ): number => {
-  const firstEta = first.eta ?? Number.MAX_SAFE_INTEGER;
-  const secondEta = second.eta ?? Number.MAX_SAFE_INTEGER;
-  return firstEta - secondEta || first.tripNumber.localeCompare(second.tripNumber);
+  const firstProcessing = first.pleikuStationStatus !== 0;
+  const secondProcessing = second.pleikuStationStatus !== 0;
+  if (firstProcessing !== secondProcessing) {
+    return firstProcessing ? -1 : 1;
+  }
+
+  const firstEta = first.etaPleiku ?? Number.MAX_SAFE_INTEGER;
+  const secondEta = second.etaPleiku ?? Number.MAX_SAFE_INTEGER;
+  return (
+    firstEta - secondEta ||
+    first.tripNumber.localeCompare(second.tripNumber)
+  );
 };
 
 export const fetchVehicleCheckRows = async (
   hours: number,
   nowMs = Date.now(),
+  dependency: VehicleCheckApiDependency = apiClient,
 ): Promise<VehicleCheckResult> => {
-  const displayWindow = createVehicleCheckDisplayWindow(nowMs, hours);
-  const bundle = await loadVehicleCheckSheetBundle();
-  const config = getConfigs();
-  const appRouteMap =
-    config.soc.trim().toLocaleLowerCase("vi-VN") ===
-      "pleiku soc" &&
-    config.soc_id
-      ? config.soc_eta_minutes?.[config.soc_id] || {}
-      : {};
-  const appConfiguredTravelTimes = Object.entries(appRouteMap).map(
-    ([stationName, minutes]) => ({ stationName, minutes }),
+  const queryWindow = createVehicleCheckQueryWindow(nowMs);
+  const displayWindow = createVehicleCheckDisplayWindow(
+    nowMs,
+    hours,
   );
-  const built = buildVehicleCheckRowsFromSheet(
-    bundle.table,
-    bundle.travelTimes,
-    appConfiguredTravelTimes,
-  );
+  const routeMinutes = resolveConfiguredRouteMinutes();
+  const uniqueRows = new Map<string, VehicleCheckRow>();
 
-  const eligibleRows = built.rows.filter(
-    (row) =>
-      row.positionStatus !== "arrived" &&
-      row.positionStatus !== "departed_target",
-  );
-  const rows = eligibleRows
-    .filter((row) => isVehicleCheckRowInDisplayWindow(row, displayWindow))
-    .sort(sortVehicleRows);
+  let apiTotal = 0;
+  let totalPages = 1;
+  let pagesFetched = 0;
+
+  for (let pageNo = 1; pageNo <= totalPages; pageNo += 1) {
+    const response = await dependency.get(VEHICLE_CHECK_PATH, {
+      params: createVehicleCheckParams(queryWindow, pageNo),
+      suppressErrorToast: true,
+    });
+    const page = parseVehicleCheckResponse(
+      response.data,
+      routeMinutes,
+    );
+    pagesFetched += 1;
+
+    if (pageNo === 1) {
+      apiTotal = page.total;
+      totalPages = Math.max(
+        1,
+        Math.ceil(apiTotal / VEHICLE_CHECK_PAGE_SIZE),
+      );
+    }
+
+    page.rows.forEach((row, index) => {
+      const key =
+        row.tripNumber !== "—"
+          ? row.tripNumber
+          : "missing-" + pageNo + "-" + index;
+      uniqueRows.set(key, row);
+    });
+  }
+
+  const candidates = Array.from(uniqueRows.values());
+  const rows = candidates
+    .filter((row) =>
+      isVehicleCheckRowVisible(row, displayWindow),
+    )
+    .sort(sortRows);
 
   return {
     rows,
+    apiTotal,
+    candidateCount: candidates.length,
+    displayedCount: rows.length,
+    queryWindow,
     displayWindow,
-    sourceSheetName: bundle.table.sheetName,
-    sourceRowCount: bundle.table.sourceRowCount,
-    latestSheetUpdatedAt: built.latestSheetUpdatedAt,
-    eligibleTripCount: eligibleRows.length,
-    excludedByWindowCount: Math.max(0, eligibleRows.length - rows.length),
-    unknownEtaActiveCount: eligibleRows.filter(
-      (row) =>
-        row.eta === null &&
-        (row.positionStatus === "in_transit" ||
-          row.positionStatus === "at_station"),
-    ).length,
+    pagesFetched,
   };
 };

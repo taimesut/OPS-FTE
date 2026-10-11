@@ -1,655 +1,308 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  buildVehicleCheckRowsFromSheet,
-  createVehicleCheckDisplayWindow,
-  isVehicleCheckRowInDisplayWindow,
-  parseVehicleCheckTimestamp,
+  createVehicleCheckParams,
+  createVehicleCheckQueryWindow,
+  isVehicleCheckRowVisible,
+  mapPleikuStationStatus,
+  parseVehicleCheckResponse,
+  resolveOperationalState,
+  VEHICLE_CHECK_PAGE_SIZE,
+  type VehicleCheckStation,
 } from "../src/utils/vehicleCheck.ts";
-import {
-  parseCsvTable,
-  VEHICLE_CHECK_SPREADSHEET_ID,
-} from "../src/utils/vehicleCheckSheet.ts";
 
-const headers = [
-  "trip_name",
-  "trip_number",
-  "sequence_number",
-  "station_name",
-  "next_station_name",
-  "trip_sta",
-  "trip_std",
-  "trip_eta",
-  "trip_etd",
-  "trip_ata",
-  "trip_atd",
-  "loading_time",
-  "loaded_time",
-  "seal_time",
-  "unseal_time",
-  "unloaded_time",
-  "load_quantity",
-  "unload_quantity",
-  "expect_unload_quantity",
-  "transport_quantity",
-  "load_total_transport_order",
-  "unload_total_transport_order",
-  "load_total_order",
-  "unload_total_order",
-  "load_weight",
-  "unload_weight",
-  "vehicle_number",
-  "vehicle_type_name",
-  "trip_status",
-  "driver_id",
-  "agency_name",
-  "trip_assigned",
-  "time_update",
-];
+const station = (
+  name: string,
+  code: string,
+  status: number,
+  extra: Partial<VehicleCheckStation> = {},
+): VehicleCheckStation => ({
+  sequenceNumber: 1,
+  stationId: null,
+  stationCode: code,
+  stationName: name,
+  tripStationStatus: status,
+  eta: null,
+  etd: null,
+  ata: null,
+  atd: null,
+  sta: null,
+  std: null,
+  ...extra,
+});
 
-const row = (values: Record<string, string | number>) =>
-  headers.map((header) => String(values[header] ?? ""));
+test("query window is exactly current time -1 day to +1 day", () => {
+  const now = 1_791_754_437_000;
+  assert.deepEqual(createVehicleCheckQueryWindow(now), {
+    from: 1_791_668_037,
+    to: 1_791_840_837,
+  });
+});
 
-test("uses the configured OPS FTE Google Sheet as the vehicle source", () => {
+test("list_v2 params match the requested FMS query", () => {
+  const params = createVehicleCheckParams(
+    { from: 1_791_668_037, to: 1_791_840_837 },
+    1,
+  );
+  assert.deepEqual(params, {
+    station_type: "2,3,7,12,14,16,18",
+    trip_station_status: "60,50,200,80",
+    pageno: 1,
+    count: VEHICLE_CHECK_PAGE_SIZE,
+    query_type: 1,
+    tab_type: 2,
+    sta: "1791668037,1791840837",
+  });
+});
+
+test("Pleiku direct statuses map exactly to requested labels", () => {
+  assert.deepEqual(mapPleikuStationStatus(60), {
+    process: "unseal",
+    label: "Unseal",
+  });
+  assert.deepEqual(mapPleikuStationStatus(50), {
+    process: "arrival",
+    label: "Arrival",
+  });
+  assert.deepEqual(mapPleikuStationStatus(200), {
+    process: "pending",
+    label: "Pending",
+  });
+  assert.deepEqual(mapPleikuStationStatus(80), {
+    process: "unloaded",
+    label: "Unloaded",
+  });
+});
+
+test("Pleiku status 0 + previous 40 means moving from previous SOC to Pleiku", () => {
+  const stations = [
+    station("Hung Yen SOC", "25SOCHYT", 40, {
+      sequenceNumber: 1,
+      atd: 1_791_682_008,
+    }),
+    station("Pleiku SOC", "44SOCGL", 0, {
+      sequenceNumber: 2,
+      eta: 1_791_837_862,
+    }),
+  ];
+  const result = resolveOperationalState(stations, 1);
+  assert.equal(result.state, "moving");
   assert.equal(
-    VEHICLE_CHECK_SPREADSHEET_ID,
-    "1KtjQsrdSR0mvyxrL_sKo3ScOP-ELQ873iuUdLjMajWM",
+    result.label,
+    "Đang di chuyển Hung Yen SOC → Pleiku SOC",
   );
 });
 
-test("parses Google Sheet CSV including quoted cells", () => {
-  assert.deepEqual(
-    parseCsvTable('trip_number,station_name\n"LT,01","BMT SOC"\n'),
-    [
-      ["trip_number", "station_name"],
-      ["LT,01", "BMT SOC"],
-    ],
+test("when previous station is 0 it keeps walking backwards to status 40", () => {
+  const stations = [
+    station("Kon Tum SOC", "43SOCKT", 40, {
+      sequenceNumber: 1,
+    }),
+    station("BMT SOC", "45SOCDLK", 0, {
+      sequenceNumber: 2,
+    }),
+    station("Pleiku SOC", "44SOCGL", 0, {
+      sequenceNumber: 3,
+    }),
+  ];
+  const result = resolveOperationalState(stations, 2);
+  assert.equal(result.state, "moving");
+  assert.equal(
+    result.label,
+    "Đang di chuyển Kon Tum SOC → BMT SOC",
   );
 });
 
-test("creates the selected ETA display window", () => {
-  assert.deepEqual(
-    createVehicleCheckDisplayWindow(1_791_657_221_000, 8),
-    {
-      from: 1_791_657_221,
-      to: 1_791_686_021,
+test("backward nonzero status other than 40 means that SOC is holding the vehicle", () => {
+  const stations = [
+    station("Kon Tum SOC", "43SOCKT", 60, {
+      sequenceNumber: 1,
+    }),
+    station("BMT SOC", "45SOCDLK", 0, {
+      sequenceNumber: 2,
+    }),
+    station("Pleiku SOC", "44SOCGL", 0, {
+      sequenceNumber: 3,
+    }),
+  ];
+  const result = resolveOperationalState(stations, 2);
+  assert.equal(result.state, "holding");
+  assert.equal(result.label, "Kon Tum SOC đang giữ xe");
+});
+
+test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () => {
+  const payload = {
+    retcode: 0,
+    data: {
+      pageno: 1,
+      total: 3,
+      list: [
+        {
+          id: 1,
+          trip_number: "KEEP",
+          to_inbound_quantity: 10,
+          order_inbound_quantity: 50,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "25SOCHYT",
+              station_name: "Hung Yen SOC",
+              trip_station_status: 40,
+              atd: 1_791_682_008,
+            },
+            {
+              sequence_number: 2,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 0,
+              eta: 1_791_837_862,
+            },
+          ],
+        },
+        {
+          id: 2,
+          trip_number: "DROP-ZERO-TO",
+          to_inbound_quantity: 0,
+          order_inbound_quantity: 50,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 50,
+            },
+          ],
+        },
+        {
+          id: 3,
+          trip_number: "DROP-NO-PLEIKU",
+          to_inbound_quantity: 9,
+          order_inbound_quantity: 20,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "45SOCDLK",
+              station_name: "BMT SOC",
+              trip_station_status: 40,
+            },
+          ],
+        },
+      ],
     },
+  };
+
+  const page = parseVehicleCheckResponse(payload);
+  assert.equal(page.rows.length, 1);
+  assert.equal(page.rows[0].tripNumber, "KEEP");
+  assert.equal(page.rows[0].pendingInboundTo, 10);
+  assert.equal(page.rows[0].pendingInboundOrder, 50);
+});
+
+test("trip route preserves every SOC in trip_station", () => {
+  const payload = {
+    retcode: 0,
+    data: {
+      pageno: 1,
+      total: 1,
+      list: [
+        {
+          id: 1,
+          trip_number: "ROUTE",
+          to_inbound_quantity: 10,
+          order_inbound_quantity: 100,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "25SOCHYT",
+              station_name: "Hung Yen SOC",
+              trip_station_status: 40,
+            },
+            {
+              sequence_number: 2,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 0,
+            },
+            {
+              sequence_number: 3,
+              station_code: "45SOCDLK",
+              station_name: "BMT SOC",
+              trip_station_status: 0,
+            },
+            {
+              sequence_number: 4,
+              station_code: "63SOCBD1",
+              station_name: "BD A Mega SOC",
+              trip_station_status: 0,
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const page = parseVehicleCheckResponse(payload);
+  assert.deepEqual(
+    page.rows[0].stations.map((item) => item.stationName),
+    ["Hung Yen SOC", "Pleiku SOC", "BMT SOC", "BD A Mega SOC"],
   );
 });
 
-test("parses displayed Sheet datetimes as Asia/Ho_Chi_Minh timestamps", () => {
-  assert.equal(
-    parseVehicleCheckTimestamp("2026-10-11 13:31:44"),
-    Math.floor(Date.parse("2026-10-11T13:31:44+07:00") / 1000),
-  );
-});
-
-test("parses Vietnamese DD/MM/YYYY Sheet datetime deterministically", () => {
-  assert.equal(
-    parseVehicleCheckTimestamp("11/10/2026 13:31:44"),
-    Math.floor(Date.parse("2026-10-11T13:31:44+07:00") / 1000),
-  );
-});
-
-test("parses Google Sheet numeric serial datetime in Ho Chi Minh timezone", () => {
-  const expected = Math.floor(
-    Date.parse("2026-10-11T12:00:00+07:00") / 1000,
-  );
-  const serial =
-    (Date.UTC(2026, 9, 11, 12, 0, 0) - Date.UTC(1899, 11, 30)) /
-    (24 * 60 * 60 * 1000);
-
-  assert.equal(parseVehicleCheckTimestamp(String(serial)), expected);
-});
-
-test("rejects ambiguous or invalid Sheet datetime instead of Date.parse guessing", () => {
-  assert.equal(parseVehicleCheckTimestamp("10/11/26 13:31"), null);
-  assert.equal(parseVehicleCheckTimestamp("31/02/2026 13:31:44"), null);
-  assert.equal(parseVehicleCheckTimestamp("455"), null);
-});
-
-test("finds the latest actual ATD and estimates BMT to Pleiku from Sheet travel time", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 3,
-    rows: [
-      row({
-        trip_name: "BD-QL14-DN",
-        trip_number: "LT0QAA4ZZI2U1",
-        sequence_number: 1,
-        station_name: "BD A Mega SOC",
-        next_station_name: "Gia Nghia SOC",
-        trip_sta: "2026-10-10 15:03:00",
-        trip_std: "2026-10-10 16:07:00",
-        trip_ata: "2026-10-10 22:25:20",
-        trip_atd: "2026-10-10 23:38:02",
-        transport_quantity: 1400,
-        vehicle_number: "89H-024.76",
-        agency_name: "Minh Hiếu",
-        time_update: "2026-10-10 23:38:02",
-      }),
-      row({
-        trip_name: "BD-QL14-DN",
-        trip_number: "LT0QAA4ZZI2U1",
-        sequence_number: 2,
-        station_name: "Gia Nghia SOC",
-        next_station_name: "BMT SOC",
-        trip_sta: "2026-10-10 21:03:00",
-        trip_std: "2026-10-10 22:07:00",
-        trip_ata: "2026-10-11 03:36:32",
-        trip_atd: "2026-10-11 08:01:38",
-        transport_quantity: 1042,
-        vehicle_number: "89H-024.76",
-        agency_name: "Minh Hiếu",
-        time_update: "2026-10-11 08:01:38",
-      }),
-      row({
-        trip_name: "BD-QL14-DN",
-        trip_number: "LT0QAA4ZZI2U1",
-        sequence_number: 3,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_sta: "2026-10-11 01:03:00",
-        trip_std: "2026-10-11 02:07:00",
-        trip_eta: "2026-10-11 10:24:08",
-        trip_ata: "2026-10-11 10:22:59",
-        trip_atd: "2026-10-11 13:31:44",
-        transport_quantity: 642,
-        unload_total_transport_order: 403,
-        vehicle_number: "89H-024.76",
-        agency_name: "Minh Hiếu",
-        time_update: "2026-10-11 13:31:44",
-      }),
-    ],
-  };
-
-  const result = buildVehicleCheckRowsFromSheet(table, [
-    { stationName: "BMT SOC", minutes: 270 },
-  ]);
-  assert.equal(result.rows.length, 1);
-
-  const vehicle = result.rows[0];
-  const atd = Math.floor(Date.parse("2026-10-11T13:31:44+07:00") / 1000);
-  assert.equal(vehicle.currentPositionLabel, "BMT SOC → Pleiku SOC");
-  assert.equal(vehicle.positionStatus, "in_transit");
-  assert.equal(vehicle.lastEventType, "atd");
-  assert.equal(vehicle.lastEventAt, atd);
-  assert.equal(vehicle.etaSource, "travel_atd");
-  assert.equal(vehicle.travelTimeSource, "sheet_config");
-  assert.equal(vehicle.travelTimeMinutes, 270);
-  assert.equal(vehicle.eta, atd + 270 * 60);
-  assert.equal(vehicle.transportQuantity, 642);
-  assert.equal(vehicle.vehiclePlateNumber, "89H-024.76");
-});
-
-test("does not calculate ETA from ETD or STD older than the actual ATA", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 2,
-    rows: [
-      row({
-        trip_number: "LT-STALE-DEPARTURE",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_std: "2026-10-11 08:00:00",
-        trip_etd: "2026-10-11 09:00:00",
-        trip_ata: "2026-10-11 10:00:00",
-        vehicle_number: "81H-STALE",
-        time_update: "2026-10-11 10:00:00",
-      }),
-      row({
-        trip_number: "LT-STALE-DEPARTURE",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        trip_sta: "2026-10-11 15:00:00",
-        vehicle_number: "81H-STALE",
-        time_update: "2026-10-11 10:00:00",
-      }),
-    ],
-  };
-
-  const result = buildVehicleCheckRowsFromSheet(
-    table,
-    [],
-    [{ stationName: "BMT SOC", minutes: 270 }],
-  );
-
-  assert.equal(result.rows.length, 1);
-  assert.equal(result.rows[0].positionStatus, "at_station");
-  assert.equal(result.rows[0].etaSource, "pleiku_sta");
-  assert.equal(
-    result.rows[0].eta,
-    Math.floor(Date.parse("2026-10-11T15:00:00+07:00") / 1000),
-  );
-});
-
-test("OPS FTE route ETA overrides Sheet route ETA for the selected SOC pair", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 1,
-    rows: [
-      row({
-        trip_number: "LT-APP-ETA",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_atd: "2026-10-11 12:00:00",
-        vehicle_number: "81H-APP",
-        time_update: "2026-10-11 12:00:00",
-      }),
-    ],
-  };
-
-  const result = buildVehicleCheckRowsFromSheet(
-    table,
-    [{ stationName: "BMT SOC", minutes: 300 }],
-    [{ stationName: "BMT SOC", minutes: 270 }],
-  );
-  assert.equal(result.rows.length, 1);
-  assert.equal(result.rows[0].travelTimeSource, "app_config");
-  assert.equal(result.rows[0].travelTimeMinutes, 270);
-  assert.equal(result.rows[0].etaSource, "travel_atd");
-});
-
-test("uses trip_eta of the Pleiku row when the Sheet provides it", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 2,
-    rows: [
-      row({
-        trip_number: "LT-ETA-PLEIKU",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_ata: "2026-10-11 10:00:00",
-        trip_atd: "2026-10-11 11:00:00",
-        vehicle_number: "81H-001.23",
-        time_update: "2026-10-11 11:00:00",
-      }),
-      row({
-        trip_number: "LT-ETA-PLEIKU",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        trip_sta: "2026-10-11 15:00:00",
-        trip_eta: "2026-10-11 15:20:00",
-        vehicle_number: "81H-001.23",
-        time_update: "2026-10-11 11:05:00",
-      }),
-    ],
-  };
-
-  const result = buildVehicleCheckRowsFromSheet(table);
-  assert.equal(result.rows.length, 1);
-  assert.equal(result.rows[0].etaSource, "pleiku_eta");
-  assert.equal(
-    result.rows[0].eta,
-    Math.floor(Date.parse("2026-10-11T15:20:00+07:00") / 1000),
-  );
-});
-
-test("learns SOC to Pleiku travel time from historical ATA/ATD rows on the same Sheet", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 4,
-    rows: [
-      row({
-        trip_number: "LT-HISTORY",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_atd: "2026-10-10 10:00:00",
-        vehicle_number: "81H-OLD",
-        time_update: "2026-10-10 10:00:00",
-      }),
-      row({
-        trip_number: "LT-HISTORY",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        trip_ata: "2026-10-10 14:30:00",
-        vehicle_number: "81H-OLD",
-        time_update: "2026-10-10 14:30:00",
-      }),
-      row({
-        trip_number: "LT-CURRENT",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_atd: "2026-10-11 12:00:00",
-        vehicle_number: "81H-NEW",
-        time_update: "2026-10-11 12:00:00",
-      }),
-      row({
-        trip_number: "LT-CURRENT",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        trip_sta: "2026-10-11 17:00:00",
-        vehicle_number: "81H-NEW",
-        time_update: "2026-10-11 12:00:00",
-      }),
-    ],
-  };
-
-  const result = buildVehicleCheckRowsFromSheet(table);
-  const current = result.rows.find((item) => item.tripNumber === "LT-CURRENT");
-  assert.ok(current);
-  assert.equal(current.travelTimeSource, "sheet_history");
-  assert.equal(current.travelTimeMinutes, 270);
-  assert.equal(current.etaSource, "travel_atd");
-});
-
-test("drops a trip immediately when Pleiku already has ATA even if an older inbound leg still exists", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 2,
-    rows: [
-      row({
-        trip_number: "LT-PLEIKU-DONE",
-        sequence_number: 1,
-        station_name: "BMT SOC",
-        next_station_name: "Pleiku SOC",
-        trip_atd: "2026-10-11 10:00:00",
-        vehicle_number: "81H-DONE",
-        time_update: "2026-10-11 10:00:00",
-      }),
-      row({
-        trip_number: "LT-PLEIKU-DONE",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        next_station_name: "Kon Tum SOC",
-        trip_ata: "2026-10-11 14:00:00",
-        vehicle_number: "81H-DONE",
-        time_update: "2026-10-11 14:00:00",
-      }),
-    ],
-  };
-
-  assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
-});
-
-test("does not treat an old Pleiku sequence as a vehicle currently heading to Pleiku", () => {
-  const table = {
-    headers,
-    sheetName: "DATA",
-    sourceRowCount: 3,
-    rows: [
-      row({
-        trip_number: "LT-LEFT-PLEIKU",
-        sequence_number: 1,
-        station_name: "Gia Nghia SOC",
-        next_station_name: "Pleiku SOC",
-        trip_atd: "2026-10-11 02:00:00",
-        vehicle_number: "81H-X",
-      }),
-      row({
-        trip_number: "LT-LEFT-PLEIKU",
-        sequence_number: 2,
-        station_name: "Pleiku SOC",
-        next_station_name: "Kon Tum SOC",
-        trip_ata: "2026-10-11 06:00:00",
-        trip_atd: "2026-10-11 07:00:00",
-        vehicle_number: "81H-X",
-      }),
-      row({
-        trip_number: "LT-LEFT-PLEIKU",
-        sequence_number: 3,
-        station_name: "Kon Tum SOC",
-        next_station_name: "BMT SOC",
-        trip_ata: "2026-10-11 09:00:00",
-        vehicle_number: "81H-X",
-      }),
-    ],
-  };
-
-  assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
-});
-
-test("hides an inbound vehicle when ETA is already in the past", () => {
-  const window = {
-    from: 1_791_657_221,
-    to: 1_791_686_021,
-  };
-  const activeRow = {
-    tripNumber: "LT-OVERDUE",
-    tripName: "",
-    vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
-    stations: [],
-    eta: 1_791_654_000,
-    etaSource: "travel_atd" as const,
-    targetSta: null,
-    positionStatus: "in_transit" as const,
-    currentStationName: "BMT SOC",
-    nextStationName: "Pleiku SOC",
-    currentPositionLabel: "BMT SOC → Pleiku SOC",
-    currentSequenceNumber: 1,
-    lastEventAt: 1_791_640_000,
-    lastEventType: "atd" as const,
-    actualArrivalAt: null,
-    transportQuantity: 10,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: 1_791_656_000,
-    travelTimeMinutes: 270,
-    travelTimeSource: "sheet_config" as const,
-  };
-
-  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), false);
-});
-
-test("hides an active inbound vehicle when ETA cannot be calculated", () => {
-  const window = {
-    from: 1_791_657_221,
-    to: 1_791_686_021,
-  };
-  const activeRow = {
-    tripNumber: "LT-NO-ETA",
-    tripName: "",
-    vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
-    stations: [],
-    eta: null,
-    etaSource: null,
-    targetSta: null,
-    positionStatus: "in_transit" as const,
-    currentStationName: "BMT SOC",
-    nextStationName: "Pleiku SOC",
-    currentPositionLabel: "BMT SOC → Pleiku SOC",
-    currentSequenceNumber: 1,
-    lastEventAt: 1_791_660_000,
-    lastEventType: "atd" as const,
-    actualArrivalAt: null,
-    transportQuantity: 10,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: 1_791_660_000,
-    travelTimeMinutes: null,
-    travelTimeSource: null,
-  };
-
-  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), false);
-});
-
-test("hides an old inbound leg after ETA is overdue by more than two hours", () => {
-  const window = {
-    from: 1_791_657_221,
-    to: 1_791_686_021,
-  };
-  const oldRow = {
-    tripNumber: "LT-OLD-DONE",
-    tripName: "",
-    vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
-    stations: [],
-    eta: 1_791_640_000,
-    etaSource: "travel_atd" as const,
-    targetSta: null,
-    positionStatus: "in_transit" as const,
-    currentStationName: "BMT SOC",
-    nextStationName: "Pleiku SOC",
-    currentPositionLabel: "BMT SOC → Pleiku SOC",
-    currentSequenceNumber: 1,
-    lastEventAt: 1_791_620_000,
-    lastEventType: "atd" as const,
-    actualArrivalAt: null,
-    transportQuantity: 10,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: 1_791_656_000,
-    travelTimeMinutes: 270,
-    travelTimeSource: "app_config" as const,
-  };
-
-  assert.equal(isVehicleCheckRowInDisplayWindow(oldRow, window), false);
-});
-
-test("8H includes ETA exactly now and exactly at +8 hours", () => {
-  const window = {
-    from: 1_791_657_221,
-    to: 1_791_686_021,
-  };
-
-  const makeRow = (eta: number) => ({
-    tripNumber: "LT-BOUNDARY",
-    tripName: "",
-    vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
-    stations: [],
-    eta,
-    etaSource: "travel_atd" as const,
-    targetSta: null,
-    positionStatus: "in_transit" as const,
-    currentStationName: "BMT SOC",
-    nextStationName: "Pleiku SOC",
-    currentPositionLabel: "BMT SOC → Pleiku SOC",
-    currentSequenceNumber: 1,
-    lastEventAt: window.from - 60,
-    lastEventType: "atd" as const,
-    actualArrivalAt: null,
-    transportQuantity: 10,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: window.from,
-    travelTimeMinutes: 270,
-    travelTimeSource: "app_config" as const,
-  });
-
-  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.from), window), true);
-  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.to), window), true);
-});
-
-test("8H excludes ETA before now and after +8 hours", () => {
-  const window = {
-    from: 1_791_657_221,
-    to: 1_791_686_021,
-  };
-
-  const makeRow = (eta: number) => ({
-    tripNumber: "LT-OUTSIDE",
-    tripName: "",
-    vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
-    stations: [],
-    eta,
-    etaSource: "travel_atd" as const,
-    targetSta: null,
-    positionStatus: "in_transit" as const,
-    currentStationName: "BMT SOC",
-    nextStationName: "Pleiku SOC",
-    currentPositionLabel: "BMT SOC → Pleiku SOC",
-    currentSequenceNumber: 1,
-    lastEventAt: window.from - 60,
-    lastEventType: "atd" as const,
-    actualArrivalAt: null,
-    transportQuantity: 10,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: window.from,
-    travelTimeMinutes: 270,
-    travelTimeSource: "app_config" as const,
-  });
-
-  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.from - 1), window), false);
-  assert.equal(isVehicleCheckRowInDisplayWindow(makeRow(window.to + 1), window), false);
-});
-
-test("filters calculated Sheet ETA by the requested hours", () => {
-  const eta = 1_791_666_000;
-  const baseRow = {
+test("not-arrived trip is filtered by ETA N hours, processing Pleiku trip stays visible", () => {
+  const base = {
+    tripId: 1,
     tripNumber: "LT",
     tripName: "",
     vehiclePlateNumber: "81H",
-    vehicleTypeName: "—",
-    agencyName: "—",
+    vehicleTypeName: "Truck",
+    agencyName: "Agency",
+    pendingInboundTo: 10,
+    pendingInboundOrder: 100,
     stations: [],
-    eta,
-    etaSource: "pleiku_eta" as const,
-    targetSta: eta,
-    positionStatus: "scheduled" as const,
-    currentStationName: "",
-    nextStationName: "",
-    currentPositionLabel: "Chưa có ATA/ATD",
-    currentSequenceNumber: null,
-    lastEventAt: null,
-    lastEventType: null,
-    actualArrivalAt: null,
-    transportQuantity: 0,
-    targetUnloadTransportOrder: null,
-    sheetUpdatedAt: null,
-    travelTimeMinutes: null,
-    travelTimeSource: null,
+    pleikuStationIndex: 0,
+    pleikuProcessStatus: "not_arrived" as const,
+    pleikuProcessLabel: "Chưa đến Pleiku",
+    operationalState: "moving" as const,
+    currentPositionLabel: "Đang di chuyển BMT SOC → Pleiku SOC",
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    referenceStationIndex: 0,
   };
+  const window = { from: 1000, to: 2000 };
 
   assert.equal(
-    isVehicleCheckRowInDisplayWindow(baseRow, {
-      from: 1_791_657_221,
-      to: 1_791_686_021,
-    }),
+    isVehicleCheckRowVisible(
+      {
+        ...base,
+        pleikuStationStatus: 0,
+        etaPleiku: 1500,
+      },
+      window,
+    ),
     true,
   );
-});
-
-test("Check xe source code no longer calls SPX trip APIs", () => {
-  const page = readFileSync(
-    new URL("../src/pages/CheckXePage.tsx", import.meta.url),
-    "utf8",
+  assert.equal(
+    isVehicleCheckRowVisible(
+      {
+        ...base,
+        pleikuStationStatus: 0,
+        etaPleiku: 2500,
+      },
+      window,
+    ),
+    false,
   );
-  const data = readFileSync(
-    new URL("../src/utils/vehicleCheckData.ts", import.meta.url),
-    "utf8",
+  assert.equal(
+    isVehicleCheckRowVisible(
+      {
+        ...base,
+        pleikuStationStatus: 50,
+        pleikuProcessStatus: "arrival",
+        pleikuProcessLabel: "Arrival",
+        etaPleiku: null,
+      },
+      window,
+    ),
+    true,
   );
-  const sheet = readFileSync(
-    new URL("../src/utils/vehicleCheckSheet.ts", import.meta.url),
-    "utf8",
-  );
-
-  for (const source of [page, data, sheet]) {
-    assert.doesNotMatch(source, /trip\/list_v2/);
-    assert.doesNotMatch(source, /trip\/location/);
-    assert.doesNotMatch(source, /api\/admin\/transportation/);
-  }
-});
-
-test("wires Check xe into browser and userscript navigation", () => {
-  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
-  const userscriptApp = readFileSync(
-    new URL("../src/UserscriptApp.tsx", import.meta.url),
-    "utf8",
-  );
-  const layout = readFileSync(
-    new URL("../src/layouts/MobileLayout.tsx", import.meta.url),
-    "utf8",
-  );
-
-  assert.match(app, /path="\/check-xe"/);
-  assert.match(userscriptApp, /path="\/check-xe"/);
-  assert.match(layout, /path:\s*"\/check-xe"/);
-  assert.match(layout, /label:\s*"Check xe"/);
 });
