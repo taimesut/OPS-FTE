@@ -2,17 +2,22 @@ import {
   createVehicleCheckParams,
   createVehicleCheckWindow,
   parseVehicleCheckResponse,
+  parseVehicleLocationResponse,
   VEHICLE_CHECK_PAGE_SIZE,
   VEHICLE_CHECK_PATH,
+  VEHICLE_LOCATION_PATH,
   type VehicleCheckRow,
   type VehicleCheckWindow,
+  type VehicleLocationInfo,
 } from "./vehicleCheck.ts";
+
+const VEHICLE_LOCATION_CONCURRENCY = 5;
 
 export interface VehicleCheckApiDependency {
   get(
     path: string,
     options: {
-      params: ReturnType<typeof createVehicleCheckParams>;
+      params?: ReturnType<typeof createVehicleCheckParams>;
       suppressErrorToast: true;
     },
   ): Promise<{ data: unknown }>;
@@ -29,6 +34,58 @@ const loadApiDependency = async (): Promise<VehicleCheckApiDependency> => {
   return {
     get: (path, options) => apiClient.get(path, options),
   };
+};
+
+export const fetchVehicleLocation = async (
+  tripId: number,
+  dependency?: VehicleCheckApiDependency,
+): Promise<VehicleLocationInfo> => {
+  const client = dependency ?? (await loadApiDependency());
+  const response = await client.get(
+    `${VEHICLE_LOCATION_PATH}?trip_id=${encodeURIComponent(String(tripId))}`,
+    { suppressErrorToast: true },
+  );
+  return parseVehicleLocationResponse(response.data);
+};
+
+const enrichHeldRowsWithLocation = async (
+  rows: VehicleCheckRow[],
+  client: VehicleCheckApiDependency,
+): Promise<VehicleCheckRow[]> => {
+  const nextRows = rows.map((row) => ({ ...row }));
+  let cursor = 0;
+
+  const worker = async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= nextRows.length) return;
+
+      const row = nextRows[index];
+      if (row.movementStatus !== "held" || row.tripId === null) continue;
+
+      try {
+        const location = await fetchVehicleLocation(row.tripId, client);
+        nextRows[index] = {
+          ...row,
+          eta: location.eta,
+          lastLocationUpdatedAt: location.lastUpdatedAt,
+        };
+      } catch (error) {
+        console.warn(
+          `[Check xe] Không thể tải location cho trip ${row.tripNumber}`,
+          error,
+        );
+      }
+    }
+  };
+
+  const workerCount = Math.min(
+    VEHICLE_LOCATION_CONCURRENCY,
+    Math.max(1, nextRows.length),
+  );
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return nextRows;
 };
 
 export const fetchVehicleCheckRows = async (
@@ -63,8 +120,13 @@ export const fetchVehicleCheckRows = async (
     });
   }
 
+  const rows = await enrichHeldRowsWithLocation(
+    Array.from(uniqueRows.values()),
+    client,
+  );
+
   return {
-    rows: Array.from(uniqueRows.values()),
+    rows,
     total,
     window,
   };

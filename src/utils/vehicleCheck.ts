@@ -1,7 +1,10 @@
 export const VEHICLE_CHECK_PATH =
   "/api/admin/transportation/trip/list_v2";
+export const VEHICLE_LOCATION_PATH =
+  "/api/admin/transportation/trip/location";
 export const VEHICLE_CHECK_PAGE_SIZE = 50;
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
+export const VEHICLE_CHECK_TARGET_STATION_ID = "1030";
 
 export interface VehicleCheckWindow {
   from: number;
@@ -12,13 +15,14 @@ export interface VehicleCheckStation {
   sequenceNumber: number;
   stationId: string;
   stationName: string;
-  isDisplay: boolean;
+  isTarget: boolean;
   eta: number | null;
 }
 
 export type VehicleMovementStatus = "arriving" | "held";
 
 export interface VehicleCheckRow {
+  tripId: number | null;
   tripNumber: string;
   vehiclePlateNumber: string;
   stations: VehicleCheckStation[];
@@ -26,12 +30,18 @@ export interface VehicleCheckRow {
   pendingInboundOrder: number;
   eta: number | null;
   movementStatus: VehicleMovementStatus;
+  lastLocationUpdatedAt: number | null;
 }
 
 export interface VehicleCheckPage {
   rows: VehicleCheckRow[];
   total: number;
   pageNo: number;
+}
+
+export interface VehicleLocationInfo {
+  eta: number | null;
+  lastUpdatedAt: number | null;
 }
 
 const readText = (value: unknown): string =>
@@ -44,6 +54,14 @@ const readNonNegativeNumber = (value: unknown): number =>
 
 const readPositiveNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
+
+const readPositiveInteger = (value: unknown): number | null =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  Number.isFinite(value) &&
+  value > 0
     ? value
     : null;
 
@@ -71,12 +89,6 @@ const resolveVehiclePlateNumber = (trip: Record<string, unknown>): string => {
 const resolveStationRoute = (
   trip: Record<string, unknown>,
 ): VehicleCheckStation[] => {
-  const displaySequence =
-    typeof trip.display_station_sequence === "number" &&
-    Number.isFinite(trip.display_station_sequence)
-      ? trip.display_station_sequence
-      : null;
-
   if (!Array.isArray(trip.trip_station)) return [];
 
   return trip.trip_station
@@ -90,13 +102,13 @@ const resolveStationRoute = (
         Number.isFinite(station.sequence_number)
           ? station.sequence_number
           : index + 1;
+      const stationId = readStationId(station);
 
       return {
         sequenceNumber,
-        stationId: readStationId(station),
+        stationId,
         stationName: readText(station.station_name) || "—",
-        isDisplay:
-          displaySequence !== null && sequenceNumber === displaySequence,
+        isTarget: stationId === VEHICLE_CHECK_TARGET_STATION_ID,
         eta: readPositiveNumber(station.eta),
       };
     })
@@ -184,16 +196,19 @@ export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage =>
     )
     .map<VehicleCheckRow>((trip) => {
       const stations = resolveStationRoute(trip);
-      const eta = stations.find((station) => station.isDisplay)?.eta ?? null;
+      const targetStation = stations.find((station) => station.isTarget);
+      const targetEta = targetStation?.eta ?? null;
 
       return {
+        tripId: readPositiveInteger(trip.id),
         tripNumber: readText(trip.trip_number) || "—",
         vehiclePlateNumber: resolveVehiclePlateNumber(trip),
         stations,
         pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
         pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
-        eta,
-        movementStatus: eta !== null ? "arriving" : "held",
+        eta: targetEta,
+        movementStatus: targetEta !== null ? "arriving" : "held",
+        lastLocationUpdatedAt: null,
       };
     })
     .filter(
@@ -201,4 +216,46 @@ export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage =>
     );
 
   return { rows, total, pageNo };
+};
+
+export const parseVehicleLocationResponse = (
+  payload: unknown,
+): VehicleLocationInfo => {
+  if (typeof payload !== "object" || payload === null) {
+    throw new Error("Phản hồi vị trí xe không hợp lệ.");
+  }
+
+  const root = payload as {
+    retcode?: unknown;
+    message?: unknown;
+    data?: unknown;
+  };
+  if (root.retcode !== 0) {
+    throw new Error(
+      readText(root.message) || "Không thể tải vị trí xe từ SPX.",
+    );
+  }
+  if (typeof root.data !== "object" || root.data === null) {
+    throw new Error("Phản hồi vị trí xe thiếu data.");
+  }
+
+  const data = root.data as {
+    eta?: unknown;
+    location_list?: unknown;
+  };
+  const eta = readPositiveNumber(data.eta);
+  const locationList = Array.isArray(data.location_list)
+    ? data.location_list.filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null,
+      )
+    : [];
+
+  const lastUpdatedAt = locationList.reduce<number | null>((latest, item) => {
+    const uploadTime = readPositiveNumber(item.upload_time);
+    if (uploadTime === null) return latest;
+    return latest === null ? uploadTime : Math.max(latest, uploadTime);
+  }, null);
+
+  return { eta, lastUpdatedAt };
 };

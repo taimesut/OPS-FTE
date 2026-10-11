@@ -140,19 +140,20 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe"
-          description="Có ETA tại station đang highlight = Đang về; không có ETA = Bị giam"
+          description="Station 1030 có ETA = Đang về; chưa có ETA = Bị giam và lấy thêm ETA/vị trí cập nhật từ Trip Location"
           tone="info"
         />
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[1120px]">
+            <table className="table table-sm min-w-[1280px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
                   <th>LH Trip Number</th>
                   <th>Vehicle Plate Number</th>
                   <th>Station</th>
                   <th>ETA</th>
+                  <th>Cập nhật cuối</th>
                   <th>Trạng thái</th>
                   <th className="text-right">Pending Inbound TO</th>
                   <th className="text-right">Pending Inbound Order</th>
@@ -173,7 +174,7 @@ export const CheckXePage = () => {
                             >
                               <span
                                 className={
-                                  station.isDisplay
+                                  station.isTarget
                                     ? "whitespace-nowrap text-sm font-black text-base-content"
                                     : "whitespace-nowrap text-sm font-medium text-base-content/45"
                                 }
@@ -196,6 +197,11 @@ export const CheckXePage = () => {
                     </td>
                     <td className="whitespace-nowrap font-semibold tabular-nums">
                       {row.eta !== null ? formatUnixTime(row.eta) : "—"}
+                    </td>
+                    <td className="whitespace-nowrap text-sm tabular-nums text-base-content/70">
+                      {row.lastLocationUpdatedAt !== null
+                        ? formatUnixTime(row.lastLocationUpdatedAt)
+                        : "—"}
                     </td>
                     <td>
                       <span
@@ -221,7 +227,7 @@ export const CheckXePage = () => {
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center">
                         <Truck
                           className="h-8 w-8 text-base-content/30"
