@@ -1,6 +1,7 @@
 export type VehicleTravelTimeMap = Record<string, number>;
 
 export type VehicleTravelTimeSource =
+  | "app_config"
   | "sheet_config"
   | "sheet_history"
   | "sheet_schedule";
@@ -68,6 +69,7 @@ export const parseVehicleTravelTimeMinutes = (
 
 export const buildConfiguredVehicleTravelTimeLookup = (
   entries: VehicleTravelTimeEntry[],
+  source: VehicleTravelTimeSource = "sheet_config",
 ): VehicleTravelTimeLookup => {
   const map: VehicleTravelTimeMap = {};
   const sources: Record<string, VehicleTravelTimeSource> = {};
@@ -77,7 +79,7 @@ export const buildConfiguredVehicleTravelTimeLookup = (
     if (!Number.isFinite(entry.minutes) || entry.minutes <= 0) return;
     const key = normalizeVehicleStationName(entry.stationName);
     map[key] = Math.round(entry.minutes);
-    sources[key] = "sheet_config";
+    sources[key] = source;
   });
 
   return { map, sources };

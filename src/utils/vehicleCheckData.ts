@@ -1,3 +1,4 @@
+import { getConfigs } from "./config.ts";
 import {
   buildVehicleCheckRowsFromSheet,
   createVehicleCheckDisplayWindow,
@@ -33,9 +34,20 @@ export const fetchVehicleCheckRows = async (
 ): Promise<VehicleCheckResult> => {
   const displayWindow = createVehicleCheckDisplayWindow(nowMs, hours);
   const bundle = await loadVehicleCheckSheetBundle();
+  const config = getConfigs();
+  const appRouteMap =
+    config.soc.trim().toLocaleLowerCase("vi-VN") ===
+      "pleiku soc" &&
+    config.soc_id
+      ? config.soc_eta_minutes?.[config.soc_id] || {}
+      : {};
+  const appConfiguredTravelTimes = Object.entries(appRouteMap).map(
+    ([stationName, minutes]) => ({ stationName, minutes }),
+  );
   const built = buildVehicleCheckRowsFromSheet(
     bundle.table,
     bundle.travelTimes,
+    appConfiguredTravelTimes,
   );
 
   const eligibleRows = built.rows.filter(

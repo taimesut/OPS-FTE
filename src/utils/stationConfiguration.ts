@@ -18,6 +18,7 @@ export interface BuildStationConfigInput {
   hubs: readonly StationCatalogHub[];
   groupSocs: Record<string, string[]>;
   logUrl: string;
+  socEtaMinutes: Record<string, Record<string, number>>;
 }
 
 const normalizeKey = (value: unknown): string =>
@@ -58,6 +59,47 @@ export const getExternalSocs = (
   catalog: readonly StationCatalogSoc[],
   currentSocId: string,
 ): StationCatalogSoc[] => catalog.filter(({ id }) => id !== currentSocId);
+
+const reconcileCurrentSocEtaMinutes = (
+  value: Record<string, Record<string, number>>,
+  currentSocId: string,
+  externalSocs: readonly StationCatalogSoc[],
+): Record<string, Record<string, number>> => {
+  const result = Object.fromEntries(
+    Object.entries(value).map(([sourceId, routes]) => [
+      sourceId,
+      { ...routes },
+    ]),
+  );
+  const canonicalNames = new Map(
+    externalSocs.map(({ stationName }) => [
+      normalizeKey(stationName),
+      stationName,
+    ]),
+  );
+  const currentRoutes = value[currentSocId] || {};
+  const normalizedCurrent: Record<string, number> = {};
+
+  for (const [rawDestination, rawMinutes] of Object.entries(currentRoutes)) {
+    const destination = canonicalNames.get(normalizeKey(rawDestination));
+    if (
+      destination &&
+      Number.isFinite(rawMinutes) &&
+      rawMinutes > 0 &&
+      rawMinutes <= 72 * 60
+    ) {
+      normalizedCurrent[destination] = Math.round(rawMinutes);
+    }
+  }
+
+  if (Object.keys(normalizedCurrent).length > 0) {
+    result[currentSocId] = normalizedCurrent;
+  } else {
+    delete result[currentSocId];
+  }
+
+  return result;
+};
 
 const createExternalNameMap = (
   externalSocs: readonly StationCatalogSoc[],
@@ -196,5 +238,10 @@ export const buildStationConfig = (
     group_socs: groupSocs,
     raw_group_socs_text: undefined,
     ggsheet_log_url: input.logUrl.trim(),
+    soc_eta_minutes: reconcileCurrentSocEtaMinutes(
+      input.socEtaMinutes,
+      current.id,
+      externalSocs,
+    ),
   };
 };

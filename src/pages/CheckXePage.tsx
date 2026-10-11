@@ -45,8 +45,10 @@ const etaSourceLabel = (
   if (source === "pleiku_sta") return "trip_sta Pleiku";
 
   const travelLabel =
-    travelSource === "sheet_config"
-      ? "cấu hình Sheet"
+    travelSource === "app_config"
+      ? "cấu hình OPS FTE"
+      : travelSource === "sheet_config"
+        ? "cấu hình Sheet"
       : travelSource === "sheet_history"
         ? "lịch sử ATA/ATD"
         : travelSource === "sheet_schedule"

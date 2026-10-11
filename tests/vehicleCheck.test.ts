@@ -160,6 +160,35 @@ test("finds the latest actual ATD and estimates BMT to Pleiku from Sheet travel 
   assert.equal(vehicle.vehiclePlateNumber, "89H-024.76");
 });
 
+test("OPS FTE route ETA overrides Sheet route ETA for the selected SOC pair", () => {
+  const table = {
+    headers,
+    sheetName: "DATA",
+    sourceRowCount: 1,
+    rows: [
+      row({
+        trip_number: "LT-APP-ETA",
+        sequence_number: 1,
+        station_name: "BMT SOC",
+        next_station_name: "Pleiku SOC",
+        trip_atd: "2026-10-11 12:00:00",
+        vehicle_number: "81H-APP",
+        time_update: "2026-10-11 12:00:00",
+      }),
+    ],
+  };
+
+  const result = buildVehicleCheckRowsFromSheet(
+    table,
+    [{ stationName: "BMT SOC", minutes: 300 }],
+    [{ stationName: "BMT SOC", minutes: 270 }],
+  );
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].travelTimeSource, "app_config");
+  assert.equal(result.rows[0].travelTimeMinutes, 270);
+  assert.equal(result.rows[0].etaSource, "travel_atd");
+});
+
 test("uses trip_eta of the Pleiku row when the Sheet provides it", () => {
   const table = {
     headers,

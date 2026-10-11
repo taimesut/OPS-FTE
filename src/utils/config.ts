@@ -1,3 +1,5 @@
+export type SocEtaMinutesConfig = Record<string, Record<string, number>>;
+
 export interface AppConfig {
   soc: string;
   soc_id?: string;
@@ -13,6 +15,7 @@ export interface AppConfig {
   raw_group_socs_text?: string;
   ggsheet_log_url?: string;
   scanner_url?: string;
+  soc_eta_minutes?: SocEtaMinutesConfig;
 }
 
 export const SCANNER_URL = "https://scan-qr.taimesut.net";
@@ -27,7 +30,59 @@ const emptyConfig = (): AppConfig => ({
   hubs: [],
   socs: [],
   group_socs: {},
+  soc_eta_minutes: {},
 });
+
+export const normalizeSocEtaMinutesConfig = (
+  value: unknown,
+): SocEtaMinutesConfig => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: SocEtaMinutesConfig = {};
+  for (const [sourceSocId, rawRoutes] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const sourceId = sourceSocId.trim();
+    if (
+      !sourceId ||
+      typeof rawRoutes !== "object" ||
+      rawRoutes === null ||
+      Array.isArray(rawRoutes)
+    ) {
+      continue;
+    }
+
+    const routes: Record<string, number> = {};
+    for (const [destinationName, rawMinutes] of Object.entries(
+      rawRoutes as Record<string, unknown>,
+    )) {
+      const destination = destinationName.trim();
+      const minutes =
+        typeof rawMinutes === "number"
+          ? rawMinutes
+          : typeof rawMinutes === "string" && rawMinutes.trim()
+            ? Number(rawMinutes)
+            : Number.NaN;
+
+      if (
+        destination &&
+        Number.isFinite(minutes) &&
+        minutes > 0 &&
+        minutes <= 72 * 60
+      ) {
+        routes[destination] = Math.round(minutes);
+      }
+    }
+
+    if (Object.keys(routes).length > 0) {
+      result[sourceId] = routes;
+    }
+  }
+
+  return result;
+};
 
 export const getConfigs = (): AppConfig => {
   try {
@@ -52,6 +107,7 @@ export const getConfigs = (): AppConfig => {
         parsed.group_socs && typeof parsed.group_socs === "object"
           ? parsed.group_socs
           : {},
+      soc_eta_minutes: normalizeSocEtaMinutesConfig(parsed.soc_eta_minutes),
     };
 
     // Tự dọn dữ liệu cấu hình cũ để Cookie/proxy không còn nằm trong localStorage.
@@ -111,3 +167,11 @@ export const getStationId = (name: string): string => {
 
 export const getStationIds = (names: string[]): string[] =>
   names.map(getStationId).filter(Boolean);
+
+export const getSocEtaMinutes = (
+  sourceSocId = getSocId(),
+): Record<string, number> => {
+  const sourceId = sourceSocId.trim();
+  if (!sourceId) return {};
+  return { ...(getConfigs().soc_eta_minutes?.[sourceId] || {}) };
+};

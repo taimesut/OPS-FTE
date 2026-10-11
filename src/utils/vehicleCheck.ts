@@ -626,15 +626,24 @@ export interface BuildVehicleCheckRowsResult {
 export const buildVehicleCheckRowsFromSheet = (
   table: VehicleCheckSheetTable,
   configuredTravelTimes: VehicleTravelTimeEntry[] = [],
+  appConfiguredTravelTimes: VehicleTravelTimeEntry[] = [],
 ): BuildVehicleCheckRowsResult => {
   const records = parseSheetRecords(table);
   const groups = groupRecordsByTrip(records);
   const learnedLookup = deriveVehicleTravelTimesFromHistory(groups);
   const configuredLookup =
-    buildConfiguredVehicleTravelTimeLookup(configuredTravelTimes);
+    buildConfiguredVehicleTravelTimeLookup(
+      configuredTravelTimes,
+      "sheet_config",
+    );
+  const appConfiguredLookup =
+    buildConfiguredVehicleTravelTimeLookup(
+      appConfiguredTravelTimes,
+      "app_config",
+    );
   const travelLookup = mergeVehicleTravelTimeLookups(
-    learnedLookup,
-    configuredLookup,
+    mergeVehicleTravelTimeLookups(learnedLookup, configuredLookup),
+    appConfiguredLookup,
   );
 
   const rows: VehicleCheckRow[] = [];
