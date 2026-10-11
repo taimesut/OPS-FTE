@@ -152,7 +152,7 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe"
-          description="Lọc theo STA station 1030 trước; sau đó mới xác định ETA/trạng thái và gọi Trip Location cho xe bị giam"
+          description="Lọc theo STA station 1030 trước; sau đó mới xác định ETA/trạng thái và gọi Trip Location cho xe ở SOC khác"
           tone="info"
         />
 
@@ -231,7 +231,7 @@ export const CheckXePage = () => {
                       >
                         {row.movementStatus === "arriving"
                           ? "Đang về"
-                          : "Bị giam"}
+                          : "SOC khác"}
                       </span>
                     </td>
                     <td className="text-right font-bold tabular-nums">
