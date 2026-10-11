@@ -24,18 +24,26 @@ export const CheckXePage = () => {
   const [hours, setHours] = useState(DEFAULT_VEHICLE_CHECK_HOURS);
   const [rows, setRows] = useState<VehicleCheckRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [windowRange, setWindowRange] = useState<VehicleCheckWindow | null>(
-    null,
-  );
+  const [displayWindow, setDisplayWindow] =
+    useState<VehicleCheckWindow | null>(null);
+  const [queryWindow, setQueryWindow] =
+    useState<VehicleCheckWindow | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
   const summaryText = useMemo(() => {
-    if (!windowRange) return `Từ thời điểm hiện tại đến +${hours} giờ`;
-    return `${formatUnixTime(windowRange.from)} → ${formatUnixTime(
-      windowRange.to,
+    if (!displayWindow) return `Từ thời điểm hiện tại đến +${hours} giờ`;
+    return `${formatUnixTime(displayWindow.from)} → ${formatUnixTime(
+      displayWindow.to,
     )}`;
-  }, [hours, windowRange]);
+  }, [displayWindow, hours]);
+
+  const queryWindowText = useMemo(() => {
+    if (!queryWindow) return "API luôn quét từ -2 ngày đến +1 ngày";
+    return `${formatUnixTime(queryWindow.from)} → ${formatUnixTime(
+      queryWindow.to,
+    )}`;
+  }, [queryWindow]);
 
   const handleCheck = async () => {
     if (!Number.isFinite(hours) || hours <= 0) {
@@ -48,13 +56,14 @@ export const CheckXePage = () => {
       const result = await fetchVehicleCheckRows(hours);
       setRows(result.rows);
       setTotal(result.total);
-      setWindowRange(result.window);
+      setDisplayWindow(result.displayWindow);
+      setQueryWindow(result.queryWindow);
       setHasChecked(true);
 
       showToast(
         result.rows.length > 0
-          ? `Tìm thấy ${result.rows.length} trip có Pending Inbound TO và Order lớn hơn 0.`
-          : `Không có trip Pending Inbound trong ${hours} giờ tiếp theo.`,
+          ? `Tìm thấy ${result.rows.length} trip có STA station 1030 trong ${hours} giờ tiếp theo.`
+          : `Không có trip phù hợp trong ${hours} giờ tiếp theo.`,
         result.rows.length > 0 ? "success" : "info",
       );
     } catch (error) {
@@ -76,7 +85,7 @@ export const CheckXePage = () => {
         icon={Truck}
         tone="info"
         title="Check xe"
-        description="Kiểm tra các LH Trip theo khung STA sắp tới"
+        description="API quét rộng -2 ngày đến +1 ngày, sau đó lọc theo STA station 1030 trong số giờ bạn chọn"
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-end">
             <label className="form-control w-full sm:w-44">
@@ -121,7 +130,7 @@ export const CheckXePage = () => {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-              Khung thời gian STA
+              Khung thời gian hiển thị — STA station 1030
             </p>
             <p className="mt-1 break-safe text-sm font-bold">{summaryText}</p>
             <p className="mt-1 text-xs text-base-content/60">
@@ -129,7 +138,10 @@ export const CheckXePage = () => {
                 ? `Có ${numberFormatter.format(
                     rows.length,
                   )} trip phù hợp trong ${numberFormatter.format(total)} trip API trả về`
-                : "Mặc định kiểm tra 8 giờ tiếp theo. Chỉ hiển thị trip có cả Pending Inbound TO và Pending Inbound Order lớn hơn 0."}
+                : "Chỉ trip có STA tại station 1030 nằm trong số giờ đã chọn mới được hiển thị."}
+            </p>
+            <p className="mt-1 text-xs text-base-content/45">
+              Khung API nền: {queryWindowText}
             </p>
           </div>
         </div>
@@ -140,18 +152,19 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe"
-          description="Station 1030 có ETA = Đang về; chưa có ETA = Bị giam và lấy thêm ETA/vị trí cập nhật từ Trip Location"
+          description="Lọc theo STA station 1030 trước; sau đó mới xác định ETA/trạng thái và gọi Trip Location cho xe bị giam"
           tone="info"
         />
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[1280px]">
+            <table className="table table-sm min-w-[1360px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
                   <th>LH Trip Number</th>
                   <th>Vehicle Plate Number</th>
                   <th>Station</th>
+                  <th>STA 1030</th>
                   <th>ETA</th>
                   <th>Cập nhật cuối</th>
                   <th>Trạng thái</th>
@@ -195,6 +208,11 @@ export const CheckXePage = () => {
                         <span className="text-base-content/40">—</span>
                       )}
                     </td>
+                    <td className="whitespace-nowrap text-sm font-semibold tabular-nums">
+                      {row.targetSta !== null
+                        ? formatUnixTime(row.targetSta)
+                        : "—"}
+                    </td>
                     <td className="whitespace-nowrap font-semibold tabular-nums">
                       {row.eta !== null ? formatUnixTime(row.eta) : "—"}
                     </td>
@@ -227,7 +245,7 @@ export const CheckXePage = () => {
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <div className="flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center">
                         <Truck
                           className="h-8 w-8 text-base-content/30"
@@ -235,12 +253,12 @@ export const CheckXePage = () => {
                         />
                         <p className="mt-3 text-sm font-bold">
                           {hasChecked
-                            ? "Không có trip Pending Inbound phù hợp"
+                            ? "Không có trip trong khung thời gian đã chọn"
                             : "Chưa có dữ liệu Check xe"}
                         </p>
                         <p className="mt-1 max-w-md text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Không có trip nào có đồng thời Pending Inbound TO và Pending Inbound Order lớn hơn 0 trong khung thời gian đã chọn."
+                            ? "API vẫn quét -2 ngày đến +1 ngày, nhưng không có trip nào có STA station 1030 nằm trong số giờ bạn đã nhập."
                             : "Nhập số giờ muốn kiểm tra tiếp theo và nhấn Check xe."}
                         </p>
                       </div>
