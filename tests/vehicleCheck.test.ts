@@ -85,6 +85,30 @@ test("parses displayed Sheet datetimes as Asia/Ho_Chi_Minh timestamps", () => {
   );
 });
 
+test("parses Vietnamese DD/MM/YYYY Sheet datetime deterministically", () => {
+  assert.equal(
+    parseVehicleCheckTimestamp("11/10/2026 13:31:44"),
+    Math.floor(Date.parse("2026-10-11T13:31:44+07:00") / 1000),
+  );
+});
+
+test("parses Google Sheet numeric serial datetime in Ho Chi Minh timezone", () => {
+  const expected = Math.floor(
+    Date.parse("2026-10-11T12:00:00+07:00") / 1000,
+  );
+  const serial =
+    (Date.UTC(2026, 9, 11, 12, 0, 0) - Date.UTC(1899, 11, 30)) /
+    (24 * 60 * 60 * 1000);
+
+  assert.equal(parseVehicleCheckTimestamp(String(serial)), expected);
+});
+
+test("rejects ambiguous or invalid Sheet datetime instead of Date.parse guessing", () => {
+  assert.equal(parseVehicleCheckTimestamp("10/11/26 13:31"), null);
+  assert.equal(parseVehicleCheckTimestamp("31/02/2026 13:31:44"), null);
+  assert.equal(parseVehicleCheckTimestamp("455"), null);
+});
+
 test("finds the latest actual ATD and estimates BMT to Pleiku from Sheet travel time", () => {
   const table = {
     headers,
@@ -158,6 +182,49 @@ test("finds the latest actual ATD and estimates BMT to Pleiku from Sheet travel 
   assert.equal(vehicle.eta, atd + 270 * 60);
   assert.equal(vehicle.transportQuantity, 642);
   assert.equal(vehicle.vehiclePlateNumber, "89H-024.76");
+});
+
+test("does not calculate ETA from ETD or STD older than the actual ATA", () => {
+  const table = {
+    headers,
+    sheetName: "DATA",
+    sourceRowCount: 2,
+    rows: [
+      row({
+        trip_number: "LT-STALE-DEPARTURE",
+        sequence_number: 1,
+        station_name: "BMT SOC",
+        next_station_name: "Pleiku SOC",
+        trip_std: "2026-10-11 08:00:00",
+        trip_etd: "2026-10-11 09:00:00",
+        trip_ata: "2026-10-11 10:00:00",
+        vehicle_number: "81H-STALE",
+        time_update: "2026-10-11 10:00:00",
+      }),
+      row({
+        trip_number: "LT-STALE-DEPARTURE",
+        sequence_number: 2,
+        station_name: "Pleiku SOC",
+        trip_sta: "2026-10-11 15:00:00",
+        vehicle_number: "81H-STALE",
+        time_update: "2026-10-11 10:00:00",
+      }),
+    ],
+  };
+
+  const result = buildVehicleCheckRowsFromSheet(
+    table,
+    [],
+    [{ stationName: "BMT SOC", minutes: 270 }],
+  );
+
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].positionStatus, "at_station");
+  assert.equal(result.rows[0].etaSource, "pleiku_sta");
+  assert.equal(
+    result.rows[0].eta,
+    Math.floor(Date.parse("2026-10-11T15:00:00+07:00") / 1000),
+  );
 });
 
 test("OPS FTE route ETA overrides Sheet route ETA for the selected SOC pair", () => {

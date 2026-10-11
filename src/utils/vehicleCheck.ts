@@ -119,26 +119,160 @@ const readSequence = (value: unknown, fallback: number): number => {
   return parsed > 0 ? parsed : fallback;
 };
 
+const toHoChiMinhTimestamp = (
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+): number | null => {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    !Number.isInteger(second) ||
+    year < 2000 ||
+    year > 2100 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const parsedMs = Date.parse(
+    String(year) +
+      "-" +
+      pad(month) +
+      "-" +
+      pad(day) +
+      "T" +
+      pad(hour) +
+      ":" +
+      pad(minute) +
+      ":" +
+      pad(second) +
+      "+07:00",
+  );
+
+  if (!Number.isFinite(parsedMs) || parsedMs <= 0) return null;
+
+  // Date.parse tự normalize ngày sai như 31/02 sang tháng sau trên vài runtime.
+  // Kiểm tra ngược lại theo timezone +07 để chỉ nhận ngày lịch hợp lệ.
+  const local = new Date(parsedMs + 7 * 60 * 60 * 1000);
+  if (
+    local.getUTCFullYear() !== year ||
+    local.getUTCMonth() + 1 !== month ||
+    local.getUTCDate() !== day ||
+    local.getUTCHours() !== hour ||
+    local.getUTCMinutes() !== minute ||
+    local.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+
+  return Math.floor(parsedMs / 1_000);
+};
+
+const parseDateTimeParts = (
+  match: RegExpMatchArray,
+  order: "ymd" | "dmy",
+): number | null => {
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  const third = Number(match[3]);
+  const hour = Number(match[4] || 0);
+  const minute = Number(match[5] || 0);
+  const secondOfMinute = Number(match[6] || 0);
+
+  return order === "ymd"
+    ? toHoChiMinhTimestamp(
+        first,
+        second,
+        third,
+        hour,
+        minute,
+        secondOfMinute,
+      )
+    : toHoChiMinhTimestamp(
+        third,
+        second,
+        first,
+        hour,
+        minute,
+        secondOfMinute,
+      );
+};
+
 export const parseVehicleCheckTimestamp = (value: unknown): number | null => {
   const text = readText(value);
   if (!text) return null;
 
+  // Unix seconds / milliseconds.
   if (/^\d+(?:\.\d+)?$/.test(text)) {
     const numeric = Number(text);
-    if (Number.isFinite(numeric) && numeric > 0) {
-      return numeric > 10_000_000_000
-        ? Math.floor(numeric / 1_000)
-        : Math.floor(numeric);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+
+    if (numeric >= 1_000_000_000_000) {
+      return Math.floor(numeric / 1_000);
     }
+    if (numeric >= 1_000_000_000) {
+      return Math.floor(numeric);
+    }
+
+    // Google Sheets / Excel serial date.
+    if (numeric >= 20_000 && numeric <= 100_000) {
+      const utcMs = Date.UTC(1899, 11, 30) + numeric * 24 * 60 * 60 * 1000;
+      const serialDate = new Date(utcMs);
+      return toHoChiMinhTimestamp(
+        serialDate.getUTCFullYear(),
+        serialDate.getUTCMonth() + 1,
+        serialDate.getUTCDate(),
+        serialDate.getUTCHours(),
+        serialDate.getUTCMinutes(),
+        serialDate.getUTCSeconds(),
+      );
+    }
+
+    return null;
   }
 
-  const isoLike = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(text)
-    ? text.replace(" ", "T") + "+07:00"
-    : text;
-  const parsedMs = Date.parse(isoLike);
-  return Number.isFinite(parsedMs) && parsedMs > 0
-    ? Math.floor(parsedMs / 1_000)
-    : null;
+  // SPX / Sheet chuẩn: YYYY-MM-DD HH:mm:ss hoặc YYYY/MM/DD HH:mm:ss.
+  const ymd = text.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
+  if (ymd) return parseDateTimeParts(ymd, "ymd");
+
+  // Google Sheet locale Việt Nam: DD/MM/YYYY HH:mm:ss hoặc DD-MM-YYYY.
+  const dmy = text.match(
+    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
+  if (dmy) return parseDateTimeParts(dmy, "dmy");
+
+  // Chỉ giao Date.parse xử lý chuỗi ISO có timezone rõ ràng.
+  if (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/.test(
+      text,
+    )
+  ) {
+    const parsedMs = Date.parse(text);
+    return Number.isFinite(parsedMs) && parsedMs > 0
+      ? Math.floor(parsedMs / 1_000)
+      : null;
+  }
+
+  return null;
 };
 
 const isPleiku = (value: string): boolean =>
@@ -511,7 +645,9 @@ const resolveEta = (
   if (
     targetStation?.eta !== null &&
     targetStation?.eta !== undefined &&
-    (row.lastEventAt === null || targetStation.eta >= row.lastEventAt)
+    (row.lastEventAt === null ||
+      (targetStation.eta >= row.lastEventAt &&
+        targetStation.eta <= row.lastEventAt + 72 * 60 * 60))
   ) {
     return {
       ...row,
@@ -546,7 +682,12 @@ const resolveEta = (
     }
 
     if (row.positionStatus === "at_station") {
-      if (currentStation.etd !== null) {
+      const actualArrival = row.lastEventAt;
+
+      if (
+        currentStation.etd !== null &&
+        (actualArrival === null || currentStation.etd >= actualArrival)
+      ) {
         return {
           ...row,
           eta: currentStation.etd + travelSeconds,
@@ -555,7 +696,10 @@ const resolveEta = (
           travelTimeSource: travel.source,
         };
       }
-      if (currentStation.std !== null) {
+      if (
+        currentStation.std !== null &&
+        (actualArrival === null || currentStation.std >= actualArrival)
+      ) {
         return {
           ...row,
           eta: currentStation.std + travelSeconds,
@@ -570,7 +714,9 @@ const resolveEta = (
   if (
     targetStation?.sta !== null &&
     targetStation?.sta !== undefined &&
-    (row.lastEventAt === null || targetStation.sta >= row.lastEventAt)
+    (row.lastEventAt === null ||
+      (targetStation.sta >= row.lastEventAt &&
+        targetStation.sta <= row.lastEventAt + 72 * 60 * 60))
   ) {
     return {
       ...row,
