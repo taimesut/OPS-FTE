@@ -8,10 +8,17 @@ export interface VehicleCheckWindow {
   to: number;
 }
 
+export interface VehicleCheckStation {
+  sequenceNumber: number;
+  stationId: string;
+  stationName: string;
+  isDisplay: boolean;
+}
+
 export interface VehicleCheckRow {
   tripNumber: string;
   vehiclePlateNumber: string;
-  station: string;
+  stations: VehicleCheckStation[];
   pendingInboundTo: number;
   pendingInboundOrder: number;
 }
@@ -30,6 +37,16 @@ const readNonNegativeNumber = (value: unknown): number =>
     ? value
     : 0;
 
+const readStationId = (station: Record<string, unknown>): string => {
+  if (
+    typeof station.station === "number" &&
+    Number.isFinite(station.station)
+  ) {
+    return String(station.station);
+  }
+  return readText(station.station_code) || "—";
+};
+
 const resolveVehiclePlateNumber = (trip: Record<string, unknown>): string => {
   const plateList = Array.isArray(trip.vehicle_plate_number_list)
     ? trip.vehicle_plate_number_list
@@ -41,40 +58,38 @@ const resolveVehiclePlateNumber = (trip: Record<string, unknown>): string => {
   return readText(trip.vehicle_number) || "—";
 };
 
-const resolveStationName = (trip: Record<string, unknown>): string => {
-  const stations = Array.isArray(trip.trip_station)
-    ? trip.trip_station.filter(
-        (station): station is Record<string, unknown> =>
-          typeof station === "object" && station !== null,
-      )
-    : [];
+const resolveStationRoute = (
+  trip: Record<string, unknown>,
+): VehicleCheckStation[] => {
   const displaySequence =
     typeof trip.display_station_sequence === "number" &&
     Number.isFinite(trip.display_station_sequence)
       ? trip.display_station_sequence
       : null;
 
-  if (displaySequence !== null) {
-    const matchedStation = stations.find(
-      (station) => station.sequence_number === displaySequence,
-    );
-    const stationName = readText(matchedStation?.station_name);
-    if (stationName) return stationName;
-  }
+  if (!Array.isArray(trip.trip_station)) return [];
 
-  const pendingInboundTo = readNonNegativeNumber(trip.to_inbound_quantity);
-  if (pendingInboundTo > 0) {
-    const matchingStations = stations.filter(
-      (station) =>
-        station.expect_unload_quantity === pendingInboundTo &&
-        Boolean(readText(station.station_name)),
-    );
-    if (matchingStations.length === 1) {
-      return readText(matchingStations[0].station_name);
-    }
-  }
+  return trip.trip_station
+    .filter(
+      (station): station is Record<string, unknown> =>
+        typeof station === "object" && station !== null,
+    )
+    .map((station, index): VehicleCheckStation => {
+      const sequenceNumber =
+        typeof station.sequence_number === "number" &&
+        Number.isFinite(station.sequence_number)
+          ? station.sequence_number
+          : index + 1;
 
-  return "—";
+      return {
+        sequenceNumber,
+        stationId: readStationId(station),
+        stationName: readText(station.station_name) || "—",
+        isDisplay:
+          displaySequence !== null && sequenceNumber === displaySequence,
+      };
+    })
+    .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
 };
 
 export const createVehicleCheckWindow = (
@@ -159,10 +174,13 @@ export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage =>
     .map<VehicleCheckRow>((trip) => ({
       tripNumber: readText(trip.trip_number) || "—",
       vehiclePlateNumber: resolveVehiclePlateNumber(trip),
-      station: resolveStationName(trip),
+      stations: resolveStationRoute(trip),
       pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
       pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
-    }));
+    }))
+    .filter(
+      (row) => row.pendingInboundTo > 0 && row.pendingInboundOrder > 0,
+    );
 
   return { rows, total, pageNo };
 };
