@@ -8,6 +8,7 @@ import {
   isVehicleCheckRowInDisplayWindow,
   parseVehicleCheckResponse,
   parseVehicleLocationResponse,
+  resolveVehicleCheckEta,
   VEHICLE_CHECK_PATH,
   VEHICLE_LOCATION_PATH,
 } from "../src/utils/vehicleCheck.ts";
@@ -225,6 +226,56 @@ test("filters by station 1030 STA before Trip Location enrichment", async () => 
     from: 1791657221,
     to: 1791686021,
   });
+});
+
+test("uses latest ATA/ATD event and route travel time to estimate Pleiku", () => {
+  const page = parseVehicleCheckResponse({
+    retcode: 0,
+    data: {
+      pageno: 1,
+      total: 1,
+      list: [
+        {
+          id: 302289799,
+          trip_number: "LT-BMT-PLEIKU",
+          vehicle_number: "89H-024.76",
+          to_inbound_quantity: 12,
+          order_inbound_quantity: 120,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station: 2020,
+              station_name: "BMT SOC",
+              sta: 1791655000,
+              std: 1791658000,
+              ata: 1791657000,
+              atd: 1791660000,
+            },
+            {
+              sequence_number: 2,
+              station: 1030,
+              station_name: "Pleiku SOC",
+              sta: 1791680000,
+              eta: 0,
+              ata: 0,
+              atd: 0,
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  const row = resolveVehicleCheckEta(page.rows[0], {
+    "bmt soc": 270,
+  });
+
+  assert.equal(row.positionStatus, "in_transit");
+  assert.equal(row.currentPositionLabel, "BMT SOC → Pleiku SOC");
+  assert.equal(row.lastEventType, "atd");
+  assert.equal(row.lastEventAt, 1791660000);
+  assert.equal(row.etaSource, "travel_atd");
+  assert.equal(row.eta, 1791676200);
 });
 
 test("parses fallback ETA and latest location upload_time", () => {

@@ -4,6 +4,95 @@ var ACCESS_FIRST_DATA_ROW = 2;
 var VERSION_SHEET_NAME = "VERSION";
 var STATION_CATALOG_SHEET_NAME = "LIST SOC";
 var STATION_CATALOG_FIRST_DATA_ROW = 2;
+var VEHICLE_TRAVEL_TIME_SPREADSHEET_ID = "1KtjQsrdSR0mvyxrL_sKo3ScOP-ELQ873iuUdLjMajWM";
+var VEHICLE_TRAVEL_TIME_SHEET_NAME = "CHECK XE";
+var VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW = 2;
+
+function parseVehicleTravelTimeMinutes_(value) {
+  var text = String(value || "").trim().toLowerCase().replace(",", ".");
+  if (!text) return null;
+
+  var clock = text.match(/^(\d{1,3}):(\d{1,2})$/);
+  if (clock) {
+    var clockHours = Number(clock[1]);
+    var clockMinutes = Number(clock[2]);
+    if (clockMinutes >= 0 && clockMinutes < 60) {
+      return clockHours * 60 + clockMinutes;
+    }
+  }
+
+  var hourMinute = text.match(
+    /^(\d+(?:\.\d+)?)\s*(?:h|giờ)(?:\s*(\d{1,2})\s*(?:m|phút)?)?$/
+  );
+  if (hourMinute) {
+    var hours = Number(hourMinute[1]);
+    var minutes = hourMinute[2] ? Number(hourMinute[2]) : 0;
+    if (isFinite(hours) && hours >= 0 && minutes >= 0 && minutes < 60) {
+      return Math.round(hours * 60 + minutes);
+    }
+  }
+
+  var minuteOnly = text.match(/^(\d+(?:\.\d+)?)\s*(?:m|phút)$/);
+  if (minuteOnly) {
+    var minuteValue = Number(minuteOnly[1]);
+    return isFinite(minuteValue) && minuteValue > 0
+      ? Math.round(minuteValue)
+      : null;
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    var decimalHours = Number(text);
+    return isFinite(decimalHours) && decimalHours > 0
+      ? Math.round(decimalHours * 60)
+      : null;
+  }
+
+  return null;
+}
+
+function getVehicleTravelTimes() {
+  try {
+    var spreadsheet = SpreadsheetApp.openById(
+      VEHICLE_TRAVEL_TIME_SPREADSHEET_ID
+    );
+    var sheet = spreadsheet.getSheetByName(VEHICLE_TRAVEL_TIME_SHEET_NAME);
+    if (!sheet) {
+      return [];
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW) {
+      return [];
+    }
+
+    return sheet
+      .getRange(
+        VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW,
+        1,
+        lastRow - VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW + 1,
+        2
+      )
+      .getDisplayValues()
+      .map(function (row) {
+        var stationName = String(row[0] || "").trim();
+        var minutes = parseVehicleTravelTimeMinutes_(row[1]);
+        if (!stationName || !minutes || minutes <= 0) {
+          return null;
+        }
+        return {
+          stationName: stationName,
+          minutes: minutes
+        };
+      })
+      .filter(function (row) {
+        return row !== null;
+      });
+  } catch (error) {
+    console.error("Vehicle travel time read failed", error);
+    return [];
+  }
+}
+
 
 function stationKey_(value) {
   return String(value || "").trim().toLowerCase();

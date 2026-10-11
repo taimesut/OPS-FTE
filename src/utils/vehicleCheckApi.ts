@@ -5,6 +5,7 @@ import {
   isVehicleCheckRowInDisplayWindow,
   parseVehicleCheckResponse,
   parseVehicleLocationResponse,
+  resolveVehicleCheckEta,
   VEHICLE_CHECK_PAGE_SIZE,
   VEHICLE_CHECK_PATH,
   VEHICLE_LOCATION_PATH,
@@ -12,6 +13,10 @@ import {
   type VehicleCheckWindow,
   type VehicleLocationInfo,
 } from "./vehicleCheck.ts";
+import {
+  loadVehicleTravelTimes,
+  type VehicleTravelTimeMap,
+} from "./vehicleTravelTime.ts";
 
 const VEHICLE_LOCATION_CONCURRENCY = 5;
 
@@ -45,15 +50,20 @@ export const fetchVehicleLocation = async (
 ): Promise<VehicleLocationInfo> => {
   const client = dependency ?? (await loadApiDependency());
   const response = await client.get(
-    `${VEHICLE_LOCATION_PATH}?trip_id=${encodeURIComponent(String(tripId))}`,
+    VEHICLE_LOCATION_PATH + "?trip_id=" + encodeURIComponent(String(tripId)),
     { suppressErrorToast: true },
   );
   return parseVehicleLocationResponse(response.data);
 };
 
-const enrichHeldRowsWithLocation = async (
+const shouldLoadTripLocation = (row: VehicleCheckRow): boolean =>
+  row.tripId !== null &&
+  (row.etaSource === null || row.etaSource === "pleiku_sta");
+
+const enrichRowsWithLocation = async (
   rows: VehicleCheckRow[],
   client: VehicleCheckApiDependency,
+  travelTimes: VehicleTravelTimeMap,
 ): Promise<VehicleCheckRow[]> => {
   const nextRows = rows.map((row) => ({ ...row }));
   let cursor = 0;
@@ -65,18 +75,17 @@ const enrichHeldRowsWithLocation = async (
       if (index >= nextRows.length) return;
 
       const row = nextRows[index];
-      if (row.movementStatus !== "held" || row.tripId === null) continue;
+      if (!shouldLoadTripLocation(row) || row.tripId === null) continue;
 
       try {
         const location = await fetchVehicleLocation(row.tripId, client);
         nextRows[index] = {
-          ...row,
-          eta: location.eta,
+          ...resolveVehicleCheckEta(row, travelTimes, location.eta),
           lastLocationUpdatedAt: location.lastUpdatedAt,
         };
       } catch (error) {
         console.warn(
-          `[Check xe] Không thể tải location cho trip ${row.tripNumber}`,
+          "[Check xe] Không thể tải location cho trip " + row.tripNumber,
           error,
         );
       }
@@ -91,6 +100,15 @@ const enrichHeldRowsWithLocation = async (
   return nextRows;
 };
 
+const sortVehicleRows = (
+  first: VehicleCheckRow,
+  second: VehicleCheckRow,
+): number => {
+  const firstEta = first.eta ?? first.targetSta ?? Number.MAX_SAFE_INTEGER;
+  const secondEta = second.eta ?? second.targetSta ?? Number.MAX_SAFE_INTEGER;
+  return firstEta - secondEta || first.tripNumber.localeCompare(second.tripNumber);
+};
+
 export const fetchVehicleCheckRows = async (
   hours: number,
   nowMs = Date.now(),
@@ -99,6 +117,7 @@ export const fetchVehicleCheckRows = async (
   const client = dependency ?? (await loadApiDependency());
   const queryWindow = createVehicleCheckQueryWindow(nowMs);
   const displayWindow = createVehicleCheckDisplayWindow(nowMs, hours);
+  const travelTimes = await loadVehicleTravelTimes();
   const uniqueRows = new Map<string, VehicleCheckRow>();
   let total = 0;
   let totalPages = 1;
@@ -119,8 +138,8 @@ export const fetchVehicleCheckRows = async (
       const key =
         row.tripNumber !== "—"
           ? row.tripNumber
-          : `missing-${pageNo}-${rowIndex}`;
-      uniqueRows.set(key, row);
+          : "missing-" + pageNo + "-" + rowIndex;
+      uniqueRows.set(key, resolveVehicleCheckEta(row, travelTimes));
     });
   }
 
@@ -128,10 +147,14 @@ export const fetchVehicleCheckRows = async (
     isVehicleCheckRowInDisplayWindow(row, displayWindow),
   );
 
-  const rows = await enrichHeldRowsWithLocation(rowsInDisplayWindow, client);
+  const rows = await enrichRowsWithLocation(
+    rowsInDisplayWindow,
+    client,
+    travelTimes,
+  );
 
   return {
-    rows,
+    rows: rows.sort(sortVehicleRows),
     total,
     queryWindow,
     displayWindow,
