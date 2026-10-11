@@ -285,6 +285,72 @@ test("does not treat an old Pleiku sequence as a vehicle currently heading to Pl
   assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
 });
 
+test("keeps an active inbound vehicle when ETA is already overdue", () => {
+  const window = {
+    from: 1_791_657_221,
+    to: 1_791_686_021,
+  };
+  const activeRow = {
+    tripNumber: "LT-OVERDUE",
+    tripName: "",
+    vehiclePlateNumber: "81H",
+    vehicleTypeName: "—",
+    agencyName: "—",
+    stations: [],
+    eta: 1_791_650_000,
+    etaSource: "travel_atd" as const,
+    targetSta: null,
+    positionStatus: "in_transit" as const,
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    currentPositionLabel: "BMT SOC → Pleiku SOC",
+    currentSequenceNumber: 1,
+    lastEventAt: 1_791_640_000,
+    lastEventType: "atd" as const,
+    actualArrivalAt: null,
+    transportQuantity: 10,
+    targetUnloadTransportOrder: null,
+    sheetUpdatedAt: 1_791_656_000,
+    travelTimeMinutes: 270,
+    travelTimeSource: "sheet_config" as const,
+  };
+
+  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), true);
+});
+
+test("keeps an active inbound vehicle even when ETA cannot be calculated yet", () => {
+  const window = {
+    from: 1_791_657_221,
+    to: 1_791_686_021,
+  };
+  const activeRow = {
+    tripNumber: "LT-NO-ETA",
+    tripName: "",
+    vehiclePlateNumber: "81H",
+    vehicleTypeName: "—",
+    agencyName: "—",
+    stations: [],
+    eta: null,
+    etaSource: null,
+    targetSta: null,
+    positionStatus: "in_transit" as const,
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    currentPositionLabel: "BMT SOC → Pleiku SOC",
+    currentSequenceNumber: 1,
+    lastEventAt: 1_791_660_000,
+    lastEventType: "atd" as const,
+    actualArrivalAt: null,
+    transportQuantity: 10,
+    targetUnloadTransportOrder: null,
+    sheetUpdatedAt: 1_791_660_000,
+    travelTimeMinutes: null,
+    travelTimeSource: null,
+  };
+
+  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), true);
+});
+
 test("filters calculated Sheet ETA by the requested hours", () => {
   const eta = 1_791_666_000;
   const baseRow = {

@@ -592,8 +592,31 @@ export const createVehicleCheckDisplayWindow = (
 export const isVehicleCheckRowInDisplayWindow = (
   row: VehicleCheckRow,
   window: VehicleCheckWindow,
-): boolean =>
-  row.eta !== null && row.eta >= window.from && row.eta <= window.to;
+): boolean => {
+  if (
+    row.positionStatus === "arrived" ||
+    row.positionStatus === "departed_target"
+  ) {
+    return false;
+  }
+
+  const isActiveInbound =
+    row.positionStatus === "in_transit" ||
+    row.positionStatus === "at_station";
+
+  // Xe đã chạy/đang nằm ở SOC nhưng ETA bị trễ so với giờ hiện tại
+  // vẫn phải hiện. Chỉ loại nếu ETA còn nằm sau giới hạn +N giờ.
+  if (isActiveInbound) {
+    return row.eta === null || row.eta <= window.to;
+  }
+
+  // Trip chưa có ATA/ATD chỉ hiện khi ETA thật sự nằm trong khung đã chọn.
+  return (
+    row.eta !== null &&
+    row.eta >= window.from &&
+    row.eta <= window.to
+  );
+};
 
 export interface BuildVehicleCheckRowsResult {
   rows: VehicleCheckRow[];

@@ -106,6 +106,9 @@ export const CheckXePage = () => {
     useState<VehicleCheckWindow | null>(null);
   const [sourceSheetName, setSourceSheetName] = useState("");
   const [sourceRowCount, setSourceRowCount] = useState(0);
+  const [eligibleTripCount, setEligibleTripCount] = useState(0);
+  const [excludedByWindowCount, setExcludedByWindowCount] = useState(0);
+  const [unknownEtaActiveCount, setUnknownEtaActiveCount] = useState(0);
   const [latestSheetUpdatedAt, setLatestSheetUpdatedAt] =
     useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -133,18 +136,31 @@ export const CheckXePage = () => {
       setDisplayWindow(result.displayWindow);
       setSourceSheetName(result.sourceSheetName);
       setSourceRowCount(result.sourceRowCount);
+      setEligibleTripCount(result.eligibleTripCount);
+      setExcludedByWindowCount(result.excludedByWindowCount);
+      setUnknownEtaActiveCount(result.unknownEtaActiveCount);
       setLatestSheetUpdatedAt(result.latestSheetUpdatedAt);
       setHasChecked(true);
 
       showToast(
         result.rows.length > 0
-          ? "Tìm thấy " +
+          ? "Hiển thị " +
               result.rows.length +
-              " trip dự kiến về Pleiku trong " +
+              "/" +
+              result.eligibleTripCount +
+              " trip hợp lệ đang hướng về Pleiku."
+          : result.eligibleTripCount > 0
+            ? "Đã đọc " +
+              result.eligibleTripCount +
+              " trip hợp lệ nhưng chưa có trip nào nằm trong khung +" +
               hours +
-              " giờ tiếp theo."
-          : "Không có trip phù hợp trong " + hours + " giờ tiếp theo.",
-        result.rows.length > 0 ? "success" : "info",
+              " giờ."
+            : "Không có trip đang hướng về Pleiku trên Sheet.",
+        result.rows.length > 0
+          ? "success"
+          : result.eligibleTripCount > 0
+            ? "warning"
+            : "info",
       );
     } catch (error) {
       console.error("[Check xe · Google Sheet]", error);
@@ -219,9 +235,22 @@ export const CheckXePage = () => {
                   numberFormatter.format(sourceRowCount) +
                   " dòng từ " +
                   (sourceSheetName || "gid=0") +
-                  ". Có " +
+                  " · " +
+                  numberFormatter.format(eligibleTripCount) +
+                  " trip hợp lệ · hiển thị " +
                   numberFormatter.format(rows.length) +
-                  " trip nằm trong khung đã chọn."
+                  (excludedByWindowCount > 0
+                    ? " · " +
+                      numberFormatter.format(excludedByWindowCount) +
+                      " trip ngoài +" +
+                      hours +
+                      " giờ"
+                    : "") +
+                  (unknownEtaActiveCount > 0
+                    ? " · " +
+                      numberFormatter.format(unknownEtaActiveCount) +
+                      " xe đang hoạt động chưa có ETA"
+                    : "")
                 : "Nguồn duy nhất: Google Sheet gid=0. Check xe không gọi API SPX."}
             </p>
             {latestSheetUpdatedAt !== null ? (
@@ -352,12 +381,16 @@ export const CheckXePage = () => {
                         />
                         <p className="mt-3 text-sm font-bold">
                           {hasChecked
-                            ? "Không có trip trong khung thời gian đã chọn"
+                            ? eligibleTripCount > 0
+                              ? "Có trip hợp lệ nhưng đang nằm ngoài khung đã chọn"
+                              : "Không có trip đang hướng về Pleiku"
                             : "Chưa đọc dữ liệu từ Sheet"}
                         </p>
                         <p className="mt-1 max-w-md text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Các trip trên Sheet không có ETA Pleiku nằm trong số giờ bạn đã nhập."
+                            ? eligibleTripCount > 0
+                              ? "Hệ thống đã nhận diện được trip hợp lệ. Hãy tăng số giờ nếu muốn xem các trip có ETA còn xa hơn."
+                              : "Không tìm thấy trip có tuyến hiện tại hoặc tuyến tiếp theo hướng về Pleiku SOC."
                             : "Nhấn Check xe để đọc trực tiếp dữ liệu gid=0 của Google Sheet."}
                         </p>
                       </div>

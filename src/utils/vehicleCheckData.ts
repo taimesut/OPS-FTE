@@ -13,6 +13,9 @@ export interface VehicleCheckResult {
   sourceSheetName: string;
   sourceRowCount: number;
   latestSheetUpdatedAt: number | null;
+  eligibleTripCount: number;
+  excludedByWindowCount: number;
+  unknownEtaActiveCount: number;
 }
 
 const sortVehicleRows = (
@@ -35,13 +38,28 @@ export const fetchVehicleCheckRows = async (
     bundle.travelTimes,
   );
 
+  const eligibleRows = built.rows.filter(
+    (row) =>
+      row.positionStatus !== "arrived" &&
+      row.positionStatus !== "departed_target",
+  );
+  const rows = eligibleRows
+    .filter((row) => isVehicleCheckRowInDisplayWindow(row, displayWindow))
+    .sort(sortVehicleRows);
+
   return {
-    rows: built.rows
-      .filter((row) => isVehicleCheckRowInDisplayWindow(row, displayWindow))
-      .sort(sortVehicleRows),
+    rows,
     displayWindow,
     sourceSheetName: bundle.table.sheetName,
     sourceRowCount: bundle.table.sourceRowCount,
     latestSheetUpdatedAt: built.latestSheetUpdatedAt,
+    eligibleTripCount: eligibleRows.length,
+    excludedByWindowCount: Math.max(0, eligibleRows.length - rows.length),
+    unknownEtaActiveCount: eligibleRows.filter(
+      (row) =>
+        row.eta === null &&
+        (row.positionStatus === "in_transit" ||
+          row.positionStatus === "at_station"),
+    ).length,
   };
 };
