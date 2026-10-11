@@ -1,6 +1,8 @@
 import {
+  createVehicleCheckDisplayWindow,
   createVehicleCheckParams,
-  createVehicleCheckWindow,
+  createVehicleCheckQueryWindow,
+  isVehicleCheckRowInDisplayWindow,
   parseVehicleCheckResponse,
   parseVehicleLocationResponse,
   VEHICLE_CHECK_PAGE_SIZE,
@@ -26,7 +28,8 @@ export interface VehicleCheckApiDependency {
 export interface VehicleCheckResult {
   rows: VehicleCheckRow[];
   total: number;
-  window: VehicleCheckWindow;
+  queryWindow: VehicleCheckWindow;
+  displayWindow: VehicleCheckWindow;
 }
 
 const loadApiDependency = async (): Promise<VehicleCheckApiDependency> => {
@@ -94,14 +97,15 @@ export const fetchVehicleCheckRows = async (
   dependency?: VehicleCheckApiDependency,
 ): Promise<VehicleCheckResult> => {
   const client = dependency ?? (await loadApiDependency());
-  const window = createVehicleCheckWindow(nowMs, hours);
+  const queryWindow = createVehicleCheckQueryWindow(nowMs);
+  const displayWindow = createVehicleCheckDisplayWindow(nowMs, hours);
   const uniqueRows = new Map<string, VehicleCheckRow>();
   let total = 0;
   let totalPages = 1;
 
   for (let pageNo = 1; pageNo <= totalPages; pageNo += 1) {
     const response = await client.get(VEHICLE_CHECK_PATH, {
-      params: createVehicleCheckParams(window, pageNo),
+      params: createVehicleCheckParams(queryWindow, pageNo),
       suppressErrorToast: true,
     });
     const page = parseVehicleCheckResponse(response.data);
@@ -120,14 +124,16 @@ export const fetchVehicleCheckRows = async (
     });
   }
 
-  const rows = await enrichHeldRowsWithLocation(
-    Array.from(uniqueRows.values()),
-    client,
+  const rowsInDisplayWindow = Array.from(uniqueRows.values()).filter((row) =>
+    isVehicleCheckRowInDisplayWindow(row, displayWindow),
   );
+
+  const rows = await enrichHeldRowsWithLocation(rowsInDisplayWindow, client);
 
   return {
     rows,
     total,
-    window,
+    queryWindow,
+    displayWindow,
   };
 };
