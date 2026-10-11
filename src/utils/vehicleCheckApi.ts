@@ -61,8 +61,6 @@ export const fetchVehicleCheckRows = async (
           : `missing-${pageNo}-${rowIndex}`;
       uniqueRows.set(key, row);
     });
-
-    if (page.rows.length === 0) break;
   }
 
   return {
