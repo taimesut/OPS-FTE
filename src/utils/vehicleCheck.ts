@@ -5,6 +5,8 @@ export const VEHICLE_LOCATION_PATH =
 export const VEHICLE_CHECK_PAGE_SIZE = 50;
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
 export const VEHICLE_CHECK_TARGET_STATION_ID = "1030";
+export const VEHICLE_CHECK_QUERY_PAST_SECONDS = 2 * 24 * 60 * 60;
+export const VEHICLE_CHECK_QUERY_FUTURE_SECONDS = 1 * 24 * 60 * 60;
 
 export interface VehicleCheckWindow {
   from: number;
@@ -17,6 +19,7 @@ export interface VehicleCheckStation {
   stationName: string;
   isTarget: boolean;
   eta: number | null;
+  sta: number | null;
 }
 
 export type VehicleMovementStatus = "arriving" | "held";
@@ -29,6 +32,7 @@ export interface VehicleCheckRow {
   pendingInboundTo: number;
   pendingInboundOrder: number;
   eta: number | null;
+  targetSta: number | null;
   movementStatus: VehicleMovementStatus;
   lastLocationUpdatedAt: number | null;
 }
@@ -110,12 +114,27 @@ const resolveStationRoute = (
         stationName: readText(station.station_name) || "—",
         isTarget: stationId === VEHICLE_CHECK_TARGET_STATION_ID,
         eta: readPositiveNumber(station.eta),
+        sta: readPositiveNumber(station.sta),
       };
     })
     .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
 };
 
-export const createVehicleCheckWindow = (
+export const createVehicleCheckQueryWindow = (
+  nowMs: number,
+): VehicleCheckWindow => {
+  if (!Number.isFinite(nowMs) || nowMs < 0) {
+    throw new Error("Thời gian hiện tại không hợp lệ.");
+  }
+
+  const nowSeconds = Math.floor(nowMs / 1_000);
+  return {
+    from: nowSeconds - VEHICLE_CHECK_QUERY_PAST_SECONDS,
+    to: nowSeconds + VEHICLE_CHECK_QUERY_FUTURE_SECONDS,
+  };
+};
+
+export const createVehicleCheckDisplayWindow = (
   nowMs: number,
   hours: number,
 ): VehicleCheckWindow => {
@@ -127,12 +146,19 @@ export const createVehicleCheckWindow = (
   }
 
   const from = Math.floor(nowMs / 1_000);
-  const durationSeconds = Math.floor(hours * 60 * 60);
   return {
     from,
-    to: from + durationSeconds,
+    to: from + Math.floor(hours * 60 * 60),
   };
 };
+
+export const isVehicleCheckRowInDisplayWindow = (
+  row: VehicleCheckRow,
+  window: VehicleCheckWindow,
+): boolean =>
+  row.targetSta !== null &&
+  row.targetSta >= window.from &&
+  row.targetSta <= window.to;
 
 export const createVehicleCheckParams = (
   window: VehicleCheckWindow,
@@ -207,6 +233,7 @@ export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage =>
         pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
         pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
         eta: targetEta,
+        targetSta: targetStation?.sta ?? null,
         movementStatus: targetEta !== null ? "arriving" : "held",
         lastLocationUpdatedAt: null,
       };
