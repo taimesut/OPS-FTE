@@ -30,6 +30,8 @@ const manifest = {
     "https://*.spx.shopee.vn/*",
     "https://script.google.com/*",
     "https://script.googleusercontent.com/*",
+    "https://docs.google.com/*",
+    "https://accounts.google.com/*",
   ],
   content_scripts: [
     {

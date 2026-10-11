@@ -4,9 +4,22 @@ var ACCESS_FIRST_DATA_ROW = 2;
 var VERSION_SHEET_NAME = "VERSION";
 var STATION_CATALOG_SHEET_NAME = "LIST SOC";
 var STATION_CATALOG_FIRST_DATA_ROW = 2;
-var VEHICLE_TRAVEL_TIME_SPREADSHEET_ID = "1KtjQsrdSR0mvyxrL_sKo3ScOP-ELQ873iuUdLjMajWM";
+var VEHICLE_CHECK_DATA_SPREADSHEET_ID = "1KtjQsrdSR0mvyxrL_sKo3ScOP-ELQ873iuUdLjMajWM";
+var VEHICLE_CHECK_DATA_SHEET_ID = 0;
 var VEHICLE_TRAVEL_TIME_SHEET_NAME = "CHECK XE";
 var VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW = 2;
+
+function normalizeVehicleCheckHeader_(value) {
+  return String(value || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+}
+
+function normalizeVehicleCheckStation_(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 function parseVehicleTravelTimeMinutes_(value) {
   var text = String(value || "").trim().toLowerCase().replace(",", ".");
@@ -50,32 +63,156 @@ function parseVehicleTravelTimeMinutes_(value) {
   return null;
 }
 
+function getVehicleCheckSpreadsheet_() {
+  return SpreadsheetApp.openById(VEHICLE_CHECK_DATA_SPREADSHEET_ID);
+}
+
+function getVehicleCheckDataSheet_() {
+  var spreadsheet = getVehicleCheckSpreadsheet_();
+  var sheet = spreadsheet.getSheetById(VEHICLE_CHECK_DATA_SHEET_ID);
+  if (!sheet) {
+    throw new Error(
+      "Không tìm thấy sheet gid=" + VEHICLE_CHECK_DATA_SHEET_ID + "."
+    );
+  }
+  return sheet;
+}
+
+function getVehicleCheckSheetData() {
+  var sheet = getVehicleCheckDataSheet_();
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+
+  if (lastRow < 1 || lastColumn < 1) {
+    throw new Error("Sheet gid=0 chưa có dữ liệu.");
+  }
+
+  var values = sheet
+    .getRange(1, 1, lastRow, lastColumn)
+    .getDisplayValues();
+  var headers = values[0].map(function (value) {
+    return String(value || "").trim();
+  });
+  var headerIndex = Object.create(null);
+
+  headers.forEach(function (header, index) {
+    var key = normalizeVehicleCheckHeader_(header);
+    if (key && headerIndex[key] == null) {
+      headerIndex[key] = index;
+    }
+  });
+
+  ["trip_number", "station_name"].forEach(function (key) {
+    if (headerIndex[key] == null) {
+      throw new Error("Sheet Check xe thiếu cột " + key + ".");
+    }
+  });
+
+  var tripNumberIndex = headerIndex.trip_number;
+  var stationNameIndex = headerIndex.station_name;
+  var nextStationNameIndex = headerIndex.next_station_name;
+  var candidateTrips = Object.create(null);
+  var dataRows = values.slice(1).filter(function (row) {
+    return row.some(function (value) {
+      return String(value || "").trim() !== "";
+    });
+  });
+
+  dataRows.forEach(function (row) {
+    var tripNumber = String(row[tripNumberIndex] || "").trim();
+    if (!tripNumber) return;
+
+    var stationName = normalizeVehicleCheckStation_(row[stationNameIndex]);
+    var nextStationName =
+      nextStationNameIndex == null
+        ? ""
+        : normalizeVehicleCheckStation_(row[nextStationNameIndex]);
+
+    if (stationName === "pleiku soc" || nextStationName === "pleiku soc") {
+      candidateTrips[tripNumber] = true;
+    }
+  });
+
+  var filteredRows = dataRows.filter(function (row) {
+    var tripNumber = String(row[tripNumberIndex] || "").trim();
+    return Boolean(candidateTrips[tripNumber]);
+  });
+
+  return {
+    headers: headers,
+    rows: filteredRows,
+    sheetName: sheet.getName(),
+    sourceRowCount: dataRows.length
+  };
+}
+
 function getVehicleTravelTimes() {
   try {
-    var spreadsheet = SpreadsheetApp.openById(
-      VEHICLE_TRAVEL_TIME_SPREADSHEET_ID
-    );
+    var spreadsheet = getVehicleCheckSpreadsheet_();
     var sheet = spreadsheet.getSheetByName(VEHICLE_TRAVEL_TIME_SHEET_NAME);
-    if (!sheet) {
+    if (!sheet || sheet.getSheetId() === VEHICLE_CHECK_DATA_SHEET_ID) {
       return [];
     }
 
     var lastRow = sheet.getLastRow();
-    if (lastRow < VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW) {
+    var lastColumn = Math.max(2, sheet.getLastColumn());
+    if (lastRow < 1) {
       return [];
     }
 
-    return sheet
-      .getRange(
-        VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW,
-        1,
-        lastRow - VEHICLE_TRAVEL_TIME_FIRST_DATA_ROW + 1,
-        2
-      )
+    var values = sheet
+      .getRange(1, 1, lastRow, lastColumn)
       .getDisplayValues()
+      .filter(function (row) {
+        return row.some(function (value) {
+          return String(value || "").trim() !== "";
+        });
+      });
+
+    if (!values.length) return [];
+
+    var header = values[0].map(function (value) {
+      return normalizeVehicleCheckHeader_(value);
+    });
+    var stationIndex = -1;
+    var timeIndex = -1;
+
+    ["soc", "station", "station_name", "tên_soc", "ten_soc"].some(function (key) {
+      var index = header.indexOf(key);
+      if (index >= 0) {
+        stationIndex = index;
+        return true;
+      }
+      return false;
+    });
+
+    [
+      "minutes",
+      "minute",
+      "thời_gian",
+      "thoi_gian",
+      "thời_gian_về_pleiku",
+      "thoi_gian_ve_pleiku"
+    ].some(function (key) {
+      var index = header.indexOf(key);
+      if (index >= 0) {
+        timeIndex = index;
+        return true;
+      }
+      return false;
+    });
+
+    var hasHeader = stationIndex >= 0 && timeIndex >= 0;
+    if (!hasHeader) {
+      stationIndex = 0;
+      timeIndex = 1;
+    }
+
+    var rows = hasHeader ? values.slice(1) : values;
+    return rows
       .map(function (row) {
-        var stationName = String(row[0] || "").trim();
-        var minutes = parseVehicleTravelTimeMinutes_(row[1]);
+        var stationName = String(row[stationIndex] || "").trim();
+        var minutes = parseVehicleTravelTimeMinutes_(row[timeIndex]);
         if (!stationName || !minutes || minutes <= 0) {
           return null;
         }
@@ -91,6 +228,13 @@ function getVehicleTravelTimes() {
     console.error("Vehicle travel time read failed", error);
     return [];
   }
+}
+
+function getVehicleCheckSheetBundle() {
+  return {
+    table: getVehicleCheckSheetData(),
+    travelTimes: getVehicleTravelTimes()
+  };
 }
 
 

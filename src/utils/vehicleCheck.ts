@@ -1,19 +1,16 @@
 import {
+  buildConfiguredVehicleTravelTimeLookup,
   getVehicleTravelMinutes,
+  mergeVehicleTravelTimeLookups,
   normalizeVehicleStationName,
-  type VehicleTravelTimeMap,
+  type VehicleTravelTimeLookup,
+  type VehicleTravelTimeSource,
 } from "./vehicleTravelTime.ts";
+import type { VehicleCheckSheetTable } from "./vehicleCheckSheet.ts";
+import type { VehicleTravelTimeEntry } from "./vehicleTravelTime.ts";
 
-export const VEHICLE_CHECK_PATH =
-  "/api/admin/transportation/trip/list_v2";
-export const VEHICLE_LOCATION_PATH =
-  "/api/admin/transportation/trip/location";
-export const VEHICLE_CHECK_PAGE_SIZE = 50;
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
-export const VEHICLE_CHECK_TARGET_STATION_ID = "1030";
 export const VEHICLE_CHECK_TARGET_STATION_NAME = "Pleiku SOC";
-export const VEHICLE_CHECK_QUERY_PAST_SECONDS = 2 * 24 * 60 * 60;
-export const VEHICLE_CHECK_QUERY_FUTURE_SECONDS = 1 * 24 * 60 * 60;
 
 export interface VehicleCheckWindow {
   from: number;
@@ -22,19 +19,25 @@ export interface VehicleCheckWindow {
 
 export interface VehicleCheckStation {
   sequenceNumber: number;
-  stationId: string;
   stationName: string;
   nextStationName: string;
-  isTarget: boolean;
   sta: number | null;
   std: number | null;
   eta: number | null;
   etd: number | null;
   ata: number | null;
   atd: number | null;
+  transportQuantity: number;
+  loadTotalTransportOrder: number;
+  unloadTotalTransportOrder: number;
+  loadTotalOrder: number;
+  unloadTotalOrder: number;
+  vehicleNumber: string;
+  vehicleTypeName: string;
+  agencyName: string;
+  tripStatus: string;
+  timeUpdate: number | null;
 }
-
-export type VehicleMovementStatus = "arriving" | "held";
 
 export type VehiclePositionStatus =
   | "scheduled"
@@ -49,22 +52,19 @@ export type VehicleEtaSource =
   | "travel_atd"
   | "travel_etd"
   | "travel_std"
-  | "trip_location"
   | "pleiku_sta"
   | null;
 
 export interface VehicleCheckRow {
-  tripId: number | null;
   tripNumber: string;
+  tripName: string;
   vehiclePlateNumber: string;
+  vehicleTypeName: string;
+  agencyName: string;
   stations: VehicleCheckStation[];
-  pendingInboundTo: number;
-  pendingInboundOrder: number;
   eta: number | null;
   etaSource: VehicleEtaSource;
   targetSta: number | null;
-  movementStatus: VehicleMovementStatus;
-  lastLocationUpdatedAt: number | null;
   positionStatus: VehiclePositionStatus;
   currentStationName: string;
   nextStationName: string;
@@ -73,134 +73,17 @@ export interface VehicleCheckRow {
   lastEventAt: number | null;
   lastEventType: "ata" | "atd" | null;
   actualArrivalAt: number | null;
+  transportQuantity: number;
+  targetUnloadTransportOrder: number | null;
+  sheetUpdatedAt: number | null;
+  travelTimeMinutes: number | null;
+  travelTimeSource: VehicleTravelTimeSource | null;
 }
 
-export interface VehicleCheckPage {
-  rows: VehicleCheckRow[];
-  total: number;
-  pageNo: number;
+interface ParsedSheetRecord extends VehicleCheckStation {
+  tripNumber: string;
+  tripName: string;
 }
-
-export interface VehicleLocationInfo {
-  eta: number | null;
-  lastUpdatedAt: number | null;
-}
-
-const readText = (value: unknown): string =>
-  typeof value === "string" ? value.trim() : "";
-
-const readNonNegativeNumber = (value: unknown): number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : 0;
-
-const readPositiveInteger = (value: unknown): number | null =>
-  typeof value === "number" &&
-  Number.isInteger(value) &&
-  Number.isFinite(value) &&
-  value > 0
-    ? value
-    : null;
-
-const readTimestamp = (...values: unknown[]): number | null => {
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-      return value > 10_000_000_000 ? Math.floor(value / 1_000) : value;
-    }
-
-    if (typeof value !== "string") continue;
-    const text = value.trim();
-    if (!text) continue;
-
-    if (/^\d+(?:\.\d+)?$/.test(text)) {
-      const numeric = Number(text);
-      if (Number.isFinite(numeric) && numeric > 0) {
-        return numeric > 10_000_000_000
-          ? Math.floor(numeric / 1_000)
-          : numeric;
-      }
-    }
-
-    const isoLike = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(text)
-      ? text.replace(" ", "T") + "+07:00"
-      : text;
-    const parsedMs = Date.parse(isoLike);
-    if (Number.isFinite(parsedMs) && parsedMs > 0) {
-      return Math.floor(parsedMs / 1_000);
-    }
-  }
-
-  return null;
-};
-
-const readStationId = (station: Record<string, unknown>): string => {
-  if (
-    typeof station.station === "number" &&
-    Number.isFinite(station.station)
-  ) {
-    return String(station.station);
-  }
-  return readText(station.station_code) || readText(station.station_id) || "—";
-};
-
-const isTargetStationName = (value: string): boolean =>
-  normalizeVehicleStationName(value) ===
-  normalizeVehicleStationName(VEHICLE_CHECK_TARGET_STATION_NAME);
-
-const resolveVehiclePlateNumber = (trip: Record<string, unknown>): string => {
-  const plateList = Array.isArray(trip.vehicle_plate_number_list)
-    ? trip.vehicle_plate_number_list
-        .map(readText)
-        .filter((value): value is string => Boolean(value))
-    : [];
-
-  if (plateList.length > 0) return plateList.join(", ");
-  return readText(trip.vehicle_number) || "—";
-};
-
-const resolveStationRoute = (
-  trip: Record<string, unknown>,
-): VehicleCheckStation[] => {
-  if (!Array.isArray(trip.trip_station)) return [];
-
-  const stations = trip.trip_station
-    .filter(
-      (station): station is Record<string, unknown> =>
-        typeof station === "object" && station !== null,
-    )
-    .map((station, index): VehicleCheckStation => {
-      const sequenceNumber =
-        typeof station.sequence_number === "number" &&
-        Number.isFinite(station.sequence_number)
-          ? station.sequence_number
-          : index + 1;
-      const stationId = readStationId(station);
-      const stationName = readText(station.station_name) || "—";
-
-      return {
-        sequenceNumber,
-        stationId,
-        stationName,
-        nextStationName: readText(station.next_station_name),
-        isTarget:
-          stationId === VEHICLE_CHECK_TARGET_STATION_ID ||
-          isTargetStationName(stationName),
-        sta: readTimestamp(station.sta, station.trip_sta),
-        std: readTimestamp(station.std, station.trip_std),
-        eta: readTimestamp(station.eta, station.trip_eta),
-        etd: readTimestamp(station.etd, station.trip_etd),
-        ata: readTimestamp(station.ata, station.trip_ata),
-        atd: readTimestamp(station.atd, station.trip_atd),
-      };
-    })
-    .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-
-  return stations.map((station, index) => ({
-    ...station,
-    nextStationName:
-      station.nextStationName || stations[index + 1]?.stationName || "",
-  }));
-};
 
 interface VehiclePositionInfo {
   status: VehiclePositionStatus;
@@ -211,6 +94,162 @@ interface VehiclePositionInfo {
   lastEventAt: number | null;
   lastEventType: "ata" | "atd" | null;
 }
+
+const normalizeHeader = (value: string): string =>
+  value
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLocaleLowerCase("en-US")
+    .replace(/\s+/g, "_");
+
+const readText = (value: unknown): string =>
+  value == null ? "" : String(value).trim();
+
+const readInteger = (value: unknown): number => {
+  const text = readText(value);
+  if (!text) return 0;
+  const normalized = text.replace(/[^\d-]/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const readSequence = (value: unknown, fallback: number): number => {
+  const parsed = readInteger(value);
+  return parsed > 0 ? parsed : fallback;
+};
+
+export const parseVehicleCheckTimestamp = (value: unknown): number | null => {
+  const text = readText(value);
+  if (!text) return null;
+
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    const numeric = Number(text);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric > 10_000_000_000
+        ? Math.floor(numeric / 1_000)
+        : Math.floor(numeric);
+    }
+  }
+
+  const isoLike = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(text)
+    ? text.replace(" ", "T") + "+07:00"
+    : text;
+  const parsedMs = Date.parse(isoLike);
+  return Number.isFinite(parsedMs) && parsedMs > 0
+    ? Math.floor(parsedMs / 1_000)
+    : null;
+};
+
+const isPleiku = (value: string): boolean =>
+  normalizeVehicleStationName(value) ===
+  normalizeVehicleStationName(VEHICLE_CHECK_TARGET_STATION_NAME);
+
+const createHeaderIndex = (headers: string[]): Record<string, number> => {
+  const index: Record<string, number> = {};
+  headers.forEach((header, columnIndex) => {
+    const key = normalizeHeader(header);
+    if (key && index[key] === undefined) index[key] = columnIndex;
+  });
+  return index;
+};
+
+const getCell = (
+  row: string[],
+  index: Record<string, number>,
+  key: string,
+): string => {
+  const columnIndex = index[key];
+  return columnIndex === undefined ? "" : readText(row[columnIndex]);
+};
+
+const assertRequiredHeaders = (index: Record<string, number>): void => {
+  const required = [
+    "trip_number",
+    "sequence_number",
+    "station_name",
+    "trip_sta",
+    "trip_std",
+    "trip_eta",
+    "trip_etd",
+    "trip_ata",
+    "trip_atd",
+    "vehicle_number",
+    "time_update",
+  ];
+  const missing = required.filter((key) => index[key] === undefined);
+  if (missing.length) {
+    throw new Error(
+      "Sheet Check xe thiếu cột: " + missing.join(", ") + ".",
+    );
+  }
+};
+
+const parseSheetRecords = (
+  table: VehicleCheckSheetTable,
+): ParsedSheetRecord[] => {
+  const index = createHeaderIndex(table.headers);
+  assertRequiredHeaders(index);
+
+  return table.rows
+    .map((row, rowIndex): ParsedSheetRecord | null => {
+      const tripNumber = getCell(row, index, "trip_number");
+      const stationName = getCell(row, index, "station_name");
+      if (!tripNumber || !stationName) return null;
+
+      return {
+        tripNumber,
+        tripName: getCell(row, index, "trip_name"),
+        sequenceNumber: readSequence(
+          getCell(row, index, "sequence_number"),
+          rowIndex + 1,
+        ),
+        stationName,
+        nextStationName: getCell(row, index, "next_station_name"),
+        sta: parseVehicleCheckTimestamp(getCell(row, index, "trip_sta")),
+        std: parseVehicleCheckTimestamp(getCell(row, index, "trip_std")),
+        eta: parseVehicleCheckTimestamp(getCell(row, index, "trip_eta")),
+        etd: parseVehicleCheckTimestamp(getCell(row, index, "trip_etd")),
+        ata: parseVehicleCheckTimestamp(getCell(row, index, "trip_ata")),
+        atd: parseVehicleCheckTimestamp(getCell(row, index, "trip_atd")),
+        transportQuantity: readInteger(
+          getCell(row, index, "transport_quantity"),
+        ),
+        loadTotalTransportOrder: readInteger(
+          getCell(row, index, "load_total_transport_order"),
+        ),
+        unloadTotalTransportOrder: readInteger(
+          getCell(row, index, "unload_total_transport_order"),
+        ),
+        loadTotalOrder: readInteger(getCell(row, index, "load_total_order")),
+        unloadTotalOrder: readInteger(
+          getCell(row, index, "unload_total_order"),
+        ),
+        vehicleNumber: getCell(row, index, "vehicle_number"),
+        vehicleTypeName: getCell(row, index, "vehicle_type_name"),
+        agencyName: getCell(row, index, "agency_name"),
+        tripStatus: getCell(row, index, "trip_status"),
+        timeUpdate: parseVehicleCheckTimestamp(
+          getCell(row, index, "time_update"),
+        ),
+      };
+    })
+    .filter((row): row is ParsedSheetRecord => row !== null);
+};
+
+const groupRecordsByTrip = (
+  records: ParsedSheetRecord[],
+): Map<string, ParsedSheetRecord[]> => {
+  const groups = new Map<string, ParsedSheetRecord[]>();
+  records.forEach((record) => {
+    const group = groups.get(record.tripNumber) ?? [];
+    group.push(record);
+    groups.set(record.tripNumber, group);
+  });
+  groups.forEach((group) =>
+    group.sort((first, second) => first.sequenceNumber - second.sequenceNumber),
+  );
+  return groups;
+};
 
 const resolveVehiclePosition = (
   stations: VehicleCheckStation[],
@@ -255,18 +294,17 @@ const resolveVehiclePosition = (
 
   const station = latest.station;
   if (latest.type === "ata") {
-    if (station.isTarget) {
+    if (isPleiku(station.stationName)) {
       return {
         status: "arrived",
         currentStationName: station.stationName,
         nextStationName: station.nextStationName,
-        label: "Đã đến " + VEHICLE_CHECK_TARGET_STATION_NAME,
+        label: "Đã đến Pleiku SOC",
         sequenceNumber: station.sequenceNumber,
         lastEventAt: latest.timestamp,
-        lastEventType: latest.type,
+        lastEventType: "ata",
       };
     }
-
     return {
       status: "at_station",
       currentStationName: station.stationName,
@@ -274,64 +312,264 @@ const resolveVehiclePosition = (
       label: "Đang ở " + station.stationName,
       sequenceNumber: station.sequenceNumber,
       lastEventAt: latest.timestamp,
-      lastEventType: latest.type,
+      lastEventType: "ata",
     };
   }
 
-  if (station.isTarget) {
+  if (isPleiku(station.stationName)) {
     return {
       status: "departed_target",
       currentStationName: station.stationName,
       nextStationName: station.nextStationName,
-      label: "Đã rời " + VEHICLE_CHECK_TARGET_STATION_NAME,
+      label: "Đã rời Pleiku SOC",
       sequenceNumber: station.sequenceNumber,
       lastEventAt: latest.timestamp,
-      lastEventType: latest.type,
-    };
-  }
-
-  if (station.nextStationName) {
-    return {
-      status: "in_transit",
-      currentStationName: station.stationName,
-      nextStationName: station.nextStationName,
-      label: station.stationName + " → " + station.nextStationName,
-      sequenceNumber: station.sequenceNumber,
-      lastEventAt: latest.timestamp,
-      lastEventType: latest.type,
+      lastEventType: "atd",
     };
   }
 
   return {
-    status: "scheduled",
+    status: "in_transit",
     currentStationName: station.stationName,
-    nextStationName: "",
-    label: "Đã rời " + station.stationName,
+    nextStationName: station.nextStationName,
+    label: station.nextStationName
+      ? station.stationName + " → " + station.nextStationName
+      : "Đã rời " + station.stationName,
     sequenceNumber: station.sequenceNumber,
     lastEventAt: latest.timestamp,
-    lastEventType: latest.type,
+    lastEventType: "atd",
   };
 };
 
-const hasPleikuInRoute = (stations: VehicleCheckStation[]): boolean =>
-  stations.some(
-    (station) =>
-      station.isTarget || isTargetStationName(station.nextStationName),
+const resolveTargetStation = (
+  stations: VehicleCheckStation[],
+  position: VehiclePositionInfo,
+): VehicleCheckStation | null => {
+  const fromSequence = position.sequenceNumber ?? Number.NEGATIVE_INFINITY;
+  return (
+    stations.find(
+      (station) =>
+        isPleiku(station.stationName) &&
+        station.sequenceNumber >= fromSequence,
+    ) ?? null
   );
+};
 
-export const createVehicleCheckQueryWindow = (
-  nowMs: number,
-): VehicleCheckWindow => {
-  if (!Number.isFinite(nowMs) || nowMs < 0) {
-    throw new Error("Thời gian hiện tại không hợp lệ.");
+const isTripStillHeadingToPleiku = (
+  stations: VehicleCheckStation[],
+  position: VehiclePositionInfo,
+  targetStation: VehicleCheckStation | null,
+): boolean => {
+  if (position.status === "arrived") return true;
+  if (position.status === "departed_target") return false;
+  if (targetStation) return true;
+
+  const fromSequence = position.sequenceNumber ?? Number.NEGATIVE_INFINITY;
+  return stations.some(
+    (station) =>
+      station.sequenceNumber >= fromSequence &&
+      isPleiku(station.nextStationName),
+  );
+};
+
+const median = (values: number[]): number | null => {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[midpoint]
+    : Math.round((sorted[midpoint - 1] + sorted[midpoint]) / 2);
+};
+
+const deriveVehicleTravelTimesFromHistory = (
+  groups: Map<string, ParsedSheetRecord[]>,
+): VehicleTravelTimeLookup => {
+  const actualSamples = new Map<string, number[]>();
+  const scheduleSamples = new Map<string, number[]>();
+
+  groups.forEach((records) => {
+    const target = records.find(
+      (record) => isPleiku(record.stationName) && record.ata !== null,
+    );
+    const scheduledTarget = records.find(
+      (record) => isPleiku(record.stationName) && record.sta !== null,
+    );
+
+    records.forEach((record) => {
+      if (isPleiku(record.stationName)) return;
+      const key = normalizeVehicleStationName(record.stationName);
+
+      if (
+        target?.ata !== null &&
+        target?.ata !== undefined &&
+        record.atd !== null &&
+        target.ata > record.atd
+      ) {
+        const minutes = Math.round((target.ata - record.atd) / 60);
+        if (minutes >= 10 && minutes <= 72 * 60) {
+          const samples = actualSamples.get(key) ?? [];
+          samples.push(minutes);
+          actualSamples.set(key, samples);
+        }
+      }
+
+      if (
+        scheduledTarget?.sta !== null &&
+        scheduledTarget?.sta !== undefined &&
+        record.std !== null &&
+        scheduledTarget.sta > record.std
+      ) {
+        const minutes = Math.round((scheduledTarget.sta - record.std) / 60);
+        if (minutes >= 10 && minutes <= 72 * 60) {
+          const samples = scheduleSamples.get(key) ?? [];
+          samples.push(minutes);
+          scheduleSamples.set(key, samples);
+        }
+      }
+    });
+  });
+
+  const map: Record<string, number> = {};
+  const sources: VehicleTravelTimeLookup["sources"] = {};
+
+  scheduleSamples.forEach((values, key) => {
+    const value = median(values);
+    if (value !== null) {
+      map[key] = value;
+      sources[key] = "sheet_schedule";
+    }
+  });
+  actualSamples.forEach((values, key) => {
+    const value = median(values);
+    if (value !== null) {
+      map[key] = value;
+      sources[key] = "sheet_history";
+    }
+  });
+
+  return { map, sources };
+};
+
+const getStationAtPosition = (
+  stations: VehicleCheckStation[],
+  sequenceNumber: number | null,
+): VehicleCheckStation | null =>
+  sequenceNumber === null
+    ? null
+    : stations.find(
+        (station) => station.sequenceNumber === sequenceNumber,
+      ) ?? null;
+
+const resolveEta = (
+  row: VehicleCheckRow,
+  targetStation: VehicleCheckStation | null,
+  lookup: VehicleTravelTimeLookup,
+): VehicleCheckRow => {
+  if (targetStation?.ata !== null && targetStation?.ata !== undefined) {
+    return {
+      ...row,
+      eta: targetStation.ata,
+      etaSource: "actual_arrival",
+      actualArrivalAt: targetStation.ata,
+    };
   }
 
-  const nowSeconds = Math.floor(nowMs / 1_000);
-  return {
-    from: nowSeconds - VEHICLE_CHECK_QUERY_PAST_SECONDS,
-    to: nowSeconds + VEHICLE_CHECK_QUERY_FUTURE_SECONDS,
-  };
+  if (
+    targetStation?.eta !== null &&
+    targetStation?.eta !== undefined &&
+    (row.lastEventAt === null || targetStation.eta >= row.lastEventAt)
+  ) {
+    return {
+      ...row,
+      eta: targetStation.eta,
+      etaSource: "pleiku_eta",
+    };
+  }
+
+  const currentStation = getStationAtPosition(
+    row.stations,
+    row.currentSequenceNumber,
+  );
+  const travel = currentStation
+    ? getVehicleTravelMinutes(currentStation.stationName, lookup)
+    : null;
+
+  if (currentStation && travel) {
+    const travelSeconds = travel.minutes * 60;
+
+    if (
+      row.positionStatus === "in_transit" &&
+      row.lastEventType === "atd" &&
+      row.lastEventAt !== null
+    ) {
+      return {
+        ...row,
+        eta: row.lastEventAt + travelSeconds,
+        etaSource: "travel_atd",
+        travelTimeMinutes: travel.minutes,
+        travelTimeSource: travel.source,
+      };
+    }
+
+    if (row.positionStatus === "at_station") {
+      if (currentStation.etd !== null) {
+        return {
+          ...row,
+          eta: currentStation.etd + travelSeconds,
+          etaSource: "travel_etd",
+          travelTimeMinutes: travel.minutes,
+          travelTimeSource: travel.source,
+        };
+      }
+      if (currentStation.std !== null) {
+        return {
+          ...row,
+          eta: currentStation.std + travelSeconds,
+          etaSource: "travel_std",
+          travelTimeMinutes: travel.minutes,
+          travelTimeSource: travel.source,
+        };
+      }
+    }
+  }
+
+  if (targetStation?.eta !== null && targetStation?.eta !== undefined) {
+    return {
+      ...row,
+      eta: targetStation.eta,
+      etaSource: "pleiku_eta",
+    };
+  }
+
+  if (targetStation?.sta !== null && targetStation?.sta !== undefined) {
+    return {
+      ...row,
+      eta: targetStation.sta,
+      etaSource: "pleiku_sta",
+    };
+  }
+
+  return row;
 };
+
+const latestNonEmpty = (
+  stations: VehicleCheckStation[],
+  selector: (station: VehicleCheckStation) => string,
+): string => {
+  for (let index = stations.length - 1; index >= 0; index -= 1) {
+    const value = selector(stations[index]).trim();
+    if (value) return value;
+  }
+  return "—";
+};
+
+const latestTimeUpdate = (stations: VehicleCheckStation[]): number | null =>
+  stations.reduce<number | null>((latest, station) => {
+    if (station.timeUpdate === null) return latest;
+    return latest === null
+      ? station.timeUpdate
+      : Math.max(latest, station.timeUpdate);
+  }, null);
 
 export const createVehicleCheckDisplayWindow = (
   nowMs: number,
@@ -354,259 +592,93 @@ export const createVehicleCheckDisplayWindow = (
 export const isVehicleCheckRowInDisplayWindow = (
   row: VehicleCheckRow,
   window: VehicleCheckWindow,
-): boolean => {
-  const arrivalReference = row.eta ?? row.targetSta;
-  return (
-    arrivalReference !== null &&
-    arrivalReference >= window.from &&
-    arrivalReference <= window.to
+): boolean =>
+  row.eta !== null && row.eta >= window.from && row.eta <= window.to;
+
+export interface BuildVehicleCheckRowsResult {
+  rows: VehicleCheckRow[];
+  latestSheetUpdatedAt: number | null;
+}
+
+export const buildVehicleCheckRowsFromSheet = (
+  table: VehicleCheckSheetTable,
+  configuredTravelTimes: VehicleTravelTimeEntry[] = [],
+): BuildVehicleCheckRowsResult => {
+  const records = parseSheetRecords(table);
+  const groups = groupRecordsByTrip(records);
+  const learnedLookup = deriveVehicleTravelTimesFromHistory(groups);
+  const configuredLookup =
+    buildConfiguredVehicleTravelTimeLookup(configuredTravelTimes);
+  const travelLookup = mergeVehicleTravelTimeLookups(
+    learnedLookup,
+    configuredLookup,
   );
-};
 
-export const createVehicleCheckParams = (
-  window: VehicleCheckWindow,
-  pageNo: number,
-) => {
-  if (!Number.isInteger(pageNo) || pageNo < 1) {
-    throw new Error("Trang dữ liệu không hợp lệ.");
-  }
+  const rows: VehicleCheckRow[] = [];
 
-  return {
-    station_type: "2,3,7,12,14,16,18",
-    trip_station_status: 200,
-    pageno: pageNo,
-    count: VEHICLE_CHECK_PAGE_SIZE,
-    query_type: 1,
-    tab_type: 2,
-    sta: String(window.from) + "," + String(window.to),
-  };
-};
-
-export const resolveVehicleCheckEta = (
-  row: VehicleCheckRow,
-  travelTimes: VehicleTravelTimeMap = {},
-  locationEta: number | null = null,
-): VehicleCheckRow => {
-  const targetStation = row.stations.find((station) => station.isTarget);
-  const actualArrivalAt = targetStation?.ata ?? null;
-  const targetEta = targetStation?.eta ?? null;
-  const targetSta = targetStation?.sta ?? row.targetSta;
-  const latestActual = row.lastEventAt;
-
-  if (actualArrivalAt !== null) {
-    return {
-      ...row,
-      eta: actualArrivalAt,
-      etaSource: "actual_arrival",
-      actualArrivalAt,
-    };
-  }
-
-  if (
-    targetEta !== null &&
-    (latestActual === null || targetEta >= latestActual)
-  ) {
-    return {
-      ...row,
-      eta: targetEta,
-      etaSource: "pleiku_eta",
-    };
-  }
-
-  const currentStation =
-    row.currentSequenceNumber === null
-      ? null
-      : row.stations.find(
-          (station) => station.sequenceNumber === row.currentSequenceNumber,
-        ) ?? null;
-  const travelMinutes = currentStation
-    ? getVehicleTravelMinutes(currentStation.stationName, travelTimes)
-    : null;
-
-  if (currentStation && travelMinutes !== null) {
-    const travelSeconds = travelMinutes * 60;
-
-    if (
-      row.positionStatus === "in_transit" &&
-      row.lastEventType === "atd" &&
-      row.lastEventAt !== null
-    ) {
-      return {
-        ...row,
-        eta: row.lastEventAt + travelSeconds,
-        etaSource: "travel_atd",
-      };
-    }
-
-    if (row.positionStatus === "at_station") {
-      if (currentStation.etd !== null) {
-        return {
-          ...row,
-          eta: currentStation.etd + travelSeconds,
-          etaSource: "travel_etd",
-        };
-      }
-      if (currentStation.std !== null) {
-        return {
-          ...row,
-          eta: currentStation.std + travelSeconds,
-          etaSource: "travel_std",
-        };
-      }
-    }
-  }
-
-  if (
-    locationEta !== null &&
-    (latestActual === null || locationEta >= latestActual)
-  ) {
-    return {
-      ...row,
-      eta: locationEta,
-      etaSource: "trip_location",
-    };
-  }
-
-  if (targetEta !== null) {
-    return {
-      ...row,
-      eta: targetEta,
-      etaSource: "pleiku_eta",
-    };
-  }
-
-  if (targetSta !== null) {
-    return {
-      ...row,
-      eta: targetSta,
-      etaSource: "pleiku_sta",
-    };
-  }
-
-  return {
-    ...row,
-    eta: null,
-    etaSource: null,
-  };
-};
-
-export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage => {
-  if (typeof payload !== "object" || payload === null) {
-    throw new Error("Phản hồi Check xe không hợp lệ.");
-  }
-
-  const root = payload as {
-    retcode?: unknown;
-    message?: unknown;
-    data?: unknown;
-  };
-  if (root.retcode !== 0) {
-    throw new Error(
-      readText(root.message) || "Không thể tải danh sách xe từ SPX.",
+  groups.forEach((tripRecords) => {
+    const stations: VehicleCheckStation[] = tripRecords.map(
+      ({ tripNumber: _tripNumber, tripName: _tripName, ...station }) =>
+        station,
     );
-  }
-  if (typeof root.data !== "object" || root.data === null) {
-    throw new Error("Phản hồi Check xe thiếu data.");
-  }
+    const position = resolveVehiclePosition(stations);
+    const targetStation = resolveTargetStation(stations, position);
 
-  const data = root.data as {
-    list?: unknown;
-    total?: unknown;
-    pageno?: unknown;
-  };
-  if (!Array.isArray(data.list)) {
-    throw new Error("Phản hồi Check xe thiếu data.list.");
-  }
+    if (!isTripStillHeadingToPleiku(stations, position, targetStation)) {
+      return;
+    }
 
-  const total = readNonNegativeNumber(data.total);
-  const pageNo =
-    typeof data.pageno === "number" &&
-    Number.isInteger(data.pageno) &&
-    data.pageno > 0
-      ? data.pageno
-      : 1;
+    const currentStation = getStationAtPosition(
+      stations,
+      position.sequenceNumber,
+    );
+    const metricStation = currentStation ?? stations[0];
 
-  const rows = data.list
-    .filter(
-      (trip): trip is Record<string, unknown> =>
-        typeof trip === "object" && trip !== null,
-    )
-    .map<VehicleCheckRow>((trip) => {
-      const stations = resolveStationRoute(trip);
-      const targetStation = stations.find((station) => station.isTarget);
-      const targetEta = targetStation?.eta ?? null;
-      const position = resolveVehiclePosition(stations);
-
-      return {
-        tripId: readPositiveInteger(trip.id),
-        tripNumber: readText(trip.trip_number) || "—",
-        vehiclePlateNumber: resolveVehiclePlateNumber(trip),
+    let row: VehicleCheckRow = {
+      tripNumber: tripRecords[0].tripNumber,
+      tripName: tripRecords[0].tripName,
+      vehiclePlateNumber: latestNonEmpty(
         stations,
-        pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
-        pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
-        eta: targetEta,
-        etaSource: targetEta !== null ? "pleiku_eta" : null,
-        targetSta: targetStation?.sta ?? null,
-        movementStatus: targetEta !== null ? "arriving" : "held",
-        lastLocationUpdatedAt: null,
-        positionStatus: position.status,
-        currentStationName: position.currentStationName,
-        nextStationName: position.nextStationName,
-        currentPositionLabel: position.label,
-        currentSequenceNumber: position.sequenceNumber,
-        lastEventAt: position.lastEventAt,
-        lastEventType: position.lastEventType,
-        actualArrivalAt: targetStation?.ata ?? null,
-      };
-    })
-    .filter(
-      (row) =>
-        row.pendingInboundTo > 0 &&
-        row.pendingInboundOrder > 0 &&
-        hasPleikuInRoute(row.stations),
-    );
+        (station) => station.vehicleNumber,
+      ),
+      vehicleTypeName: latestNonEmpty(
+        stations,
+        (station) => station.vehicleTypeName,
+      ),
+      agencyName: latestNonEmpty(stations, (station) => station.agencyName),
+      stations,
+      eta: null,
+      etaSource: null,
+      targetSta: targetStation?.sta ?? null,
+      positionStatus: position.status,
+      currentStationName: position.currentStationName,
+      nextStationName: position.nextStationName,
+      currentPositionLabel: position.label,
+      currentSequenceNumber: position.sequenceNumber,
+      lastEventAt: position.lastEventAt,
+      lastEventType: position.lastEventType,
+      actualArrivalAt: targetStation?.ata ?? null,
+      transportQuantity: metricStation?.transportQuantity ?? 0,
+      targetUnloadTransportOrder:
+        targetStation?.unloadTotalTransportOrder ?? null,
+      sheetUpdatedAt: latestTimeUpdate(stations),
+      travelTimeMinutes: null,
+      travelTimeSource: null,
+    };
 
-  return { rows, total, pageNo };
-};
+    row = resolveEta(row, targetStation, travelLookup);
+    rows.push(row);
+  });
 
-export const parseVehicleLocationResponse = (
-  payload: unknown,
-): VehicleLocationInfo => {
-  if (typeof payload !== "object" || payload === null) {
-    throw new Error("Phản hồi vị trí xe không hợp lệ.");
-  }
+  const latestSheetUpdatedAt = records.reduce<number | null>(
+    (latest, record) => {
+      if (record.timeUpdate === null) return latest;
+      return latest === null
+        ? record.timeUpdate
+        : Math.max(latest, record.timeUpdate);
+    },
+    null,
+  );
 
-  const root = payload as {
-    retcode?: unknown;
-    message?: unknown;
-    data?: unknown;
-  };
-  if (root.retcode !== 0) {
-    throw new Error(
-      readText(root.message) || "Không thể tải vị trí xe từ SPX.",
-    );
-  }
-  if (typeof root.data !== "object" || root.data === null) {
-    throw new Error("Phản hồi vị trí xe thiếu data.");
-  }
-
-  const data = root.data as {
-    eta?: unknown;
-    location_list?: unknown;
-  };
-  const eta = readTimestamp(data.eta);
-  const locationList = Array.isArray(data.location_list)
-    ? data.location_list.filter(
-        (item): item is Record<string, unknown> =>
-          typeof item === "object" && item !== null,
-      )
-    : [];
-
-  const lastUpdatedAt = locationList.reduce<number | null>((latest, item) => {
-    const uploadTime = readTimestamp(item.upload_time);
-    if (uploadTime === null) return latest;
-    return latest === null ? uploadTime : Math.max(latest, uploadTime);
-  }, null);
-
-  return { eta, lastUpdatedAt };
+  return { rows, latestSheetUpdatedAt };
 };

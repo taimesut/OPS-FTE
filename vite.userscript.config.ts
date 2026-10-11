@@ -24,6 +24,8 @@ const metadata = `// ==UserScript==
 // @grant        GM_xmlhttpRequest
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
+// @connect      docs.google.com
+// @connect      accounts.google.com
 // @updateURL    ${userscriptUpdateUrl}
 // @downloadURL  ${userscriptUpdateUrl}
 // ==/UserScript==`;
