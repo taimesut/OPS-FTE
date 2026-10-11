@@ -11,6 +11,7 @@ import type { VehicleTravelTimeEntry } from "./vehicleTravelTime.ts";
 
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
 export const VEHICLE_CHECK_TARGET_STATION_NAME = "Pleiku SOC";
+export const VEHICLE_CHECK_OVERDUE_GRACE_SECONDS = 2 * 60 * 60;
 
 export interface VehicleCheckWindow {
   from: number;
@@ -350,9 +351,43 @@ const resolveTargetStation = (
     stations.find(
       (station) =>
         isPleiku(station.stationName) &&
-        station.sequenceNumber >= fromSequence,
+        station.sequenceNumber >= fromSequence &&
+        station.ata === null &&
+        station.atd === null,
     ) ?? null
   );
+};
+
+const hasFutureInboundLegToPleiku = (
+  stations: VehicleCheckStation[],
+  position: VehiclePositionInfo,
+): boolean => {
+  const fromSequence = position.sequenceNumber ?? Number.NEGATIVE_INFINITY;
+
+  return stations.some((station) => {
+    if (
+      station.sequenceNumber < fromSequence ||
+      !isPleiku(station.nextStationName)
+    ) {
+      return false;
+    }
+
+    // Nếu đây chính là sequence hiện tại và Pleiku đã có actual event
+    // ở một row riêng thì trip đã tới/đã xử lý, không còn inbound.
+    const pleikuStop = stations.find(
+      (candidate) =>
+        isPleiku(candidate.stationName) &&
+        candidate.sequenceNumber >= station.sequenceNumber,
+    );
+    if (
+      pleikuStop &&
+      (pleikuStop.ata !== null || pleikuStop.atd !== null)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 };
 
 const isTripStillHeadingToPleiku = (
@@ -360,16 +395,15 @@ const isTripStillHeadingToPleiku = (
   position: VehiclePositionInfo,
   targetStation: VehicleCheckStation | null,
 ): boolean => {
-  if (position.status === "arrived") return true;
-  if (position.status === "departed_target") return false;
-  if (targetStation) return true;
+  if (
+    position.status === "arrived" ||
+    position.status === "departed_target"
+  ) {
+    return false;
+  }
 
-  const fromSequence = position.sequenceNumber ?? Number.NEGATIVE_INFINITY;
-  return stations.some(
-    (station) =>
-      station.sequenceNumber >= fromSequence &&
-      isPleiku(station.nextStationName),
-  );
+  if (targetStation) return true;
+  return hasFutureInboundLegToPleiku(stations, position);
 };
 
 const median = (values: number[]): number | null => {
@@ -533,15 +567,11 @@ const resolveEta = (
     }
   }
 
-  if (targetStation?.eta !== null && targetStation?.eta !== undefined) {
-    return {
-      ...row,
-      eta: targetStation.eta,
-      etaSource: "pleiku_eta",
-    };
-  }
-
-  if (targetStation?.sta !== null && targetStation?.sta !== undefined) {
+  if (
+    targetStation?.sta !== null &&
+    targetStation?.sta !== undefined &&
+    (row.lastEventAt === null || targetStation.sta >= row.lastEventAt)
+  ) {
     return {
       ...row,
       eta: targetStation.sta,
@@ -595,27 +625,20 @@ export const isVehicleCheckRowInDisplayWindow = (
 ): boolean => {
   if (
     row.positionStatus === "arrived" ||
-    row.positionStatus === "departed_target"
+    row.positionStatus === "departed_target" ||
+    row.eta === null
   ) {
     return false;
   }
 
-  const isActiveInbound =
-    row.positionStatus === "in_transit" ||
-    row.positionStatus === "at_station";
+  const earliestAllowedEta =
+    window.from - VEHICLE_CHECK_OVERDUE_GRACE_SECONDS;
 
-  // Xe đã chạy/đang nằm ở SOC nhưng ETA bị trễ so với giờ hiện tại
-  // vẫn phải hiện. Chỉ loại nếu ETA còn nằm sau giới hạn +N giờ.
-  if (isActiveInbound) {
-    return row.eta === null || row.eta <= window.to;
-  }
-
-  // Trip chưa có ATA/ATD chỉ hiện khi ETA thật sự nằm trong khung đã chọn.
-  return (
-    row.eta !== null &&
-    row.eta >= window.from &&
-    row.eta <= window.to
-  );
+  // Chỉ giữ xe còn hợp lý để đang inbound:
+  // - ETA trong tương lai đến +N giờ; hoặc
+  // - ETA mới trễ tối đa 2 giờ để tránh mất xe do delay nhẹ.
+  // Trip cũ đã quá ETA nhiều giờ sẽ bị loại, tránh giữ xe đã xử lý/rời Pleiku.
+  return row.eta >= earliestAllowedEta && row.eta <= window.to;
 };
 
 export interface BuildVehicleCheckRowsResult {

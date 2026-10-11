@@ -277,6 +277,36 @@ test("learns SOC to Pleiku travel time from historical ATA/ATD rows on the same 
   assert.equal(current.etaSource, "travel_atd");
 });
 
+test("drops a trip immediately when Pleiku already has ATA even if an older inbound leg still exists", () => {
+  const table = {
+    headers,
+    sheetName: "DATA",
+    sourceRowCount: 2,
+    rows: [
+      row({
+        trip_number: "LT-PLEIKU-DONE",
+        sequence_number: 1,
+        station_name: "BMT SOC",
+        next_station_name: "Pleiku SOC",
+        trip_atd: "2026-10-11 10:00:00",
+        vehicle_number: "81H-DONE",
+        time_update: "2026-10-11 10:00:00",
+      }),
+      row({
+        trip_number: "LT-PLEIKU-DONE",
+        sequence_number: 2,
+        station_name: "Pleiku SOC",
+        next_station_name: "Kon Tum SOC",
+        trip_ata: "2026-10-11 14:00:00",
+        vehicle_number: "81H-DONE",
+        time_update: "2026-10-11 14:00:00",
+      }),
+    ],
+  };
+
+  assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
+});
+
 test("does not treat an old Pleiku sequence as a vehicle currently heading to Pleiku", () => {
   const table = {
     headers,
@@ -314,7 +344,7 @@ test("does not treat an old Pleiku sequence as a vehicle currently heading to Pl
   assert.equal(buildVehicleCheckRowsFromSheet(table).rows.length, 0);
 });
 
-test("keeps an active inbound vehicle when ETA is already overdue", () => {
+test("keeps an active inbound vehicle only during the short overdue grace", () => {
   const window = {
     from: 1_791_657_221,
     to: 1_791_686_021,
@@ -326,7 +356,7 @@ test("keeps an active inbound vehicle when ETA is already overdue", () => {
     vehicleTypeName: "—",
     agencyName: "—",
     stations: [],
-    eta: 1_791_650_000,
+    eta: 1_791_654_000,
     etaSource: "travel_atd" as const,
     targetSta: null,
     positionStatus: "in_transit" as const,
@@ -347,7 +377,7 @@ test("keeps an active inbound vehicle when ETA is already overdue", () => {
   assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), true);
 });
 
-test("keeps an active inbound vehicle even when ETA cannot be calculated yet", () => {
+test("hides an active inbound vehicle when ETA cannot be calculated", () => {
   const window = {
     from: 1_791_657_221,
     to: 1_791_686_021,
@@ -377,7 +407,40 @@ test("keeps an active inbound vehicle even when ETA cannot be calculated yet", (
     travelTimeSource: null,
   };
 
-  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), true);
+  assert.equal(isVehicleCheckRowInDisplayWindow(activeRow, window), false);
+});
+
+test("hides an old inbound leg after ETA is overdue by more than two hours", () => {
+  const window = {
+    from: 1_791_657_221,
+    to: 1_791_686_021,
+  };
+  const oldRow = {
+    tripNumber: "LT-OLD-DONE",
+    tripName: "",
+    vehiclePlateNumber: "81H",
+    vehicleTypeName: "—",
+    agencyName: "—",
+    stations: [],
+    eta: 1_791_640_000,
+    etaSource: "travel_atd" as const,
+    targetSta: null,
+    positionStatus: "in_transit" as const,
+    currentStationName: "BMT SOC",
+    nextStationName: "Pleiku SOC",
+    currentPositionLabel: "BMT SOC → Pleiku SOC",
+    currentSequenceNumber: 1,
+    lastEventAt: 1_791_620_000,
+    lastEventType: "atd" as const,
+    actualArrivalAt: null,
+    transportQuantity: 10,
+    targetUnloadTransportOrder: null,
+    sheetUpdatedAt: 1_791_656_000,
+    travelTimeMinutes: 270,
+    travelTimeSource: "app_config" as const,
+  };
+
+  assert.equal(isVehicleCheckRowInDisplayWindow(oldRow, window), false);
 });
 
 test("filters calculated Sheet ETA by the requested hours", () => {
