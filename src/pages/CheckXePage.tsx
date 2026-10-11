@@ -222,7 +222,7 @@ export const CheckXePage = () => {
                   ". Có " +
                   numberFormatter.format(rows.length) +
                   " trip nằm trong khung đã chọn."
-                : "Nguồn duy nhất: Google Sheet gid=0. Không gọi trip/list_v2 hoặc trip/location."}
+                : "Nguồn duy nhất: Google Sheet gid=0. Check xe không gọi API SPX."}
             </p>
             {latestSheetUpdatedAt !== null ? (
               <p className="mt-1 text-xs text-base-content/45">
