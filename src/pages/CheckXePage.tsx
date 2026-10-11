@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Clock3, RefreshCw, Truck } from "lucide-react";
+import { ChevronDown, Clock3, RefreshCw, Truck } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
@@ -53,8 +53,8 @@ export const CheckXePage = () => {
 
       showToast(
         result.rows.length > 0
-          ? `Đã tải ${result.rows.length} chuyến xe trong ${hours} giờ tiếp theo.`
-          : `Không có chuyến xe trong ${hours} giờ tiếp theo.`,
+          ? `Tìm thấy ${result.rows.length} trip có Pending Inbound TO và Order lớn hơn 0.`
+          : `Không có trip Pending Inbound trong ${hours} giờ tiếp theo.`,
         result.rows.length > 0 ? "success" : "info",
       );
     } catch (error) {
@@ -126,10 +126,10 @@ export const CheckXePage = () => {
             <p className="mt-1 break-safe text-sm font-bold">{summaryText}</p>
             <p className="mt-1 text-xs text-base-content/60">
               {hasChecked
-                ? `Hiển thị ${numberFormatter.format(
+                ? `Có ${numberFormatter.format(
                     rows.length,
-                  )}/${numberFormatter.format(total)} trip API trả về`
-                : "Mặc định kiểm tra 8 giờ tiếp theo. Có thể nhập số giờ khác rồi nhấn Check xe."}
+                  )} trip phù hợp trong ${numberFormatter.format(total)} trip API trả về`
+                : "Mặc định kiểm tra 8 giờ tiếp theo. Chỉ hiển thị trip có cả Pending Inbound TO và Pending Inbound Order lớn hơn 0."}
             </p>
           </div>
         </div>
@@ -140,13 +140,13 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe"
-          description="Pending Inbound lấy trực tiếp từ dữ liệu trip của SPX"
+          description="Chỉ hiển thị trip có Pending Inbound TO > 0 và Pending Inbound Order > 0"
           tone="info"
         />
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[860px]">
+            <table className="table table-sm min-w-[920px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
                   <th>LH Trip Number</th>
@@ -161,7 +161,37 @@ export const CheckXePage = () => {
                   <tr key={`${row.tripNumber}-${index}`} className="hover">
                     <td className="font-bold text-primary">{row.tripNumber}</td>
                     <td className="font-semibold">{row.vehiclePlateNumber}</td>
-                    <td>{row.station}</td>
+                    <td className="min-w-52">
+                      {row.stations.length > 0 ? (
+                        <div className="flex flex-col items-start py-1">
+                          {row.stations.map((station, stationIndex) => (
+                            <div
+                              key={`${station.sequenceNumber}-${station.stationId}-${stationIndex}`}
+                              className="flex flex-col items-start"
+                            >
+                              <span
+                                className={
+                                  station.isDisplay
+                                    ? "whitespace-nowrap text-sm font-black text-base-content"
+                                    : "whitespace-nowrap text-sm font-medium text-base-content/45"
+                                }
+                              >
+                                [{station.stationId}]{station.stationName}
+                              </span>
+                              {stationIndex < row.stations.length - 1 ? (
+                                <ChevronDown
+                                  className="my-0.5 h-3.5 w-3.5 text-base-content/35"
+                                  strokeWidth={2.5}
+                                  aria-hidden="true"
+                                />
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-base-content/40">—</span>
+                      )}
+                    </td>
                     <td className="text-right font-bold tabular-nums">
                       {numberFormatter.format(row.pendingInboundTo)}
                     </td>
@@ -181,12 +211,12 @@ export const CheckXePage = () => {
                         />
                         <p className="mt-3 text-sm font-bold">
                           {hasChecked
-                            ? "Không có chuyến xe trong khung thời gian này"
+                            ? "Không có trip Pending Inbound phù hợp"
                             : "Chưa có dữ liệu Check xe"}
                         </p>
                         <p className="mt-1 max-w-md text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Thử tăng số giờ cần check rồi kiểm tra lại."
+                            ? "Không có trip nào có đồng thời Pending Inbound TO và Pending Inbound Order lớn hơn 0 trong khung thời gian đã chọn."
                             : "Nhập số giờ muốn kiểm tra tiếp theo và nhấn Check xe."}
                         </p>
                       </div>
