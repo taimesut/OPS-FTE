@@ -9,7 +9,7 @@ import {
 } from "../src/utils/vehicleCheck.ts";
 import { fetchVehicleCheckRows } from "../src/utils/vehicleCheckApi.ts";
 
-test("builds the exact list_v2 vehicle-check request", () => {
+test("builds the exact list_v2 vehicle-check request with count 50", () => {
   const window = createVehicleCheckWindow(1_791_654_215_000, 8);
   assert.deepEqual(window, {
     from: 1_791_654_215,
@@ -23,22 +23,22 @@ test("builds the exact list_v2 vehicle-check request", () => {
     station_type: "2,3,7,12,14,16,18",
     trip_station_status: 200,
     pageno: 1,
-    count: 24,
+    count: 50,
     query_type: 1,
     tab_type: 2,
     sta: "1791654215,1791683015",
   });
 });
 
-test("keeps only positive Pending Inbound trips and maps the full station route", () => {
+test("maps station route, ETA and movement status while filtering Pending Inbound", () => {
   const page = parseVehicleCheckResponse({
     retcode: 0,
     data: {
       pageno: 1,
-      total: 3,
+      total: 4,
       list: [
         {
-          trip_number: "LT0QAA4ZZ49T1",
+          trip_number: "LT-ARRIVING",
           vehicle_number: "37C-586.46",
           vehicle_plate_number_list: ["37C-586.46"],
           display_station_sequence: 3,
@@ -46,29 +46,43 @@ test("keeps only positive Pending Inbound trips and maps the full station route"
           order_inbound_quantity: 2089,
           trip_station: [
             {
-              sequence_number: 5,
-              station: 2490,
-              station_name: "BD A Mega SOC",
-            },
-            {
               sequence_number: 1,
               station: 3909,
               station_name: "Hung Yen SOC",
-            },
-            {
-              sequence_number: 3,
-              station: 1030,
-              station_name: "Pleiku SOC",
+              eta: 0,
             },
             {
               sequence_number: 2,
               station: 1769,
               station_name: "Kon Tum SOC",
+              eta: 0,
             },
             {
-              sequence_number: 4,
+              sequence_number: 3,
+              station: 1030,
+              station_name: "Pleiku SOC",
+              eta: 1791805877,
+            },
+          ],
+        },
+        {
+          trip_number: "LT-HELD",
+          vehicle_number: "81A-000.02",
+          display_station_sequence: 2,
+          to_inbound_quantity: 12,
+          order_inbound_quantity: 120,
+          trip_station: [
+            {
+              sequence_number: 1,
               station: 725,
               station_name: "BMT SOC",
+              eta: 0,
+            },
+            {
+              sequence_number: 2,
+              station: 1030,
+              station_name: "Pleiku SOC",
+              eta: 0,
             },
           ],
         },
@@ -90,10 +104,10 @@ test("keeps only positive Pending Inbound trips and maps the full station route"
 
   assert.deepEqual(page, {
     pageNo: 1,
-    total: 3,
+    total: 4,
     rows: [
       {
-        tripNumber: "LT0QAA4ZZ49T1",
+        tripNumber: "LT-ARRIVING",
         vehiclePlateNumber: "37C-586.46",
         stations: [
           {
@@ -101,40 +115,57 @@ test("keeps only positive Pending Inbound trips and maps the full station route"
             stationId: "3909",
             stationName: "Hung Yen SOC",
             isDisplay: false,
+            eta: null,
           },
           {
             sequenceNumber: 2,
             stationId: "1769",
             stationName: "Kon Tum SOC",
             isDisplay: false,
+            eta: null,
           },
           {
             sequenceNumber: 3,
             stationId: "1030",
             stationName: "Pleiku SOC",
             isDisplay: true,
-          },
-          {
-            sequenceNumber: 4,
-            stationId: "725",
-            stationName: "BMT SOC",
-            isDisplay: false,
-          },
-          {
-            sequenceNumber: 5,
-            stationId: "2490",
-            stationName: "BD A Mega SOC",
-            isDisplay: false,
+            eta: 1791805877,
           },
         ],
         pendingInboundTo: 180,
         pendingInboundOrder: 2089,
+        eta: 1791805877,
+        movementStatus: "arriving",
+      },
+      {
+        tripNumber: "LT-HELD",
+        vehiclePlateNumber: "81A-000.02",
+        stations: [
+          {
+            sequenceNumber: 1,
+            stationId: "725",
+            stationName: "BMT SOC",
+            isDisplay: false,
+            eta: null,
+          },
+          {
+            sequenceNumber: 2,
+            stationId: "1030",
+            stationName: "Pleiku SOC",
+            isDisplay: true,
+            eta: null,
+          },
+        ],
+        pendingInboundTo: 12,
+        pendingInboundOrder: 120,
+        eta: null,
+        movementStatus: "held",
       },
     ],
   });
 });
 
-test("continues paging even when an API page has no matching positive Pending Inbound rows", async () => {
+test("continues paging with count 50 even when a page has no matching rows", async () => {
   const calls: Array<{
     path: string;
     params: Record<string, string | number>;
@@ -152,7 +183,7 @@ test("continues paging even when an API page has no matching positive Pending In
             retcode: 0,
             data: {
               pageno: pageNo,
-              total: 25,
+              total: 51,
               list:
                 pageNo === 1
                   ? [
@@ -167,6 +198,7 @@ test("continues paging even when an API page has no matching positive Pending In
                             sequence_number: 1,
                             station: 1030,
                             station_name: "Pleiku SOC",
+                            eta: 0,
                           },
                         ],
                       },
@@ -183,6 +215,7 @@ test("continues paging even when an API page has no matching positive Pending In
                             sequence_number: 1,
                             station: 1030,
                             station_name: "Pleiku SOC",
+                            eta: 1791805877,
                           },
                         ],
                       },
@@ -196,14 +229,16 @@ test("continues paging even when an API page has no matching positive Pending In
 
   assert.equal(calls.length, 2);
   assert.equal(calls[0].path, VEHICLE_CHECK_PATH);
+  assert.equal(calls[0].params.count, 50);
   assert.equal(calls[0].params.sta, "1791654215,1791683015");
-  assert.equal(calls[1].params.sta, "1791654215,1791683015");
+  assert.equal(calls[1].params.count, 50);
   assert.equal(calls[1].params.pageno, 2);
-  assert.equal(result.total, 25);
+  assert.equal(result.total, 51);
   assert.deepEqual(
     result.rows.map((row) => row.tripNumber),
     ["LT-SECOND"],
   );
+  assert.equal(result.rows[0].movementStatus, "arriving");
 });
 
 test("wires Check xe into browser and userscript navigation", () => {

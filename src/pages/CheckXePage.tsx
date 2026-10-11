@@ -140,18 +140,20 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe"
-          description="Chỉ hiển thị trip có Pending Inbound TO > 0 và Pending Inbound Order > 0"
+          description="Có ETA tại station đang highlight = Đang về; không có ETA = Bị giam"
           tone="info"
         />
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[920px]">
+            <table className="table table-sm min-w-[1120px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
                   <th>LH Trip Number</th>
                   <th>Vehicle Plate Number</th>
                   <th>Station</th>
+                  <th>ETA</th>
+                  <th>Trạng thái</th>
                   <th className="text-right">Pending Inbound TO</th>
                   <th className="text-right">Pending Inbound Order</th>
                 </tr>
@@ -192,6 +194,22 @@ export const CheckXePage = () => {
                         <span className="text-base-content/40">—</span>
                       )}
                     </td>
+                    <td className="whitespace-nowrap font-semibold tabular-nums">
+                      {row.eta !== null ? formatUnixTime(row.eta) : "—"}
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          row.movementStatus === "arriving"
+                            ? "badge badge-success whitespace-nowrap font-bold"
+                            : "badge badge-warning whitespace-nowrap font-bold"
+                        }
+                      >
+                        {row.movementStatus === "arriving"
+                          ? "Đang về"
+                          : "Bị giam"}
+                      </span>
+                    </td>
                     <td className="text-right font-bold tabular-nums">
                       {numberFormatter.format(row.pendingInboundTo)}
                     </td>
@@ -203,7 +221,7 @@ export const CheckXePage = () => {
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={7}>
                       <div className="flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center">
                         <Truck
                           className="h-8 w-8 text-base-content/30"

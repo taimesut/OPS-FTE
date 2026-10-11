@@ -1,6 +1,6 @@
 export const VEHICLE_CHECK_PATH =
   "/api/admin/transportation/trip/list_v2";
-export const VEHICLE_CHECK_PAGE_SIZE = 24;
+export const VEHICLE_CHECK_PAGE_SIZE = 50;
 export const DEFAULT_VEHICLE_CHECK_HOURS = 8;
 
 export interface VehicleCheckWindow {
@@ -13,7 +13,10 @@ export interface VehicleCheckStation {
   stationId: string;
   stationName: string;
   isDisplay: boolean;
+  eta: number | null;
 }
+
+export type VehicleMovementStatus = "arriving" | "held";
 
 export interface VehicleCheckRow {
   tripNumber: string;
@@ -21,6 +24,8 @@ export interface VehicleCheckRow {
   stations: VehicleCheckStation[];
   pendingInboundTo: number;
   pendingInboundOrder: number;
+  eta: number | null;
+  movementStatus: VehicleMovementStatus;
 }
 
 export interface VehicleCheckPage {
@@ -36,6 +41,11 @@ const readNonNegativeNumber = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value
     : 0;
+
+const readPositiveNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 
 const readStationId = (station: Record<string, unknown>): string => {
   if (
@@ -87,6 +97,7 @@ const resolveStationRoute = (
         stationName: readText(station.station_name) || "—",
         isDisplay:
           displaySequence !== null && sequenceNumber === displaySequence,
+        eta: readPositiveNumber(station.eta),
       };
     })
     .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
@@ -171,13 +182,20 @@ export const parseVehicleCheckResponse = (payload: unknown): VehicleCheckPage =>
       (trip): trip is Record<string, unknown> =>
         typeof trip === "object" && trip !== null,
     )
-    .map<VehicleCheckRow>((trip) => ({
-      tripNumber: readText(trip.trip_number) || "—",
-      vehiclePlateNumber: resolveVehiclePlateNumber(trip),
-      stations: resolveStationRoute(trip),
-      pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
-      pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
-    }))
+    .map<VehicleCheckRow>((trip) => {
+      const stations = resolveStationRoute(trip);
+      const eta = stations.find((station) => station.isDisplay)?.eta ?? null;
+
+      return {
+        tripNumber: readText(trip.trip_number) || "—",
+        vehiclePlateNumber: resolveVehiclePlateNumber(trip),
+        stations,
+        pendingInboundTo: readNonNegativeNumber(trip.to_inbound_quantity),
+        pendingInboundOrder: readNonNegativeNumber(trip.order_inbound_quantity),
+        eta,
+        movementStatus: eta !== null ? "arriving" : "held",
+      };
+    })
     .filter(
       (row) => row.pendingInboundTo > 0 && row.pendingInboundOrder > 0,
     );
