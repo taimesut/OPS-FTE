@@ -6,7 +6,6 @@ import { showToast } from "../components/Toast";
 import {
   DEFAULT_VEHICLE_CHECK_HOURS,
   getRouteLabel,
-  getStationStatusLabel,
   type VehicleCheckRow,
   type VehicleCheckWindow,
 } from "../utils/vehicleCheck";
@@ -63,6 +62,14 @@ const processLabel = (row: VehicleCheckRow): string =>
       : row.operationalState === "holding"
         ? "SOC đang giữ xe"
         : "Chưa xác định";
+
+const positionLabel = (row: VehicleCheckRow): string => {
+  if (row.currentStationName && row.nextStationName) {
+    return row.currentStationName + " → " + row.nextStationName;
+  }
+  if (row.currentStationName) return row.currentStationName;
+  return "—";
+};
 
 export const CheckXePage = () => {
   const [hours, setHours] = useState(DEFAULT_VEHICLE_CHECK_HOURS);
@@ -206,7 +213,7 @@ export const CheckXePage = () => {
             </span>
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-                ETA Pleiku
+                Khung dự kiến đến Pleiku
               </p>
               <p className="mt-1 text-sm font-bold">{etaWindowText}</p>
               <p className="mt-1 text-xs text-base-content/55">
@@ -256,20 +263,18 @@ export const CheckXePage = () => {
 
         <div className="app-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="table table-sm min-w-[1600px]">
+            <table className="table table-sm min-w-[1280px]">
               <thead>
                 <tr className="bg-base-200/70 text-xs uppercase tracking-wide text-base-content/65">
                   <th>LH Trip</th>
-                  <th>Biển số</th>
+                  <th>Biển số xe</th>
                   <th>Trạng thái</th>
                   <th>Vị trí xe</th>
-                  <th>ETA Pleiku</th>
+                  <th>Dự kiến</th>
                   <th>Còn lại</th>
                   <th className="text-right">Pending Inbound TO</th>
                   <th className="text-right">Pending Inbound Order</th>
                   <th>Tuyến SOC</th>
-                  <th>Loại xe</th>
-                  <th>Nhà xe</th>
                 </tr>
               </thead>
               <tbody>
@@ -285,12 +290,9 @@ export const CheckXePage = () => {
                       <span className={statusBadgeClass(row)}>
                         {processLabel(row)}
                       </span>
-                      <p className="mt-1 text-xs text-base-content/45">
-                        Pleiku status: {row.pleikuStationStatus}
-                      </p>
                     </td>
-                    <td className="min-w-64 font-semibold">
-                      {row.currentPositionLabel}
+                    <td className="min-w-60 whitespace-nowrap font-semibold">
+                      {positionLabel(row)}
                     </td>
                     <td className="whitespace-nowrap font-black tabular-nums">
                       {row.etaPleiku !== null
@@ -306,50 +308,15 @@ export const CheckXePage = () => {
                     <td className="text-right font-bold tabular-nums">
                       {numberFormatter.format(row.pendingInboundOrder)}
                     </td>
-                    <td className="min-w-[420px]">
-                      <p className="text-sm font-semibold">
-                        {getRouteLabel(row)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {row.stations.map((station) => (
-                          <span
-                            key={
-                              row.tripNumber +
-                              "-" +
-                              station.sequenceNumber
-                            }
-                            className={
-                              "badge badge-sm " +
-                              (station.stationCode === "44SOCGL"
-                                ? "badge-primary"
-                                : "badge-ghost")
-                            }
-                            title={
-                              station.stationCode +
-                              " · status " +
-                              station.tripStationStatus
-                            }
-                          >
-                            {station.stationName} ·{" "}
-                            {getStationStatusLabel(
-                              station.tripStationStatus,
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap text-sm">
-                      {row.vehicleTypeName}
-                    </td>
-                    <td className="whitespace-nowrap text-sm">
-                      {row.agencyName}
+                    <td className="min-w-[460px] text-sm font-semibold">
+                      {getRouteLabel(row)}
                     </td>
                   </tr>
                 ))}
 
                 {!loading && rows.length === 0 ? (
                   <tr>
-                    <td colSpan={11}>
+                    <td colSpan={9}>
                       <div className="flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center">
                         <Truck
                           className="h-8 w-8 text-base-content/30"
