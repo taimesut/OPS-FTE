@@ -48,6 +48,7 @@ export interface VehicleCheckRow {
   vehiclePlateNumber: string;
   vehicleTypeName: string;
   agencyName: string;
+  driverId: number;
   pendingInboundTo: number;
   pendingInboundOrder: number;
   stations: VehicleCheckStation[];
@@ -326,18 +327,10 @@ export const createVehicleCheckParams = (
 export const isVehicleCheckRowVisible = (
   row: VehicleCheckRow,
   displayWindow: VehicleCheckWindow,
-): boolean => {
-  // Trip đang có Pending Inbound tại Pleiku và Pleiku đã có trạng thái xử lý:
-  // vẫn hiển thị để vận hành nhìn thấy Arrival/Unseal/Pending/Unloaded.
-  if (row.pleikuStationStatus !== 0) return true;
-
-  // Trip chưa đến Pleiku: chỉ hiển thị nếu ETA nằm trong N giờ tới.
-  return (
-    row.etaPleiku !== null &&
-    row.etaPleiku >= displayWindow.from &&
-    row.etaPleiku <= displayWindow.to
-  );
-};
+): boolean =>
+  row.etaPleiku !== null &&
+  row.etaPleiku >= displayWindow.from &&
+  row.etaPleiku <= displayWindow.to;
 
 export const parseVehicleCheckResponse = (
   payload: unknown,
@@ -375,7 +368,11 @@ export const parseVehicleCheckResponse = (
       (trip): trip is Record<string, unknown> =>
         typeof trip === "object" && trip !== null,
     )
-    .filter((trip) => readNumber(trip.to_inbound_quantity) > 0)
+    .filter(
+      (trip) =>
+        readNumber(trip.to_inbound_quantity) > 0 &&
+        readNumber(trip.driver) !== 0,
+    )
     .map((trip): VehicleCheckRow | null => {
       const stations = parseStations(trip);
       const pleikuStationIndex = stations.findIndex(
@@ -407,6 +404,7 @@ export const parseVehicleCheckResponse = (
         vehiclePlateNumber: resolvePlate(trip),
         vehicleTypeName: readText(trip.vehicle_type_name) || "—",
         agencyName: readText(trip.agency_name) || "—",
+        driverId: readNumber(trip.driver),
         pendingInboundTo: readNumber(trip.to_inbound_quantity),
         pendingInboundOrder: readNumber(trip.order_inbound_quantity),
         stations,

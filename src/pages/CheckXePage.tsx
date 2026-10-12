@@ -69,6 +69,7 @@ export const CheckXePage = () => {
   const [rows, setRows] = useState<VehicleCheckRow[]>([]);
   const [apiTotal, setApiTotal] = useState(0);
   const [candidateCount, setCandidateCount] = useState(0);
+  const [calculatedEtaCount, setCalculatedEtaCount] = useState(0);
   const [pagesFetched, setPagesFetched] = useState(0);
   const [queryWindow, setQueryWindow] =
     useState<VehicleCheckWindow | null>(null);
@@ -111,6 +112,7 @@ export const CheckXePage = () => {
       setRows(result.rows);
       setApiTotal(result.apiTotal);
       setCandidateCount(result.candidateCount);
+      setCalculatedEtaCount(result.calculatedEtaCount);
       setPagesFetched(result.pagesFetched);
       setQueryWindow(result.queryWindow);
       setDisplayWindow(result.displayWindow);
@@ -118,10 +120,18 @@ export const CheckXePage = () => {
 
       showToast(
         result.rows.length > 0
-          ? "Hiển thị " +
+          ? "Có " +
               result.rows.length +
-              " trip có Pending Inbound tại Pleiku."
-          : "Không có trip phù hợp.",
+              " xe dự kiến đến Pleiku trong " +
+              hours +
+              " giờ tới."
+          : result.candidateCount > 0
+            ? "Đã có " +
+              result.candidateCount +
+              " xe hợp lệ nhưng không có ETA nào nằm trong " +
+              hours +
+              " giờ tới."
+            : "Không có xe thỏa Pending Inbound TO > 0 và driver != 0.",
         result.rows.length > 0 ? "success" : "info",
       );
     } catch (error) {
@@ -143,7 +153,7 @@ export const CheckXePage = () => {
         icon={Truck}
         tone="info"
         title="Check xe"
-        description="Lấy trip trực tiếp từ FMS list_v2, lọc Pending Inbound TO và đọc trạng thái trip_station quanh Pleiku SOC."
+        description="Lấy trip từ list_v2, giữ xe có Pending Inbound TO > 0 và driver != 0, tính ETA Pleiku cho toàn bộ rồi mới lọc theo số giờ đã nhập."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-end">
             <label className="form-control w-full sm:w-44">
@@ -200,7 +210,7 @@ export const CheckXePage = () => {
               </p>
               <p className="mt-1 text-sm font-bold">{etaWindowText}</p>
               <p className="mt-1 text-xs text-base-content/55">
-                Trip chưa đến Pleiku chỉ hiện khi ETA nằm trong khung này.
+                Chỉ hiện xe có ETA Pleiku nằm từ thời điểm hiện tại đến hết khung giờ này.
               </p>
             </div>
           </div>
@@ -219,7 +229,13 @@ export const CheckXePage = () => {
                   ? numberFormatter.format(apiTotal) +
                     " trip API · " +
                     numberFormatter.format(candidateCount) +
-                    " trip có Pending Inbound TO + 44SOCGL · " +
+                    " xe hợp lệ (Inbound > 0 + driver != 0 + 44SOCGL) · " +
+                    numberFormatter.format(calculatedEtaCount) +
+                    " xe tính được ETA · " +
+                    numberFormatter.format(rows.length) +
+                    " xe nằm trong " +
+                    hours +
+                    "H · " +
                     pagesFetched +
                     " trang"
                   : "trip_station_status=60,50,200,80 · count=50 · quét đủ các trang"}
@@ -234,7 +250,7 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe / trip"
-          description="Pleiku có status khác 0 sẽ map trực tiếp. Nếu Pleiku = 0, hệ thống lùi từng SOC trước đó để tìm xe đang chạy hay SOC đang giữ xe."
+          description="Trạng thái trip_station chỉ dùng để xác định xe đang ở đâu và làm cơ sở tính ETA. Danh sách cuối cùng luôn được lọc bằng ETA Pleiku trong N giờ tới."
           tone="info"
         />
 
@@ -282,9 +298,7 @@ export const CheckXePage = () => {
                         : "—"}
                     </td>
                     <td className="whitespace-nowrap text-sm font-semibold">
-                      {row.pleikuStationStatus !== 0
-                        ? "Đang xử lý tại Pleiku"
-                        : formatRemaining(row.etaPleiku)}
+                      {formatRemaining(row.etaPleiku)}
                     </td>
                     <td className="text-right font-bold tabular-nums">
                       {numberFormatter.format(row.pendingInboundTo)}
@@ -348,7 +362,7 @@ export const CheckXePage = () => {
                         </p>
                         <p className="mt-1 max-w-lg text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Trip phải có Pending Inbound TO > 0, có station_code 44SOCGL và nếu chưa đến Pleiku thì ETA phải nằm trong số giờ đã chọn."
+                            ? "Ứng viên phải có Pending Inbound TO > 0, driver != 0 và station_code 44SOCGL. Sau khi tính ETA Pleiku, chỉ xe có ETA nằm trong số giờ đã nhập mới được hiện."
                             : "Nhấn Check xe để quét list_v2 từ hiện tại -1 ngày đến +1 ngày."}
                         </p>
                       </div>

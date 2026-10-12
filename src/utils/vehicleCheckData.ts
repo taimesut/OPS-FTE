@@ -16,6 +16,7 @@ export interface VehicleCheckResult {
   rows: VehicleCheckRow[];
   apiTotal: number;
   candidateCount: number;
+  calculatedEtaCount: number;
   displayedCount: number;
   queryWindow: VehicleCheckWindow;
   displayWindow: VehicleCheckWindow;
@@ -108,6 +109,9 @@ export const fetchVehicleCheckRows = async (
   }
 
   const candidates = Array.from(uniqueRows.values());
+  const calculatedEtaCount = candidates.filter(
+    (row) => row.etaPleiku !== null,
+  ).length;
   const rows = candidates
     .filter((row) =>
       isVehicleCheckRowVisible(row, displayWindow),
@@ -118,6 +122,7 @@ export const fetchVehicleCheckRows = async (
     rows,
     apiTotal,
     candidateCount: candidates.length,
+    calculatedEtaCount,
     displayedCount: rows.length,
     queryWindow,
     displayWindow,

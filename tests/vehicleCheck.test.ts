@@ -130,7 +130,7 @@ test("backward nonzero status other than 40 means that SOC is holding the vehicl
   assert.equal(result.label, "Kon Tum SOC đang giữ xe");
 });
 
-test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () => {
+test("response filters by inbound > 0, driver != 0, and requires 44SOCGL", () => {
   const payload = {
     retcode: 0,
     data: {
@@ -140,6 +140,7 @@ test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () =
         {
           id: 1,
           trip_number: "KEEP",
+          driver: 123461,
           to_inbound_quantity: 10,
           order_inbound_quantity: 50,
           trip_station: [
@@ -162,6 +163,7 @@ test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () =
         {
           id: 2,
           trip_number: "DROP-ZERO-TO",
+          driver: 123462,
           to_inbound_quantity: 0,
           order_inbound_quantity: 50,
           trip_station: [
@@ -175,7 +177,23 @@ test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () =
         },
         {
           id: 3,
+          trip_number: "DROP-ZERO-DRIVER",
+          driver: 0,
+          to_inbound_quantity: 9,
+          order_inbound_quantity: 20,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 0,
+            },
+          ],
+        },
+        {
+          id: 4,
           trip_number: "DROP-NO-PLEIKU",
+          driver: 123463,
           to_inbound_quantity: 9,
           order_inbound_quantity: 20,
           trip_station: [
@@ -194,6 +212,7 @@ test("response filters to_inbound_quantity <= 0 and trips without 44SOCGL", () =
   const page = parseVehicleCheckResponse(payload);
   assert.equal(page.rows.length, 1);
   assert.equal(page.rows[0].tripNumber, "KEEP");
+  assert.equal(page.rows[0].driverId, 123461);
   assert.equal(page.rows[0].pendingInboundTo, 10);
   assert.equal(page.rows[0].pendingInboundOrder, 50);
 });
@@ -208,6 +227,7 @@ test("trip route preserves every SOC in trip_station", () => {
         {
           id: 1,
           trip_number: "ROUTE",
+          driver: 999,
           to_inbound_quantity: 10,
           order_inbound_quantity: 100,
           trip_station: [
@@ -248,7 +268,7 @@ test("trip route preserves every SOC in trip_station", () => {
   );
 });
 
-test("not-arrived trip is filtered by ETA N hours, processing Pleiku trip stays visible", () => {
+test("all final results are filtered only by calculated ETA in N hours", () => {
   const base = {
     tripId: 1,
     tripNumber: "LT",
@@ -256,6 +276,7 @@ test("not-arrived trip is filtered by ETA N hours, processing Pleiku trip stays 
     vehiclePlateNumber: "81H",
     vehicleTypeName: "Truck",
     agencyName: "Agency",
+    driverId: 123,
     pendingInboundTo: 10,
     pendingInboundOrder: 100,
     stations: [],
@@ -300,6 +321,19 @@ test("not-arrived trip is filtered by ETA N hours, processing Pleiku trip stays 
         pleikuProcessStatus: "arrival",
         pleikuProcessLabel: "Arrival",
         etaPleiku: null,
+      },
+      window,
+    ),
+    false,
+  );
+  assert.equal(
+    isVehicleCheckRowVisible(
+      {
+        ...base,
+        pleikuStationStatus: 60,
+        pleikuProcessStatus: "unseal",
+        pleikuProcessLabel: "Unseal",
+        etaPleiku: 1500,
       },
       window,
     ),
