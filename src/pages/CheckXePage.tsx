@@ -229,7 +229,7 @@ export const CheckXePage = () => {
                   ? numberFormatter.format(apiTotal) +
                     " trip API · " +
                     numberFormatter.format(candidateCount) +
-                    " xe hợp lệ (Inbound > 0 + driver != 0 + 44SOCGL) · " +
+                    " xe ứng viên (Inbound > 0 + driver != 0) · " +
                     numberFormatter.format(calculatedEtaCount) +
                     " xe tính được ETA · " +
                     numberFormatter.format(rows.length) +
@@ -362,7 +362,7 @@ export const CheckXePage = () => {
                         </p>
                         <p className="mt-1 max-w-lg text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Ứng viên phải có Pending Inbound TO > 0, driver != 0 và station_code 44SOCGL. Sau khi tính ETA Pleiku, chỉ xe có ETA nằm trong số giờ đã nhập mới được hiện."
+                            ? "Ứng viên chỉ cần Pending Inbound TO > 0 và driver != 0. Hệ thống tính ETA Pleiku cho từng trip; trip không tính được ETA hoặc ETA ngoài khung giờ sẽ bị loại ở bước cuối."
                             : "Nhấn Check xe để quét list_v2 từ hiện tại -1 ngày đến +1 ngày."}
                         </p>
                       </div>

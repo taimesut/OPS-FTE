@@ -210,11 +210,18 @@ test("response filters by inbound > 0, driver != 0, and requires 44SOCGL", () =>
   };
 
   const page = parseVehicleCheckResponse(payload);
-  assert.equal(page.rows.length, 1);
-  assert.equal(page.rows[0].tripNumber, "KEEP");
-  assert.equal(page.rows[0].driverId, 123461);
-  assert.equal(page.rows[0].pendingInboundTo, 10);
-  assert.equal(page.rows[0].pendingInboundOrder, 50);
+  assert.equal(page.rows.length, 2);
+  const keep = page.rows.find((row) => row.tripNumber === "KEEP");
+  const noPleiku = page.rows.find(
+    (row) => row.tripNumber === "DROP-NO-PLEIKU",
+  );
+  assert.ok(keep);
+  assert.equal(keep.driverId, 123461);
+  assert.equal(keep.pendingInboundTo, 10);
+  assert.equal(keep.pendingInboundOrder, 50);
+  assert.ok(noPleiku);
+  assert.equal(noPleiku.pleikuStationIndex, -1);
+  assert.equal(noPleiku.etaPleiku, null);
 });
 
 test("trip route preserves every SOC in trip_station", () => {

@@ -380,12 +380,16 @@ export const parseVehicleCheckResponse = (
           station.stationCode.toUpperCase() ===
           VEHICLE_CHECK_TARGET_STATION_CODE,
       );
-      if (pleikuStationIndex < 0) return null;
-
-      const pleiku = stations[pleikuStationIndex];
-      const mapped = mapPleikuStationStatus(
-        pleiku.tripStationStatus,
-      );
+      const pleiku =
+        pleikuStationIndex >= 0
+          ? stations[pleikuStationIndex]
+          : null;
+      const mapped = pleiku
+        ? mapPleikuStationStatus(pleiku.tripStationStatus)
+        : {
+            process: "other" as const,
+            label: "Không có 44SOCGL",
+          };
       const operational = resolveOperationalState(
         stations,
         pleikuStationIndex,
@@ -409,7 +413,7 @@ export const parseVehicleCheckResponse = (
         pendingInboundOrder: readNumber(trip.order_inbound_quantity),
         stations,
         pleikuStationIndex,
-        pleikuStationStatus: pleiku.tripStationStatus,
+        pleikuStationStatus: pleiku?.tripStationStatus ?? 0,
         pleikuProcessStatus: mapped.process,
         pleikuProcessLabel: mapped.label,
         etaPleiku,
