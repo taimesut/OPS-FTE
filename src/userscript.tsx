@@ -40,7 +40,7 @@ function mountOpsFte() {
     launcher.style.cssText = [
       "position:fixed",
       "right:16px",
-      "bottom:max(20px,env(safe-area-inset-bottom))",
+      "top:max(16px,env(safe-area-inset-top))",
       "z-index:2147483647",
       "border:0",
       "border-radius:9999px",
