@@ -146,7 +146,7 @@ export const HomePage = () => {
             </div>
           ) : (
             <p className="text-xs text-base-content/60">
-              Chưa có thông tin phiên bản
+              Bản phát triển
             </p>
           )}
         </section>
