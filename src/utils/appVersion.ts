@@ -9,12 +9,23 @@ export interface AppVersionRunner {
   getAppVersionInfo(): void;
 }
 
+declare const __OPS_FTE_APP_VERSION__: string | undefined;
+
 type GoogleAppsScriptGlobal = typeof globalThis & {
   google?: { script?: { run?: AppVersionRunner } };
 };
 
 const getDefaultRunner = (): AppVersionRunner | null =>
   (globalThis as GoogleAppsScriptGlobal).google?.script?.run ?? null;
+
+export const getBundledAppVersionInfo = (): AppVersionInfo | null => {
+  const version =
+    typeof __OPS_FTE_APP_VERSION__ === "string"
+      ? __OPS_FTE_APP_VERSION__.trim()
+      : "";
+
+  return version ? { version, updateContent: "" } : null;
+};
 
 export const normalizeAppVersionInfo = (
   value: unknown,
@@ -35,6 +46,12 @@ export const normalizeAppVersionInfo = (
 export const loadAppVersionInfo = (
   runner: AppVersionRunner | null = getDefaultRunner(),
 ): Promise<AppVersionInfo | null> => {
+  const bundledVersion = getBundledAppVersionInfo();
+
+  // Firefox/userscript luôn hiển thị đúng version đã được GitHub Actions
+  // nhúng vào bundle tại thời điểm build.
+  if (bundledVersion) return Promise.resolve(bundledVersion);
+
   if (!runner) return Promise.resolve(null);
 
   return new Promise((resolve) => {
