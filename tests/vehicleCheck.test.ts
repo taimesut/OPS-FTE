@@ -46,7 +46,7 @@ test("list_v2 params match the requested FMS query", () => {
   );
   assert.deepEqual(params, {
     station_type: "2,3,7,12,14,16,18",
-    trip_station_status: "60,50,200,80",
+    trip_station_status: "50,60,70,80,200",
     pageno: 1,
     count: VEHICLE_CHECK_PAGE_SIZE,
     query_type: 1,
@@ -67,6 +67,10 @@ test("Pleiku direct statuses map exactly to requested labels", () => {
   assert.deepEqual(mapPleikuStationStatus(200), {
     process: "pending",
     label: "Pending",
+  });
+  assert.deepEqual(mapPleikuStationStatus(70), {
+    process: "loading",
+    label: "Loading",
   });
   assert.deepEqual(mapPleikuStationStatus(80), {
     process: "unloaded",
@@ -224,6 +228,73 @@ test("response filters by inbound > 0, driver != 0, and requires 44SOCGL", () =>
   assert.equal(noPleiku.etaPleiku, null);
 });
 
+test("keeps vehicles already at Pleiku even when pending inbound reaches zero", () => {
+  const payload = {
+    retcode: 0,
+    data: {
+      pageno: 1,
+      total: 3,
+      list: [
+        {
+          id: 11,
+          trip_number: "AT-PLEIKU-UNSEAL",
+          driver: 321,
+          to_inbound_quantity: 0,
+          order_inbound_quantity: 0,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 60,
+            },
+          ],
+        },
+        {
+          id: 12,
+          trip_number: "AT-PLEIKU-LOADING",
+          driver: 322,
+          to_inbound_quantity: 0,
+          order_inbound_quantity: 0,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 70,
+            },
+          ],
+        },
+        {
+          id: 13,
+          trip_number: "AT-PLEIKU-UNLOADED",
+          driver: 323,
+          to_inbound_quantity: 0,
+          order_inbound_quantity: 0,
+          trip_station: [
+            {
+              sequence_number: 1,
+              station_code: "44SOCGL",
+              station_name: "Pleiku SOC",
+              trip_station_status: 80,
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const page = parseVehicleCheckResponse(payload);
+  assert.deepEqual(
+    page.rows.map((row) => [row.tripNumber, row.pleikuProcessLabel]),
+    [
+      ["AT-PLEIKU-UNSEAL", "Unseal"],
+      ["AT-PLEIKU-LOADING", "Loading"],
+      ["AT-PLEIKU-UNLOADED", "Unloaded"],
+    ],
+  );
+});
+
 test("trip route preserves every SOC in trip_station", () => {
   const payload = {
     retcode: 0,
@@ -331,7 +402,7 @@ test("all final results are filtered only by calculated ETA in N hours", () => {
       },
       window,
     ),
-    false,
+    true,
   );
   assert.equal(
     isVehicleCheckRowVisible(
