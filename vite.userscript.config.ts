@@ -36,6 +36,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    "__OPS_FTE_APP_VERSION__": JSON.stringify(userscriptVersion),
   },
   build: {
     outDir: "userscript-dist",
