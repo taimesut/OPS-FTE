@@ -42,8 +42,8 @@ export const createInternalHubVolumePayload = (
 ) => {
   const currentId = currentStationId.trim();
   const nextId = nextStationId.trim();
-  if (!currentId) throw new Error("SOC nguồn chưa có ID.");
-  if (!nextId) throw new Error("Hub nội tỉnh chưa có ID.");
+  if (!currentId) throw new Error("SOC nguồn chưa được cấu hình đầy đủ.");
+  if (!nextId) throw new Error("Hub nội tỉnh chưa được cấu hình đầy đủ.");
 
   return {
     order_status: "8,33",
@@ -65,19 +65,15 @@ export const parseInternalHubVolumeResponse = (payload: unknown): number => {
     data?: unknown;
   };
   if (root.retcode !== 0) {
-    throw new Error(
-      typeof root.message === "string" && root.message.trim()
-        ? root.message
-        : "Không thể tải volume nội tỉnh.",
-    );
+    throw new Error("Không thể tải dữ liệu Hub.");
   }
   if (typeof root.data !== "object" || root.data === null) {
-    throw new Error("Phản hồi volume thiếu data.total hợp lệ.");
+    throw new Error("Không thể đọc dữ liệu Hub.");
   }
 
   const total = (root.data as { total?: unknown }).total;
   if (typeof total !== "number" || !Number.isFinite(total) || total < 0) {
-    throw new Error("Phản hồi volume có data.total không hợp lệ.");
+    throw new Error("Dữ liệu Hub không hợp lệ.");
   }
 
   return total;
@@ -99,14 +95,14 @@ export const validateInternalHubVolumeConfig = (
   input: InternalHubVolumeConfigInput,
 ): string | null => {
   if (!input.soc.trim()) return "Chưa cấu hình SOC nguồn.";
-  if (!input.socId.trim()) return "SOC nguồn chưa có ID.";
+  if (!input.socId.trim()) return "SOC nguồn chưa được cấu hình đầy đủ.";
   if (input.hubs.length === 0) return "Chưa cấu hình Hub nội tỉnh.";
 
   const missingHubIds = input.hubs
     .filter((hub) => !hub.id.trim())
     .map((hub) => hub.name);
   return missingHubIds.length > 0
-    ? `Các Hub chưa có ID: ${missingHubIds.join(", ")}`
+    ? `Các Hub chưa được cấu hình đầy đủ: ${missingHubIds.join(", ")}`
     : null;
 };
 
