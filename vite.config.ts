@@ -4,8 +4,13 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
+const appVersion = process.env.OPS_FTE_APP_VERSION?.trim() || "";
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
+  define: {
+    "__OPS_FTE_APP_VERSION__": JSON.stringify(appVersion),
+  },
   server: {
     proxy: {
       "/api": {
