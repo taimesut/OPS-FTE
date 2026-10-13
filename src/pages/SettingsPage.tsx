@@ -22,7 +22,6 @@ import {
   getConfigs,
   normalizeSocEtaMinutesConfig,
   saveConfigs,
-  SCANNER_URL,
   type AppConfig,
 } from "../utils/config";
 import {
@@ -570,7 +569,7 @@ export const SettingsPage = () => {
             Tiện ích bổ sung
           </h2>
           <p className="mt-1 text-sm text-base-content/65">
-            Các kết nối này không dùng để gọi API SPX.
+            Các tiện ích hỗ trợ thêm cho ứng dụng.
           </p>
         </div>
 
@@ -595,8 +594,8 @@ export const SettingsPage = () => {
             <ScanLine className="mt-0.5 h-5 w-5 shrink-0 text-info" aria-hidden="true" />
             <div className="min-w-0">
               <p className="font-semibold">QR Scanner</p>
-              <p className="mt-1 break-all text-xs text-base-content/60">
-                {SCANNER_URL}
+              <p className="mt-1 text-xs text-base-content/60">
+                Công cụ hỗ trợ quét mã QR khi cần.
               </p>
             </div>
           </div>
