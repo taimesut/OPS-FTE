@@ -23,6 +23,7 @@ test("Firefox build injects OPS FTE on SPX and grants webhook hosts", async () =
   assert.match(source, /js:\s*\["content\.js"\]/);
   assert.match(source, /scripts:\s*\["background\.js"\]/);
   assert.match(source, /entry:\s*"src\/userscript\.tsx"/);
+  assert.match(source, /__OPS_FTE_APP_VERSION__/);
 });
 
 test("Firefox background performs the cross-origin Apps Script POST", async () => {
@@ -59,4 +60,12 @@ test("package exposes Firefox build and test commands", async () => {
     packageJson.scripts?.["test:firefox"],
     "node --experimental-strip-types --test tests/firefoxExtension.test.ts",
   );
+});
+
+
+test("Firefox workflow auto-bumps the patch version for every GitHub build", async () => {
+  const workflow = await readSource("../.github/workflows/firefox-extension.yml");
+
+  assert.match(workflow, /GITHUB_RUN_NUMBER/);
+  assert.match(workflow, /firefox\/VERSION/);
 });
