@@ -4,7 +4,6 @@ import {
   Earth,
   House,
   MapPinCheckInside,
-  NotebookPen,
   Settings,
   X,
   Package,
@@ -50,7 +49,6 @@ export const MobileLayout = ({
     { path: "/check-sot/noi-tinh", label: "Check sót nội tỉnh", icon: MapPinCheckInside },
     { path: "/check-sot/ngoai-tinh", label: "Check sót ngoại tỉnh", icon: Earth },
     { path: "/check-xe", label: "Check xe", icon: Truck },
-    { path: "/tao-bien-ban-su-vu", label: "Tạo biên bản sự vụ", icon: NotebookPen },
     { path: "/lay-ma-to", label: "Lấy mã TO", icon: QrCode },
     { path: "/tao-ma-qr", label: "Tạo mã QR", icon: QrCode },
   ];
