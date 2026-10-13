@@ -66,7 +66,7 @@ apiClient.interceptors.response.use(
           showToast("Bạn không có quyền truy cập tính năng này!", "warning");
           break;
         case 404:
-          showToast(`Lỗi 404: Không tìm thấy API! ${serverMsg}`, "error");
+          showToast(`Không tìm thấy dữ liệu yêu cầu. ${serverMsg}`, "error");
           break;
         case 500:
           showToast(
