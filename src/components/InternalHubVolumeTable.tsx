@@ -68,9 +68,6 @@ export const InternalHubVolumeTable = ({
             <th scope="col" className="w-[46%] px-4 py-3 text-left">
               Hub
             </th>
-            <th scope="col" className="px-4 py-3 text-left">
-              Station ID
-            </th>
             <th scope="col" className="px-4 py-3 text-right">
               Tổng lượng hàng
             </th>
@@ -85,20 +82,14 @@ export const InternalHubVolumeTable = ({
               <th scope="row" className="break-safe px-4 py-3 font-extrabold">
                 {row.name}
               </th>
-              <td className="px-4 py-3 font-mono text-xs font-semibold text-base-content/65">
-                {row.id || "—"}
-              </td>
               <td className="px-4 py-3 text-right text-xl font-black tracking-tight">
                 {row.total === null ? "—" : numberFormatter.format(row.total)}
               </td>
               <td className="px-4 py-3">
                 <StatusBadge status={row.status} />
                 {row.error ? (
-                  <p
-                    className="mt-1.5 max-w-64 break-safe text-xs font-medium leading-relaxed text-error"
-                    title={row.error}
-                  >
-                    {row.error}
+                  <p className="mt-1.5 max-w-64 break-safe text-xs font-medium leading-relaxed text-error">
+                    Không lấy được dữ liệu
                   </p>
                 ) : null}
               </td>
