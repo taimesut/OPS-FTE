@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Clock3, RefreshCw, Route, Truck } from "lucide-react";
+import { Clock3, RefreshCw, Truck } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
@@ -74,12 +74,6 @@ const positionLabel = (row: VehicleCheckRow): string => {
 export const CheckXePage = () => {
   const [hours, setHours] = useState(DEFAULT_VEHICLE_CHECK_HOURS);
   const [rows, setRows] = useState<VehicleCheckRow[]>([]);
-  const [apiTotal, setApiTotal] = useState(0);
-  const [candidateCount, setCandidateCount] = useState(0);
-  const [calculatedEtaCount, setCalculatedEtaCount] = useState(0);
-  const [pagesFetched, setPagesFetched] = useState(0);
-  const [queryWindow, setQueryWindow] =
-    useState<VehicleCheckWindow | null>(null);
   const [displayWindow, setDisplayWindow] =
     useState<VehicleCheckWindow | null>(null);
   const [loading, setLoading] = useState(false);
@@ -96,17 +90,6 @@ export const CheckXePage = () => {
     );
   }, [displayWindow, hours]);
 
-  const apiWindowText = useMemo(() => {
-    if (!queryWindow) {
-      return "API quét từ hiện tại -1 ngày đến +1 ngày";
-    }
-    return (
-      formatUnixTime(queryWindow.from) +
-      " → " +
-      formatUnixTime(queryWindow.to)
-    );
-  }, [queryWindow]);
-
   const handleCheck = async () => {
     if (!Number.isFinite(hours) || hours <= 0) {
       showToast("Số giờ ETA phải lớn hơn 0.", "warning");
@@ -117,11 +100,6 @@ export const CheckXePage = () => {
     try {
       const result = await fetchVehicleCheckRows(hours);
       setRows(result.rows);
-      setApiTotal(result.apiTotal);
-      setCandidateCount(result.candidateCount);
-      setCalculatedEtaCount(result.calculatedEtaCount);
-      setPagesFetched(result.pagesFetched);
-      setQueryWindow(result.queryWindow);
       setDisplayWindow(result.displayWindow);
       setHasChecked(true);
 
@@ -132,17 +110,11 @@ export const CheckXePage = () => {
               " xe dự kiến đến Pleiku trong " +
               hours +
               " giờ tới."
-          : result.candidateCount > 0
-            ? "Đã có " +
-              result.candidateCount +
-              " xe hợp lệ nhưng không có ETA nào nằm trong " +
-              hours +
-              " giờ tới."
-            : "Không có xe thỏa Pending Inbound TO > 0 và driver != 0.",
+          : "Không có xe dự kiến đến Pleiku trong " + hours + " giờ tới.",
         result.rows.length > 0 ? "success" : "info",
       );
     } catch (error) {
-      console.error("[Check xe · list_v2]", error);
+      console.error("[Check xe]", error);
       showToast(
         error instanceof Error && error.message
           ? error.message
@@ -160,7 +132,7 @@ export const CheckXePage = () => {
         icon={Truck}
         tone="info"
         title="Check xe"
-        description="Lấy trip từ list_v2, giữ xe có Pending Inbound TO > 0 và driver != 0, tính ETA Pleiku cho toàn bộ rồi mới lọc theo số giờ đã nhập."
+        description="Xem các xe dự kiến đến Pleiku trong khoảng thời gian bạn chọn."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-end">
             <label className="form-control w-full sm:w-44">
@@ -206,48 +178,15 @@ export const CheckXePage = () => {
       />
 
       <section className="app-surface p-3 sm:p-4" aria-live="polite">
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div className="flex min-w-0 gap-3">
-            <span className="app-icon-badge shrink-0 bg-info/10 text-info">
-              <Clock3 aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-                Khung dự kiến đến Pleiku
-              </p>
-              <p className="mt-1 text-sm font-bold">{etaWindowText}</p>
-              <p className="mt-1 text-xs text-base-content/55">
-                Chỉ hiện xe có ETA Pleiku nằm từ thời điểm hiện tại đến hết khung giờ này.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex min-w-0 gap-3">
-            <span className="app-icon-badge shrink-0 bg-primary/10 text-primary">
-              <Route aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
-                Khung quét FMS
-              </p>
-              <p className="mt-1 text-sm font-bold">{apiWindowText}</p>
-              <p className="mt-1 text-xs text-base-content/55">
-                {hasChecked
-                  ? numberFormatter.format(apiTotal) +
-                    " trip API · " +
-                    numberFormatter.format(candidateCount) +
-                    " xe ứng viên (Inbound > 0 + driver != 0) · " +
-                    numberFormatter.format(calculatedEtaCount) +
-                    " xe tính được ETA · " +
-                    numberFormatter.format(rows.length) +
-                    " xe nằm trong " +
-                    hours +
-                    "H · " +
-                    pagesFetched +
-                    " trang"
-                  : "trip_station_status=60,50,200,80 · count=50 · quét đủ các trang"}
-              </p>
-            </div>
+        <div className="flex min-w-0 gap-3">
+          <span className="app-icon-badge shrink-0 bg-info/10 text-info">
+            <Clock3 aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-base-content/55">
+              Dự kiến đến Pleiku
+            </p>
+            <p className="mt-1 text-sm font-bold">{etaWindowText}</p>
           </div>
         </div>
       </section>
@@ -257,7 +196,7 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe / trip"
-          description="Trạng thái trip_station chỉ dùng để xác định xe đang ở đâu và làm cơ sở tính ETA. Danh sách cuối cùng luôn được lọc bằng ETA Pleiku trong N giờ tới."
+          description="Danh sách xe dự kiến đến Pleiku trong khoảng thời gian đã chọn."
           tone="info"
         />
 
@@ -272,8 +211,8 @@ export const CheckXePage = () => {
                   <th>Vị trí xe</th>
                   <th>Dự kiến</th>
                   <th>Còn lại</th>
-                  <th className="text-right">Pending Inbound TO</th>
-                  <th className="text-right">Pending Inbound Order</th>
+                  <th className="text-right">TO chờ nhận</th>
+                  <th className="text-right">Đơn chờ nhận</th>
                   <th>Tuyến SOC</th>
                 </tr>
               </thead>
@@ -329,8 +268,8 @@ export const CheckXePage = () => {
                         </p>
                         <p className="mt-1 max-w-lg text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Ứng viên chỉ cần Pending Inbound TO > 0 và driver != 0. Hệ thống tính ETA Pleiku cho từng trip; trip không tính được ETA hoặc ETA ngoài khung giờ sẽ bị loại ở bước cuối."
-                            : "Nhấn Check xe để quét list_v2 từ hiện tại -1 ngày đến +1 ngày."}
+                            ? "Không có xe nào nằm trong khoảng thời gian đã chọn."
+                            : "Nhấn Check xe để xem danh sách xe dự kiến đến Pleiku."}
                         </p>
                       </div>
                     </td>
