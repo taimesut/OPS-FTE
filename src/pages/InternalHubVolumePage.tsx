@@ -231,14 +231,14 @@ export const InternalHubVolumePage = () => {
                 ? numberFormatter.format(summary.totalVolume)
                 : "—"
             }
-            description="Cộng data.total của các Hub thành công"
+            description="Tổng lượng hàng ghi nhận từ các Hub nội tỉnh"
             tone="bg-primary/10 text-primary"
           />
           <SummaryCard
             icon={CheckCircle2}
             label="Hub thành công"
             value={`${summary.successfulHubs}/${summary.totalHubs}`}
-            description="Số Hub trả về volume hợp lệ"
+            description="Số Hub lấy dữ liệu thành công"
             tone="bg-success/10 text-success"
           />
         </div>
@@ -252,7 +252,7 @@ export const InternalHubVolumePage = () => {
           icon={ChartNoAxesColumnIncreasing}
           id="internal-hub-volume-heading"
           title="Volume theo Hub"
-          description="Mỗi Hub hiển thị chỉ số data.total của lần kiểm tra gần nhất"
+          description="Theo dõi lượng hàng của từng Hub nội tỉnh"
           tone="primary"
         />
 
@@ -263,7 +263,7 @@ export const InternalHubVolumePage = () => {
             </span>
             <h3 className="mt-4 text-lg font-black">Chưa cấu hình Hub nội tỉnh</h3>
             <p className="mt-1 max-w-md break-safe text-sm leading-relaxed text-base-content/60">
-              Vào Cài đặt để thêm danh sách Hub và station ID trước khi kiểm tra volume.
+              Vào Cài đặt để thêm danh sách Hub trước khi kiểm tra.
             </p>
           </div>
         ) : (
