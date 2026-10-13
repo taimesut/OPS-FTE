@@ -66,6 +66,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), firefoxStaticFiles()],
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    "__OPS_FTE_APP_VERSION__": JSON.stringify(firefoxVersion),
   },
   build: {
     outDir: "firefox-dist",
