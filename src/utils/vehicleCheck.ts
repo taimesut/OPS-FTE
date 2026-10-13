@@ -31,6 +31,7 @@ export type PleikuProcessStatus =
   | "unseal"
   | "arrival"
   | "pending"
+  | "loading"
   | "unloaded"
   | "other"
   | "not_arrived";
@@ -136,6 +137,8 @@ export const mapPleikuStationStatus = (
       return { process: "arrival", label: "Arrival" };
     case 200:
       return { process: "pending", label: "Pending" };
+    case 70:
+      return { process: "loading", label: "Loading" };
     case 80:
       return { process: "unloaded", label: "Unloaded" };
     case 0:
@@ -315,7 +318,7 @@ export const createVehicleCheckParams = (
 
   return {
     station_type: "2,3,7,12,14,16,18",
-    trip_station_status: "60,50,200,80",
+    trip_station_status: "50,60,70,80,200",
     pageno: pageNo,
     count: VEHICLE_CHECK_PAGE_SIZE,
     query_type: 1,
@@ -324,13 +327,24 @@ export const createVehicleCheckParams = (
   };
 };
 
+const CURRENT_SOC_STATUSES = new Set([50, 60, 70, 80, 200]);
+
+export const isVehicleAtCurrentSoc = (row: VehicleCheckRow): boolean =>
+  CURRENT_SOC_STATUSES.has(row.pleikuStationStatus);
+
 export const isVehicleCheckRowVisible = (
   row: VehicleCheckRow,
   displayWindow: VehicleCheckWindow,
-): boolean =>
-  row.etaPleiku !== null &&
-  row.etaPleiku >= displayWindow.from &&
-  row.etaPleiku <= displayWindow.to;
+): boolean => {
+  // Xe đã tới SOC hiện tại vẫn phải hiển thị dù ETA không còn giá trị.
+  if (isVehicleAtCurrentSoc(row)) return true;
+
+  return (
+    row.etaPleiku !== null &&
+    row.etaPleiku >= displayWindow.from &&
+    row.etaPleiku <= displayWindow.to
+  );
+};
 
 export const parseVehicleCheckResponse = (
   payload: unknown,
@@ -368,11 +382,7 @@ export const parseVehicleCheckResponse = (
       (trip): trip is Record<string, unknown> =>
         typeof trip === "object" && trip !== null,
     )
-    .filter(
-      (trip) =>
-        readNumber(trip.to_inbound_quantity) > 0 &&
-        readNumber(trip.driver) !== 0,
-    )
+    .filter((trip) => readNumber(trip.driver) !== 0)
     .map((trip): VehicleCheckRow | null => {
       const stations = parseStations(trip);
       const pleikuStationIndex = stations.findIndex(
@@ -400,6 +410,13 @@ export const parseVehicleCheckResponse = (
         operational,
         routeMinutes,
       );
+      const pendingInboundTo = readNumber(trip.to_inbound_quantity);
+      const isAtCurrentSoc =
+        pleiku !== null && CURRENT_SOC_STATUSES.has(pleiku.tripStationStatus);
+
+      // Xe đang trên đường: vẫn yêu cầu còn Inbound TO.
+      // Xe đã tới SOC hiện tại: giữ lại theo trạng thái dù Inbound TO đã về 0.
+      if (pendingInboundTo <= 0 && !isAtCurrentSoc) return null;
 
       return {
         tripId: readPositiveInteger(trip.id),
@@ -409,7 +426,7 @@ export const parseVehicleCheckResponse = (
         vehicleTypeName: readText(trip.vehicle_type_name) || "—",
         agencyName: readText(trip.agency_name) || "—",
         driverId: readNumber(trip.driver),
-        pendingInboundTo: readNumber(trip.to_inbound_quantity),
+        pendingInboundTo,
         pendingInboundOrder: readNumber(trip.order_inbound_quantity),
         stations,
         pleikuStationIndex,
@@ -446,6 +463,7 @@ export const getStationStatusLabel = (
   if (status === 40) return "40 · Moving";
   if (status === 50) return "50 · Arrival";
   if (status === 60) return "60 · Unseal";
+  if (status === 70) return "70 · Loading";
   if (status === 80) return "80 · Unloaded";
   if (status === 200) return "200 · Pending";
   return String(status);
