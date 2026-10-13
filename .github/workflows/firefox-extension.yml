@@ -31,7 +31,10 @@ jobs:
       - name: Generate extension version
         id: version
         shell: bash
-        run: echo "version=$(tr -d '\r\n' < firefox/VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          base_version="$(tr -d '\r\n' < firefox/VERSION)"
+          version_series="$(printf '%s' "$base_version" | awk -F. '{print $1 "." $2}')"
+          echo "version=${version_series}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Build Firefox extension
         env:
