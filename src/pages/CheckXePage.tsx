@@ -38,6 +38,7 @@ const statusBadgeClass = (row: VehicleCheckRow): string => {
   }
   if (
     row.pleikuStationStatus === 60 ||
+    row.pleikuStationStatus === 70 ||
     row.pleikuStationStatus === 50
   ) {
     return "badge badge-warning whitespace-nowrap font-bold";
@@ -64,6 +65,9 @@ const processLabel = (row: VehicleCheckRow): string =>
         : "Chưa xác định";
 
 const positionLabel = (row: VehicleCheckRow): string => {
+  if (row.operationalState === "pleiku" && row.currentStationName) {
+    return row.currentStationName;
+  }
   if (row.currentStationName && row.nextStationName) {
     return row.currentStationName + " → " + row.nextStationName;
   }
@@ -132,7 +136,7 @@ export const CheckXePage = () => {
         icon={Truck}
         tone="info"
         title="Check xe"
-        description="Xem các xe dự kiến đến Pleiku trong khoảng thời gian bạn chọn."
+        description="Xem xe đang ở Pleiku và các xe dự kiến đến Pleiku trong khoảng thời gian bạn chọn."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-end">
             <label className="form-control w-full sm:w-44">
@@ -196,7 +200,7 @@ export const CheckXePage = () => {
           icon={Truck}
           id="vehicle-check-heading"
           title="Danh sách xe / trip"
-          description="Danh sách xe dự kiến đến Pleiku trong khoảng thời gian đã chọn."
+          description="Gồm xe đang ở Pleiku và xe sắp đến trong khoảng thời gian đã chọn."
           tone="info"
         />
 
@@ -234,12 +238,16 @@ export const CheckXePage = () => {
                       {positionLabel(row)}
                     </td>
                     <td className="whitespace-nowrap font-black tabular-nums">
-                      {row.etaPleiku !== null
-                        ? formatUnixTime(row.etaPleiku)
-                        : "—"}
+                      {row.operationalState === "pleiku"
+                        ? "Đã đến"
+                        : row.etaPleiku !== null
+                          ? formatUnixTime(row.etaPleiku)
+                          : "—"}
                     </td>
                     <td className="whitespace-nowrap text-sm font-semibold">
-                      {formatRemaining(row.etaPleiku)}
+                      {row.operationalState === "pleiku"
+                        ? "Đang tại SOC"
+                        : formatRemaining(row.etaPleiku)}
                     </td>
                     <td className="text-right font-bold tabular-nums">
                       {numberFormatter.format(row.pendingInboundTo)}
@@ -268,8 +276,8 @@ export const CheckXePage = () => {
                         </p>
                         <p className="mt-1 max-w-lg text-xs leading-relaxed text-base-content/55">
                           {hasChecked
-                            ? "Không có xe nào nằm trong khoảng thời gian đã chọn."
-                            : "Nhấn Check xe để xem danh sách xe dự kiến đến Pleiku."}
+                            ? "Không có xe đang ở Pleiku hoặc dự kiến đến trong khoảng thời gian đã chọn."
+                            : "Nhấn Check xe để xem xe đang ở Pleiku và các xe sắp đến."}
                         </p>
                       </div>
                     </td>
