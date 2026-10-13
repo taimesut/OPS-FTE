@@ -68,7 +68,8 @@ test("HomePage renders SeaTalk and VERSION states", async () => {
     /https:\/\/link\.seatalk\.io\/profile\/open\?seatalk_id=1386905313/,
   );
   assert.match(source, /loadAppVersionInfo/);
+  assert.match(await readFile(new URL("../src/utils/appVersion.ts", import.meta.url), "utf8"), /__OPS_FTE_APP_VERSION__/);
   assert.match(source, /Đang tải thông tin phiên bản/);
-  assert.match(source, /Chưa có thông tin phiên bản/);
+  assert.match(source, /Bản phát triển/);
   assert.match(source, /whitespace-pre-wrap/);
 });
