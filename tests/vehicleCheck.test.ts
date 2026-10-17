@@ -134,7 +134,7 @@ test("backward nonzero status other than 40 means that SOC is holding the vehicl
   assert.equal(result.label, "Kon Tum SOC đang giữ xe");
 });
 
-test("response filters by inbound > 0, driver != 0, and requires 44SOCGL", () => {
+test("response keeps active vehicles and vehicles already at Pleiku while dropping zero-driver/no-progress rows", () => {
   const payload = {
     retcode: 0,
     data: {
@@ -214,12 +214,16 @@ test("response filters by inbound > 0, driver != 0, and requires 44SOCGL", () =>
   };
 
   const page = parseVehicleCheckResponse(payload);
-  assert.equal(page.rows.length, 2);
+  assert.equal(page.rows.length, 3);
   const keep = page.rows.find((row) => row.tripNumber === "KEEP");
+  const atPleiku = page.rows.find((row) => row.tripNumber === "DROP-ZERO-TO");
   const noPleiku = page.rows.find(
     (row) => row.tripNumber === "DROP-NO-PLEIKU",
   );
   assert.ok(keep);
+  assert.ok(atPleiku);
+  assert.equal(atPleiku.pendingInboundTo, 0);
+  assert.equal(atPleiku.pleikuProcessLabel, "Arrival");
   assert.equal(keep.driverId, 123461);
   assert.equal(keep.pendingInboundTo, 10);
   assert.equal(keep.pendingInboundOrder, 50);
