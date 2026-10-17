@@ -29,3 +29,16 @@ test("internal missing page persists COT and applies it to both branches", async
   assert.match(source, /disabled=\{loading\}/);
   assert.match(source, /trạng thái 882 cuối cùng trước COT/);
 });
+
+
+test("external missing page persists COT and applies it to packed and loose orders", async () => {
+  const source = await readSource("../src/pages/CheckSotNgoaiTinhPage.tsx");
+  assert.match(source, /check-sot-ngoai-tinh-cot/);
+  assert.match(source, /serializeCotCutoffPreferences/);
+  assert.match(source, /enabled \? formatLocalDateTimeInput\(\)/);
+  assert.match(source, /currentStationReceivedTime/);
+  assert.match(source, /filterTransferOrdersByCot/);
+  assert.match(source, /fetchLatestTransferOrderCotTimestamp/);
+  assert.match(source, /disabled=\{loading\}/);
+  assert.match(source, /trạng thái 882 cuối cùng trước COT/);
+});
