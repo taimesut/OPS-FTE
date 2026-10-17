@@ -181,7 +181,7 @@ export const CheckSotNgoaiTinhPage = () => {
 
         if (activeCot) {
           showToast(
-            `Giữ lại ${resultOrders.length}/${uniqueList.length} TO có trạng thái 882 cuối cùng trước COT`,
+            `Giữ lại ${resultOrders.length}/${uniqueList.length} TO theo 887 ưu tiên / 882 fallback trước COT`,
             resultOrders.length > 0 ? "success" : "info",
           );
         } else if (resultOrders.length === 0) {

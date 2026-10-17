@@ -6,7 +6,7 @@ import {
   buildTransferOrderDetailPath,
   filterTransferOrdersByCot,
   parseFirstFleetOrderId,
-  parseLatestStatus882Timestamp,
+  parsePreferredCotTimestamp,
 } from "../src/utils/transferOrderCot.ts";
 
 test("builds encoded SPX detail and tracking paths", () => {
@@ -39,9 +39,32 @@ test("reads the first representative shipment from a successful detail response"
   );
 });
 
-test("selects the latest 882 timestamp across roots, children, and event children", () => {
+test("prioritizes the latest 887 even when a later 882 exists", () => {
   assert.equal(
-    parseLatestStatus882Timestamp({
+    parsePreferredCotTimestamp({
+      retcode: 0,
+      data: {
+        tracking_list: [
+          { status: 882, timestamp: 500, children: [] },
+          {
+            status: 8,
+            timestamp: 200,
+            children: [
+              { status: 887, timestamp: 300 },
+              { status: 887, timestamp: 350 },
+            ],
+            event_children: [{ status: 882, timestamp: 600 }],
+          },
+        ],
+      },
+    }),
+    350,
+  );
+});
+
+test("falls back to the latest 882 only when 887 is absent", () => {
+  assert.equal(
+    parsePreferredCotTimestamp({
       retcode: 0,
       data: {
         tracking_list: [
@@ -57,17 +80,18 @@ test("selects the latest 882 timestamp across roots, children, and event childre
     }),
     300,
   );
+
   assert.throws(
     () =>
-      parseLatestStatus882Timestamp({
+      parsePreferredCotTimestamp({
         retcode: 0,
         data: { tracking_list: [] },
       }),
-    /882/i,
+    /887.*882/i,
   );
 });
 
-test("wires TO detail -> first shipment -> tracking -> final 882 pipeline", async () => {
+test("wires TO detail -> first shipment -> tracking -> preferred 887/882 COT pipeline", async () => {
   const source = await readFile(
     new URL("../src/utils/transferOrderCotApi.ts", import.meta.url),
     "utf8",
@@ -75,7 +99,7 @@ test("wires TO detail -> first shipment -> tracking -> final 882 pipeline", asyn
   assert.match(source, /buildTransferOrderDetailPath\(toNumber\)/);
   assert.match(source, /parseFirstFleetOrderId\(detailResponse\.data\)/);
   assert.match(source, /buildShipmentTrackingPath\(shipmentId\)/);
-  assert.match(source, /parseLatestStatus882Timestamp\(trackingResponse\.data\)/);
+  assert.match(source, /parsePreferredCotTimestamp\(trackingResponse\.data\)/);
 });
 
 test("retains only timestamps at or before COT in original order", async () => {

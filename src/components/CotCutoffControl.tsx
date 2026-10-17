@@ -94,7 +94,7 @@ export const CotCutoffControl = ({
 
       {enabled ? (
         <div className="rounded-xl border border-base-200 bg-base-200/35 px-3 py-2 text-xs leading-relaxed text-base-content/65">
-          Hàng xá lẻ dùng khoảng thời gian từ đúng 1 tháng trước tới mốc COT. Với TO đã đóng bao, hệ thống lấy đơn đầu tiên trong TO, đọc hành trình và chỉ giữ TO có trạng thái 882 cuối cùng không vượt quá mốc COT.
+          Hàng xá lẻ dùng khoảng thời gian từ đúng 1 tháng trước tới mốc COT. Với TO đã đóng bao, hệ thống lấy đơn đầu tiên trong TO và đọc hành trình: ưu tiên trạng thái 887 (Return_SOC_LHArrived); nếu không có 887 mới dùng trạng thái 882 cuối cùng. TO chỉ được giữ khi thời gian trạng thái được chọn không vượt quá mốc COT.
         </div>
       ) : null}
     </div>

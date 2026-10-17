@@ -34,19 +34,29 @@ export const parseFirstFleetOrderId = (payload: unknown): string => {
   return shipmentId;
 };
 
+interface CotTrackingTimestamps {
+  status887: number;
+  status882: number;
+}
+
 const visitTrackingNode = (
   value: unknown,
-  latest: { timestamp: number },
+  latest: CotTrackingTimestamps,
 ): void => {
   const node = asRecord(value);
   if (!node) return;
+
   if (
-    node.status === 882 &&
     typeof node.timestamp === "number" &&
     Number.isSafeInteger(node.timestamp)
   ) {
-    latest.timestamp = Math.max(latest.timestamp, node.timestamp);
+    if (node.status === 887) {
+      latest.status887 = Math.max(latest.status887, node.timestamp);
+    } else if (node.status === 882) {
+      latest.status882 = Math.max(latest.status882, node.timestamp);
+    }
   }
+
   for (const key of ["children", "event_children"] as const) {
     if (Array.isArray(node[key])) {
       for (const child of node[key]) visitTrackingNode(child, latest);
@@ -54,15 +64,27 @@ const visitTrackingNode = (
   }
 };
 
-export const parseLatestStatus882Timestamp = (payload: unknown): number => {
+/**
+ * Mốc COT cho TO đã đóng bao:
+ * 1. Ưu tiên trạng thái 887 (Return_SOC_LHArrived). Nếu có nhiều 887, lấy 887 mới nhất.
+ * 2. Chỉ khi không có 887 mới fallback sang trạng thái 882 mới nhất.
+ */
+export const parsePreferredCotTimestamp = (payload: unknown): number => {
   const data = successfulData(payload, "Phản hồi hành trình đơn không hợp lệ.");
-  const latest = { timestamp: -1 };
+  const latest: CotTrackingTimestamps = { status887: -1, status882: -1 };
+
   if (Array.isArray(data.tracking_list)) {
     for (const item of data.tracking_list) visitTrackingNode(item, latest);
   }
-  if (latest.timestamp < 0) throw new Error("Không tìm thấy trạng thái 882.");
-  return latest.timestamp;
+
+  if (latest.status887 >= 0) return latest.status887;
+  if (latest.status882 >= 0) return latest.status882;
+
+  throw new Error("Không tìm thấy trạng thái 887 hoặc 882.");
 };
+
+// Giữ export cũ để không làm hỏng các caller cũ; logic hiện tại đã ưu tiên 887.
+export const parseLatestStatus882Timestamp = parsePreferredCotTimestamp;
 
 export interface CotTransferOrder {
   to_number: string;
@@ -76,7 +98,7 @@ const errorMessage = (error: unknown): string =>
 export const filterTransferOrdersByCot = async <T extends CotTransferOrder>(
   orders: readonly T[],
   cotTimestamp: number,
-  loadLatest882: (toNumber: string) => Promise<number>,
+  loadCotTimestamp: (toNumber: string) => Promise<number>,
   onProgress?: CotProgressHandler,
   concurrency = 5,
 ): Promise<T[]> => {
@@ -99,8 +121,8 @@ export const filterTransferOrdersByCot = async <T extends CotTransferOrder>(
       if (index >= orders.length) return;
       const order = orders[index];
       try {
-        const latest882 = await loadLatest882(order.to_number);
-        retained[index] = latest882 <= cotTimestamp;
+        const selectedCotTimestamp = await loadCotTimestamp(order.to_number);
+        retained[index] = selectedCotTimestamp <= cotTimestamp;
       } catch (error) {
         failures.push(
           new Error(

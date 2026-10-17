@@ -13,7 +13,8 @@ test("COT control exposes an accessible switch, local date-time input, and progr
   assert.match(source, /type="datetime-local"/);
   assert.match(source, /Đang kiểm tra toàn bộ dữ liệu/);
   assert.match(source, /Đang kiểm tra COT/);
-  assert.match(source, /trạng thái 882 cuối cùng/);
+  assert.match(source, /ưu tiên trạng thái 887/);
+  assert.match(source, /không có 887 mới dùng trạng thái 882/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /min-h-11/);
 });
@@ -27,7 +28,7 @@ test("internal missing page persists COT and applies it to both branches", async
   assert.match(source, /filterTransferOrdersByCot/);
   assert.match(source, /fetchLatestTransferOrderCotTimestamp/);
   assert.match(source, /disabled=\{loading\}/);
-  assert.match(source, /trạng thái 882 cuối cùng trước COT/);
+  assert.match(source, /887 ưu tiên \/ 882 fallback trước COT/);
 });
 
 
@@ -40,5 +41,5 @@ test("external missing page persists COT and applies it to packed and loose orde
   assert.match(source, /filterTransferOrdersByCot/);
   assert.match(source, /fetchLatestTransferOrderCotTimestamp/);
   assert.match(source, /disabled=\{loading\}/);
-  assert.match(source, /trạng thái 882 cuối cùng trước COT/);
+  assert.match(source, /887 ưu tiên \/ 882 fallback trước COT/);
 });
