@@ -14,12 +14,28 @@ import { SearchableSelect } from "../components/SearchableSelect";
 import { SectionHeading } from "../components/SectionHeading";
 import { showToast } from "../components/Toast";
 import { CreateTimeRangeNotice } from "../components/CreateTimeRangeNotice";
+import {
+  CotCutoffControl,
+  type CotProgress,
+} from "../components/CotCutoffControl";
 import { useLooseOrderCheck } from "../hooks/useLooseOrderCheck";
 import {
   createDefaultCreateTimeRange,
   type CreateTimeRange,
 } from "../utils/createTimeRange";
+import {
+  createCotWindow,
+  formatLocalDateTimeInput,
+  parseCotCutoffPreferences,
+  serializeCotCutoffPreferences,
+  type CotCutoffPreferences,
+  type CotWindow,
+} from "../utils/cotCutoff";
+import { filterTransferOrdersByCot } from "../utils/transferOrderCot";
+import { fetchLatestTransferOrderCotTimestamp } from "../utils/transferOrderCotApi";
 import { Search, Globe, PackageCheck } from "lucide-react";
+
+const COT_STORAGE_KEY = "check-sot-ngoai-tinh-cot";
 
 export const CheckSotNgoaiTinhPage = () => {
   const [soc, setSoc] = useState("");
@@ -29,6 +45,17 @@ export const CheckSotNgoaiTinhPage = () => {
   const [orders, setOrders] = useState<TransferOrder[]>([]);
   const [lastCreateTimeRange, setLastCreateTimeRange] =
     useState<CreateTimeRange | null>(null);
+  const [cotPreferences, setCotPreferences] =
+    useState<CotCutoffPreferences>(() => {
+      try {
+        return parseCotCutoffPreferences(
+          localStorage.getItem(COT_STORAGE_KEY),
+        );
+      } catch {
+        return { enabled: false, localDateTime: "" };
+      }
+    });
+  const [cotProgress, setCotProgress] = useState<CotProgress | null>(null);
   const looseOrders = useLooseOrderCheck();
 
   useEffect(() => {
@@ -36,6 +63,24 @@ export const CheckSotNgoaiTinhPage = () => {
     setSocs(getSocs() || []);
     setCurrentSoc(getSoc() || "");
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        COT_STORAGE_KEY,
+        serializeCotCutoffPreferences(cotPreferences),
+      );
+    } catch {
+      // Optional browser storage must not prevent searches.
+    }
+  }, [cotPreferences]);
+
+  const handleCotEnabledChange = (enabled: boolean) => {
+    setCotPreferences((current) => ({
+      enabled,
+      localDateTime: enabled ? formatLocalDateTimeInput() : current.localDateTime,
+    }));
+  };
 
   const checkSotNgoaiTinh = async () => {
     const sender = getSoc();
@@ -72,6 +117,23 @@ export const CheckSotNgoaiTinhPage = () => {
       ctime: activeCreateTimeRange.ctime,
     });
 
+    let cotWindow: CotWindow | undefined;
+    if (cotPreferences.enabled) {
+      try {
+        cotWindow = createCotWindow(cotPreferences.localDateTime);
+      } catch (error) {
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Thời gian COT không hợp lệ.",
+          "warning",
+        );
+        return;
+      }
+    }
+
+    const activeCot = cotWindow;
+
     setLoading(true);
 
     try {
@@ -99,16 +161,37 @@ export const CheckSotNgoaiTinhPage = () => {
           (item: { current_station_name: string }) =>
             item.current_station_name === sender,
         );
-        setOrders(uniqueList);
 
-        if (uniqueList.length === 0) {
+        let resultOrders = uniqueList;
+        if (activeCot) {
+          setCotProgress({ processed: 0, total: uniqueList.length });
+          try {
+            resultOrders = await filterTransferOrdersByCot(
+              uniqueList,
+              activeCot.cotTimestamp,
+              fetchLatestTransferOrderCotTimestamp,
+              (processed, total) => setCotProgress({ processed, total }),
+            );
+          } finally {
+            setCotProgress(null);
+          }
+        }
+
+        setOrders(resultOrders);
+
+        if (activeCot) {
+          showToast(
+            `Giữ lại ${resultOrders.length}/${uniqueList.length} TO có trạng thái 882 cuối cùng trước COT`,
+            resultOrders.length > 0 ? "success" : "info",
+          );
+        } else if (resultOrders.length === 0) {
           showToast(
             `Không có TO ngoại tỉnh nào bị sót từ ${sender} tới ${soc}`,
             "info",
           );
         } else {
           showToast(
-            `Tìm thấy ${uniqueList.length} TO sót tới SOC ${soc}`,
+            `Tìm thấy ${resultOrders.length} TO sót tới SOC ${soc}`,
             "success",
           );
         }
@@ -116,7 +199,7 @@ export const CheckSotNgoaiTinhPage = () => {
 
       const results = await Promise.allSettled([
         checkPackedOrders(),
-        looseOrders.run(senderId, receiverIds),
+        looseOrders.run(senderId, receiverIds, activeCot?.currentStationReceivedTime),
       ]);
 
       for (const result of results) {
@@ -169,6 +252,17 @@ export const CheckSotNgoaiTinhPage = () => {
       />
 
       <CreateTimeRangeNotice range={lastCreateTimeRange} />
+
+      <CotCutoffControl
+        enabled={cotPreferences.enabled}
+        localDateTime={cotPreferences.localDateTime}
+        disabled={loading}
+        progress={cotProgress}
+        onEnabledChange={handleCotEnabledChange}
+        onDateTimeChange={(localDateTime) =>
+          setCotPreferences((current) => ({ ...current, localDateTime }))
+        }
+      />
 
       <LooseOrderSummary
         state={looseOrders.state}
